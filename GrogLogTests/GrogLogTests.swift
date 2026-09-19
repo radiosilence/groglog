@@ -291,3 +291,42 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(ledger.status(on: saturday - 1) == .alcoholFree)
     }
 }
+
+/// The catalogue is a hand-written table, so guard the mistakes hand-writing makes: a stray decimal point,
+/// a brand listed twice, a serve with no size.
+@Suite struct CatalogTests {
+    /// What a strength can plausibly be for each kind of drink — wide enough for Old Rosie and Duvel,
+    /// tight enough to catch 45% where 4.5% was meant.
+    private func band(_ category: DrinkCategory) -> ClosedRange<Double> {
+        switch category {
+        case .beer, .stout: 2...13
+        case .cider: 2...9
+        case .redWine, .whiteWine, .rose: 8...16
+        case .bubbles: 5...14
+        case .fortified: 14...22
+        case .spirit: 10...60
+        case .alcopop: 3...8
+        case .cocktail: 3...35
+        case .units: 100...100
+        }
+    }
+
+    @Test func strengthsArePlausibleForTheirKind() {
+        for brand in Catalog.brands {
+            #expect(band(brand.category).contains(brand.abv), "\(brand.name) at \(brand.abv)%")
+        }
+    }
+
+    @Test func everyBrandIsListedOnceAndHasSizes() {
+        #expect(Set(Catalog.brands.map(\.name)).count == Catalog.brands.count)
+        #expect(Set(Catalog.items.map(\.id)).count == Catalog.items.count)
+        #expect(Catalog.brands.allSatisfy { !$0.serves.isEmpty })
+        #expect(Catalog.items.allSatisfy { $0.volumeMl >= 10 && $0.volumeMl <= 750 })
+    }
+
+    @Test func searchFindsBrandsAndKinds() {
+        #expect(Catalog.search("stella").contains { $0.name == "Stella Artois" })
+        #expect(Catalog.search("Red wine").allSatisfy { $0.category == .redWine })
+        #expect(Catalog.search("  ").isEmpty)
+    }
+}

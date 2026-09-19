@@ -7,6 +7,7 @@
 - The goal is edited as a draft, saved on Done and discarded on Cancel, from one sheet everywhere. Setup shows a summary row rather than the editor inline, where every keystroke was written straight to settings.
 - Marking a day dry buzzes; un-marking it no longer does.
 - Log tiles are buttons to VoiceOver, with the long-press sheet as an "Options" action.
+- The UK catalogue goes from about 90 brands to about 220, and every strength is now the current UK label figure rather than one written from memory. Corrections worth knowing: Carling is 4% (not 3.7%), Carlsberg 3.4%, Kronenbourg 1664 4.6%, Grolsch 3.4%, Tanqueray 41.3%, Malibu 18%, Pimm's 22%. A brand brewed at two strengths is now two entries — `Fuller's London Pride` at 4.1% and `Fuller's London Pride (bottle)` at 4.7% — so a bottle of ale doesn't quietly log as its cask figure.
 - Reports leads with Weekly progress and Monthly progress — the same chart over different spans — both scrollable and pinchable, with today banded.
 - This week joins This month: the running total by drink time against the last three weeks and the week's budget.
 - The Day chart compares against the week before rather than the month.
