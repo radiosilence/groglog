@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Catalogue drinks arrive with a price instead of £0.00. Adopting one used to create a drink with no price at all, so anything picked from the catalogue logged as free and the spend charts quietly read zero — worse than the generic it replaced. Every serve now carries its own price rather than one per brand scaled by volume, because a pint and its supermarket can differ by more than double per millilitre. A pint, a glass or a measure is priced as a London bar; a can or a bottle as a supermarket. The figures are estimates, not looked-up prices (#9), and the on-trade/off-trade split is a fudge until #10 lands.
+- The silly end of the cellar: nine champagnes from Moët to Cristal, and a few bottles nobody logs twice — Dom Pérignon P3 1971, Château d'Yquem 1811, Mouton Rothschild 1945, Penfolds Grange 1951, Screaming Eagle 1992, and the Veuve Clicquot salvaged off Åland, which fermented cool and slow on the seabed and measured 9%.
 - The long-press sheet puts size, how many and when first: with 200-odd brands below, they were a long scroll away.
 - Number pads get a Done button. Units, strength, goal amounts and price had no way to put the keyboard away.
 - The day rollover holds on the nights the clocks change: for an hour each changeover, a drink could land on the wrong side of "day ends at".

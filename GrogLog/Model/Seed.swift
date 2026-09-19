@@ -3,18 +3,20 @@ import GRDB
 
 nonisolated enum Seed {
     /// Generic drinks at Drinkaware's standard strengths, with the sizes that start out on the Log grid.
+    /// Prices follow the catalogue's convention: a pint, a glass or a measure is what a London bar charges,
+    /// a can or a bottle is what a supermarket does. Estimates — every one is editable.
     private static let generics: [(name: String, category: DrinkCategory, serves: [(Vessel, Double, Double)])] = [
-        ("Beer", .beer, [(.pint, 568, 5.50), (.half, 284, 3.00), (.can, 440, 2.00), (.can, 500, 2.50), (.bottle, 330, 4.50), (.bottle, 660, 7.00)]),
-        ("Stout", .stout, [(.pint, 568, 5.80)]),
-        ("Cider", .cider, [(.pint, 568, 5.50), (.bottle, 500, 3.00)]),
-        ("Red wine", .redWine, [(.wineGlass, 175, 6.50), (.wineGlass, 250, 8.50), (.wineBottle, 750, 9.00)]),
-        ("White wine", .whiteWine, [(.wineGlass, 175, 6.50), (.wineGlass, 125, 5.00)]),
-        ("Rosé", .rose, [(.wineGlass, 175, 6.50)]),
-        ("Fizz", .bubbles, [(.flute, 125, 7.00), (.wineBottle, 750, 12.00)]),
-        ("Spirits", .spirit, [(.shot, 25, 4.00)]),
-        ("Alcopop", .alcopop, [(.bottle, 275, 3.50)]),
-        ("Cocktail", .cocktail, [(.coupe, 150, 10.00)]),
-        ("Port or sherry", .fortified, [(.wineGlass, 50, 4.00)]),
+        ("Beer", .beer, [(.pint, 568, 6.40), (.half, 284, 3.20), (.can, 440, 2.10), (.can, 500, 2.40), (.bottle, 330, 1.95), (.bottle, 660, 3.15)]),
+        ("Stout", .stout, [(.pint, 568, 6.30)]),
+        ("Cider", .cider, [(.pint, 568, 6.50), (.bottle, 500, 3.10)]),
+        ("Red wine", .redWine, [(.wineGlass, 175, 8.50), (.wineGlass, 250, 12.00), (.wineBottle, 750, 9.50)]),
+        ("White wine", .whiteWine, [(.wineGlass, 175, 8.50), (.wineGlass, 125, 6.00)]),
+        ("Rosé", .rose, [(.wineGlass, 175, 8.50)]),
+        ("Fizz", .bubbles, [(.flute, 125, 8.50), (.wineBottle, 750, 12.50)]),
+        ("Spirits", .spirit, [(.shot, 25, 5.00)]),
+        ("Alcopop", .alcopop, [(.bottle, 275, 2.20)]),
+        ("Cocktail", .cocktail, [(.coupe, 150, 12.00)]),
+        ("Port or sherry", .fortified, [(.wineGlass, 50, 5.50)]),
     ]
 
     /// Generic drinks and their starting Log-grid tiles, on a fresh install.

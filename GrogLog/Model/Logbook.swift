@@ -90,8 +90,8 @@ nonisolated struct Logbook: Sendable {
     }
 
     /// The drink with this name and type, or a new one first had at this size.
-    func drink(named name: String, category: DrinkCategory, abv: Double, vessel: Vessel, volumeMl: Double) -> Drink? {
-        write { db in try findOrCreate(name: name, category: category, abv: abv, vessel: vessel, volumeMl: volumeMl, db) }
+    func drink(named name: String, category: DrinkCategory, abv: Double, vessel: Vessel, volumeMl: Double, price: Double = 0) -> Drink? {
+        write { db in try findOrCreate(name: name, category: category, abv: abv, vessel: vessel, volumeMl: volumeMl, price: price, db) }
     }
 
     func pin(_ serve: Serve) {
@@ -148,9 +148,9 @@ nonisolated struct Logbook: Sendable {
         }
     }
 
-    func findOrCreate(name: String, category: DrinkCategory, abv: Double, vessel: Vessel, volumeMl: Double, _ db: Database) throws -> Drink {
+    func findOrCreate(name: String, category: DrinkCategory, abv: Double, vessel: Vessel, volumeMl: Double, price: Double = 0, _ db: Database) throws -> Drink {
         if let drink = try Drink.filter(Column("name") == name && Column("category") == category.rawValue).fetchOne(db) { return drink }
-        let drink = Drink(name: name, category: category, abv: abv, vessel: vessel, volumeMl: volumeMl)
+        let drink = Drink(name: name, category: category, abv: abv, vessel: vessel, volumeMl: volumeMl, price: price)
         try drink.insert(db)
         return drink
     }

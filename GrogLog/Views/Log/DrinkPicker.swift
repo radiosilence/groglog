@@ -144,8 +144,8 @@ struct DrinkPicker: View {
     /// A catalogue pick becomes one of your drinks, first had at this size.
     private func adopt(_ item: CatalogItem) -> Serve? {
         search = ""
-        return database.logbook(prefs).drink(named: item.name, category: item.category, abv: item.abv, vessel: item.vessel, volumeMl: item.volumeMl)
-            .map { Serve($0, item.vessel, item.volumeMl) }
+        return database.logbook(prefs).drink(named: item.name, category: item.category, abv: item.abv, vessel: item.vessel, volumeMl: item.volumeMl, price: item.price)
+            .map { Serve($0, item.vessel, item.volumeMl, price: item.price) }
     }
 }
 
