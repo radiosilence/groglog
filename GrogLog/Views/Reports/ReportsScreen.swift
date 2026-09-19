@@ -1,3 +1,4 @@
+import GRDBQuery
 import Charts
 import SwiftUI
 
@@ -37,26 +38,35 @@ struct ReportsScreen: View {
 }
 
 /// The last four weeks as two trend lines — what you drank and your budget, each a 7-day rolling average so the
-/// Day by day against the budget: what you drank, and the budget each day had joined into one line — its steps are
-/// where a dynamic budget reacted to a heavy or light day — running on as the dashed plan from today.
+/// Drinking against the budget: the orange line is units drunk in the last 24 hours at any moment, so each night is
+/// a hump you can compare with that day's budget, which runs on as the dashed plan from today.
 private struct MonthlyProgressCard: View {
     let ledger: Ledger
     let goal: Goal
     let onSetGoal: () -> Void
+    @Query<EntriesRequest> private var entries: [Entry]
+
+    /// As far back as the chart scrolls; the drinks themselves are only fetched for this window.
+    private static let history = 120
+
+    init(ledger: Ledger, goal: Goal, onSetGoal: @escaping () -> Void) {
+        self.ledger = ledger
+        self.goal = goal
+        self.onSetGoal = onSetGoal
+        _entries = Query(constant: EntriesRequest(days: (ledger.today - Self.history - 1)...ledger.today))
+    }
 
     var body: some View {
         let calendar = ledger.clock.calendar
         let today = ledger.today
         // The whole history is drawn; the chart shows a month of it at a time and scrolls back through the rest.
         let window = 35
-        let past = (ledger.firstDay ?? today - 27)...today
-        // Days drunk or dry; today only once it has drinks, so an empty evening isn't drawn as a dry day.
-        let drankDays = past.filter { ledger.isLogged($0) && !($0 == today && ledger.status(on: today) == .today) }
-        let drank = drankDays.map { ($0.date(in: calendar), ledger.totals(on: $0).units) }
+        let past = max(ledger.firstDay ?? today - 27, today - Self.history)...today
+        let drank = ledger.rollingDay(entries, over: past)
         let budgets = { (days: ClosedRange<DayKey>) in days.compactMap { day in ledger.dailyBudget(on: day, goal: goal).map { (day, $0) } } }
         let behind = goal.isEnabled ? budgets(past) : []
         let ahead = goal.isEnabled ? budgets(today...(today + 14)).map { ($0.0.date(in: calendar), $0.1) } : []
-        let top = max(10, drank.map(\.1).max() ?? 0, ahead.map(\.1).max() ?? 0) * 1.15
+        let top = max(10, drank.map(\.units).max() ?? 0, ahead.map(\.1).max() ?? 0) * 1.15
 
         Card(title: "Monthly progress") {
             if let todays = ledger.dailyBudget(on: today, goal: goal) {
@@ -71,14 +81,12 @@ private struct MonthlyProgressCard: View {
                 .foregroundStyle(.secondary)
             }
             Chart {
-                ForEach(drank, id: \.0) { day, units in
-                    AreaMark(x: .value("Day", day, unit: .day), y: .value("Units", units), series: .value("Line", "Drank"))
+                ForEach(drank, id: \.date) { point in
+                    AreaMark(x: .value("When", point.date), y: .value("Units", point.units), series: .value("Line", "Drank"))
                         .foregroundStyle(LinearGradient(colors: [Color.grog.opacity(0.3), Color.grog.opacity(0.02)], startPoint: .top, endPoint: .bottom))
-                        .interpolationMethod(.monotone)
-                    LineMark(x: .value("Day", day, unit: .day), y: .value("Units", units), series: .value("Line", "Drank"))
+                    LineMark(x: .value("When", point.date), y: .value("Units", point.units), series: .value("Line", "Drank"))
                         .foregroundStyle(Color.grog)
-                        .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
-                        .interpolationMethod(.monotone)
+                        .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
                 }
                 ForEach(behind, id: \.0) { day, units in
                     LineMark(x: .value("Day", day.date(in: calendar)), y: .value("Units", units), series: .value("Line", "Budget"))
@@ -107,7 +115,7 @@ private struct MonthlyProgressCard: View {
             .frame(height: 220)
 
             HStack(spacing: 16) {
-                LegendKey(label: "Drank", color: .grog)
+                LegendKey(label: "Last 24h", color: .grog)
                 if goal.isEnabled {
                     LegendKey(label: "Budget", color: .dry)
                     LegendKey(label: "Plan", color: .dry, dashed: true)
@@ -124,16 +132,22 @@ private struct MonthlyProgressCard: View {
 /// This month's running total against last month's, Strava-style.
 private struct MonthCard: View {
     let ledger: Ledger
+    @Query<EntriesRequest> private var entries: [Entry]
+
+    init(ledger: Ledger) {
+        self.ledger = ledger
+        _entries = Query(constant: EntriesRequest(days: (ledger.today.monthStart - 1).monthStart...ledger.today))
+    }
 
     var body: some View {
         let calendar = ledger.clock.calendar
         let today = ledger.today
         let thisMonth = today.monthStart
         let lastMonth = (thisMonth - 1).monthStart
-        let current = ledger.monthCumulative(thisMonth, through: today)
-        let previous = ledger.monthCumulative(lastMonth)
+        let current = ledger.monthCurve(entries, of: thisMonth, through: today)
+        let previous = ledger.monthCurve(entries, of: lastMonth)
         let dayOfMonth = today.components.day
-        let lastAtSameDay = previous[min(dayOfMonth, previous.count - 1)].units
+        let lastAtSameDay = previous.last { $0.hour <= Double(dayOfMonth) }?.units ?? 0
         let now = current.last?.units ?? 0
         let hasLastMonth = (previous.last?.units ?? 0) > 0
 

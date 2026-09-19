@@ -115,15 +115,17 @@ nonisolated struct Ledger {
         return start...(day - 1)
     }
 
-    /// Running units total by day of the month, through `through` (or the month's end).
-    func monthCumulative(_ month: DayKey, through: DayKey? = nil) -> [CurvePoint] {
+    /// Running units total through a month, stepping at each drink — x is days into the month, so a heavy night
+    /// shows as a steep climb rather than a single step.
+    func monthCurve(_ entries: [Entry], of month: DayKey, through: DayKey? = nil) -> [CurvePoint] {
+        let days = month...(month + month.daysInMonth - 1)
         var total = 0.0
         var points = [CurvePoint(hour: 0, units: 0)]
-        for index in 0..<month.daysInMonth {
-            let day = month + index
-            if let through, day > through { break }
-            total += totals(on: day).units
-            points.append(CurvePoint(hour: Double(index + 1), units: total))
+        let last = through ?? days.upperBound
+        for entry in entries.filter({ days.contains($0.dayKey) && $0.dayKey <= last }).sorted(by: { $0.timestamp < $1.timestamp }) {
+            total += entry.units
+            let into = Double(month.distance(to: entry.dayKey)) + min(1, max(0, clock.hours(entry.timestamp, into: entry.dayKey) / 24))
+            points.append(CurvePoint(hour: into, units: total))
         }
         return points
     }
@@ -188,6 +190,33 @@ nonisolated struct Ledger {
     }
 
     // MARK: Curves
+
+    /// Units drunk in the 24 hours up to each hour across `range` — the shape of the drinking itself, comparable with
+    /// a daily budget. Entries must cover the range (plus the day before it).
+    func rollingDay(_ entries: [Entry], over range: ClosedRange<DayKey>) -> [(date: Date, units: Double)] {
+        let times = entries.map { (at: $0.timestamp, units: $0.units) }.sorted { $0.at < $1.at }
+        guard !times.isEmpty else { return [] }
+        let start = clock.start(of: range.lowerBound)
+        let end = min(clock.end(of: range.upperBound), .now)
+        guard start < end else { return [] }
+        var points: [(Date, Double)] = []
+        var total = 0.0
+        var entering = 0
+        var leaving = 0
+        for step in stride(from: start.timeIntervalSinceReferenceDate, through: end.timeIntervalSinceReferenceDate, by: 3600) {
+            let at = Date(timeIntervalSinceReferenceDate: step)
+            while entering < times.count, times[entering].at <= at {
+                total += times[entering].units
+                entering += 1
+            }
+            while leaving < entering, times[leaving].at <= at.addingTimeInterval(-24 * 3600) {
+                total -= times[leaving].units
+                leaving += 1
+            }
+            points.append((at, max(0, total)))
+        }
+        return points
+    }
 
     /// Running total of units through a day, as a step series from `from` to `through` hours after the day starts.
     func cumulative(_ pours: [Entry], on day: DayKey, from: Double = 0, through: Double = 24) -> [CurvePoint] {
