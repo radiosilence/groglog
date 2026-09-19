@@ -10,6 +10,7 @@ Written because Drinkaware's Drink Coach is low-friction but slow, allows one dr
 - **Days end at 5am** (configurable). The 1am pint belongs to the night it was part of.
 - **A drink is what it is; size is how you had it.** A drink holds name, type and strength (Staropramen, beer, 5%). A Log-grid tile is a drink in a size at the price you usually pay; a log entry is a drink in a size at the price you actually paid. Fixing a drink's name or ABV fixes everything logged as it; prices are copied because they change. Sizes always come from the type — beers get pints, cans and bottles, never a wine glass. Generic drinks use Drinkaware's standard strengths (beer 4%, cider 4.5%, wine 12%, spirits 40%) and are editable.
 - **The grid is yours.** Favourites (drink + size) plus anything logged that day, most recent first. Tap logs it; long-press picks a specific drink of the same type, overrides the size, stars it onto the grid, or logs several earlier. A tap never reshuffles the grid.
+- **Charts follow the drinks, not the day's total.** Progress charts plot units drunk in the rolling last 24 hours, so each night is a hump comparable with that day's budget; cumulative charts step at each drink. A day inside its budget reads teal, just over amber, well over red.
 - **Units as an item.** When you only know a total (another app, a night you didn't log), log "Units" directly.
 
 ## Layout
@@ -18,8 +19,8 @@ Written because Drinkaware's Drink Coach is low-friction but slow, allows one dr
 |---|---|
 | Log | The picker for today. Search, tap, long-press, undo. |
 | Calendar | History; tap a day to see or backfill it, long-press to mark it dry. |
-| Day | Running units through the day vs yesterday and the month's average day, plus the day's budget draining. |
-| Reports | Monthly progress (daily units vs the budget, with the fortnight ahead), this month vs last (cumulative), weekly bars, streaks, spend. |
+| Day | Running units through the day vs yesterday and the week's average day, plus the day's budget draining. |
+| Reports | Weekly and monthly progress (units in the last 24 hours against the budget, with the fortnight ahead — scroll and pinch), this week and this month against earlier ones, weekly bars, streaks, spend. |
 | Setup | Goal, drinks, day end, currency, export/import. |
 
 ## Data

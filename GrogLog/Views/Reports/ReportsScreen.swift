@@ -19,7 +19,8 @@ struct ReportsScreen: View {
 
         ScrollView {
             VStack(spacing: 16) {
-                MonthlyProgressCard(ledger: ledger, goal: prefs.goal) { settingGoal = true }
+                ProgressCard(title: "Weekly progress", days: 10, history: 60, ledger: ledger, goal: prefs.goal) { settingGoal = true }
+                ProgressCard(title: "Monthly progress", days: 35, history: 120, ledger: ledger, goal: prefs.goal) { settingGoal = true }
                 WeekCard(ledger: ledger, goal: prefs.goal)
                 MonthCard(ledger: ledger)
                 WeeksCard(stats: stats, weeks: $weeks)
@@ -41,33 +42,36 @@ struct ReportsScreen: View {
 /// The last four weeks as two trend lines — what you drank and your budget, each a 7-day rolling average so the
 /// Drinking against the budget: the orange line is units drunk in the last 24 hours at any moment, so each night is
 /// a hump you can compare with that day's budget, which runs on as the dashed plan from today.
-private struct MonthlyProgressCard: View {
+private struct ProgressCard: View {
+    let title: String
+    /// As far back as the chart scrolls; the drinks themselves are only fetched for this window.
+    let history: Int
     let ledger: Ledger
     let goal: Goal
     let onSetGoal: () -> Void
     @Query<EntriesRequest> private var entries: [Entry]
-
-    /// As far back as the chart scrolls; the drinks themselves are only fetched for this window.
-    private static let history = 120
-    /// Days across, pinchable between a week and the lot.
-    @State private var window = 35.0
+    /// Days across, pinchable between a few days and the lot.
+    @State private var window: Double
     @GestureState private var pinch = 1.0
 
-    init(ledger: Ledger, goal: Goal, onSetGoal: @escaping () -> Void) {
+    init(title: String, days: Double, history: Int, ledger: Ledger, goal: Goal, onSetGoal: @escaping () -> Void) {
+        self.title = title
+        self.history = history
         self.ledger = ledger
         self.goal = goal
         self.onSetGoal = onSetGoal
-        _entries = Query(constant: EntriesRequest(days: (ledger.today - Self.history - 1)...ledger.today))
+        _window = State(initialValue: days)
+        _entries = Query(constant: EntriesRequest(days: (ledger.today - history - 1)...ledger.today))
     }
 
     var body: some View {
         let calendar = ledger.clock.calendar
         let today = ledger.today
         // The whole history is drawn; the chart shows a month of it at a time and scrolls back through the rest.
-        let history = max(ledger.firstDay ?? today - 27, today - Self.history)
+        let start = max(ledger.firstDay ?? today - 27, today - history)
         // Never show more days than there are; a window wider than the data leaves it stranded at the left.
-        let days = min(Int((window / pinch).rounded()), history.distance(to: today + 15))
-        let past = history...today
+        let days = min(Int((window / pinch).rounded()), start.distance(to: today + 15))
+        let past = start...today
         let drank = ledger.rollingDay(entries, over: past)
         let budgets = { (days: ClosedRange<DayKey>) in days.compactMap { day in ledger.dailyBudget(on: day, goal: goal).map { (day, $0) } } }
         let behind = goal.isEnabled ? budgets(past) : []
@@ -76,7 +80,7 @@ private struct MonthlyProgressCard: View {
         let shown = drank.filter { $0.date >= ledger.clock.start(of: today - days) }
         let top = max(10, shown.map(\.units).max() ?? 0, ahead.map(\.1).max() ?? 0) * 1.15
 
-        Card(title: "Monthly progress") {
+        Card(title: title) {
             if let todays = ledger.dailyBudget(on: today, goal: goal) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Today's budget \(todays.unitsText) u")
@@ -121,11 +125,12 @@ private struct MonthlyProgressCard: View {
             .chartXVisibleDomain(length: Double(days) * 86_400)
             .chartScrollPosition(initialX: (today - (days - 4)).date(in: calendar))
             .frame(height: 220)
-            .gesture(
-                MagnifyGesture()
+            // Simultaneous, or the chart's own scrolling swallows it and nothing zooms.
+            .simultaneousGesture(
+                MagnifyGesture(minimumScaleDelta: 0.05)
                     .updating($pinch) { value, pinch, _ in pinch = min(5, max(0.2, value.magnification)) }
                     .onEnded { value in
-                        window = min(Double(Self.history), max(7, (window / min(5, max(0.2, value.magnification))).rounded()))
+                        window = min(Double(history), max(4, (window / min(5, max(0.2, value.magnification))).rounded()))
                     }
             )
 

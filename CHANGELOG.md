@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Reports leads with Weekly progress and Monthly progress — the same chart over different spans — both scrollable and pinchable, with today banded.
+- This week joins This month: the running total by drink time against the last three weeks and the week's budget.
+- The Day chart compares against the week before rather than the month.
 - Logging a drink plays a pour: the tile squishes, the glass fills (head and all), "+units" floats up and the count pops.
 - Storage moved from SwiftData to SQLite (GRDB). Every change is a single transaction and screens update the moment it commits — no more lag after a burst of logging. Three years at 20 drinks a day imports in about 1.5 s; a tap takes about 1 ms.
 - Restoring a backup onto a fresh install matches drinks by name and type, so the built-in generics aren't doubled.
