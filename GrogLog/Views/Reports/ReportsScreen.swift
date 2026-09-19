@@ -45,16 +45,18 @@ private struct MonthlyProgressCard: View {
         let calendar = ledger.clock.calendar
         let today = ledger.today
         let past = (today - 27)...today
-        // One budget series — what each day's budget was, then what it's planned to be — averaged like your drinking,
-        // so the solid and dashed parts meet at today.
         let budgets = Dictionary(((today - 33)...(today + 14)).compactMap { day in ledger.dailyBudget(on: day, goal: goal).map { (day, $0) } }, uniquingKeysWith: { a, _ in a })
         let averageBudget = { (day: DayKey) -> Double? in
             let values = ((day - 6)...day).compactMap { budgets[$0] }
             return values.isEmpty ? nil : values.reduce(0, +) / Double(values.count)
         }
         let drank = past.compactMap { day in averageDrank(day).map { (day.date(in: calendar), $0) } }
-        let budget = past.compactMap { day in averageBudget(day).map { (day.date(in: calendar), $0) } }
-        let plan = (today...(today + 14)).compactMap { day in averageBudget(day).map { (day.date(in: calendar), $0) } }
+        // Fixed schedule: one budget series, averaged like your drinking, solid to today and dashed after.
+        // Dynamic: past budgets just echo your own drinking, so only the plan is drawn — today's budget if kept to.
+        let budget = goal.isDynamic ? [] : past.compactMap { day in averageBudget(day).map { (day.date(in: calendar), $0) } }
+        let plan = (today...(today + 14)).compactMap { day in
+            (goal.isDynamic ? budgets[day] : averageBudget(day)).map { (day.date(in: calendar), $0) }
+        }
 
         Card(title: "Monthly progress") {
             if let todays = ledger.dailyBudget(on: today, goal: goal) {
@@ -99,8 +101,8 @@ private struct MonthlyProgressCard: View {
             HStack(spacing: 16) {
                 LegendKey(label: "Drank", color: .grog)
                 if goal.isEnabled {
-                    LegendKey(label: "Budget", color: .dry)
-                    LegendKey(label: "Plan", color: .dry, dashed: true)
+                    if !goal.isDynamic { LegendKey(label: "Budget", color: .dry) }
+                    LegendKey(label: goal.isDynamic ? "Plan, if kept to" : "Plan", color: .dry, dashed: true)
                 }
                 Spacer()
                 Text("7-day averages").font(.caption).foregroundStyle(.tertiary)
