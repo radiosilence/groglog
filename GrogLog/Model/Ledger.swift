@@ -50,7 +50,7 @@ struct Ledger {
         dry = Set(dryDays.map(\.day))
         firstDay = (Array(byDay.keys) + Array(dry)).min()
         lastPoured = pours.reduce(into: [:]) { latest, pour in
-            guard let id = pour.drinkID else { return }
+            guard let id = pour.drink?.id else { return }
             latest[id] = max(latest[id] ?? .distantPast, pour.timestamp)
         }
     }

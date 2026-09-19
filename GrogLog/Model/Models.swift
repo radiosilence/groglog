@@ -16,6 +16,7 @@ import SwiftData
     var isFavourite: Bool = false
     var isHidden: Bool = false
     var order: Int = 0
+    @Relationship(deleteRule: .nullify, inverse: \Pour.drink) var pours: [Pour]? = []
 
     init(name: String, category: DrinkCategory, vessel: Vessel, volumeMl: Double, abv: Double, price: Double = 0, isGeneric: Bool = false, isFavourite: Bool = false, order: Int = 0) {
         self.name = name
@@ -43,70 +44,35 @@ import SwiftData
     var kcal: Double { kcalOverride ?? Units.kcal(ml: volumeMl, abv: abv, category: category) }
 }
 
-/// A drink actually consumed. Snapshots the drink's details so editing a drink never rewrites history.
+/// A drink actually had: a reference to the drink, plus what's particular to this one — when, how much, and what it cost.
+/// Name, strength and type are read from the drink, so correcting a drink corrects everything logged as it.
 @Model final class Pour {
     var id: UUID = UUID()
     var timestamp: Date = Date.now
-    var name: String = ""
-    var categoryRaw: String = DrinkCategory.beer.rawValue
-    var vesselRaw: String = Vessel.pint.rawValue
+    /// The size actually poured, which can differ from the drink's usual serve.
     var volumeMl: Double = 0
-    var abv: Double = 0
+    /// What it cost at the time. Prices change, so this is copied rather than read from the drink.
     var price: Double = 0
-    var kcal: Double = 0
-    var drinkID: UUID?
+    /// Calories supplied by another app's import; otherwise they're worked out from the drink.
+    var kcalOverride: Double?
+    var drink: Drink?
 
-    init(id: UUID = UUID(), timestamp: Date, name: String, category: DrinkCategory, vessel: Vessel, volumeMl: Double, abv: Double, price: Double, kcal: Double, drinkID: UUID?) {
+    init(drink: Drink, at timestamp: Date, volumeMl: Double? = nil, price: Double? = nil, kcalOverride: Double? = nil, id: UUID = UUID()) {
+        let volume = volumeMl ?? drink.volumeMl
         self.id = id
         self.timestamp = timestamp
-        self.name = name
-        self.categoryRaw = category.rawValue
-        self.vesselRaw = vessel.rawValue
-        self.volumeMl = volumeMl
-        self.abv = abv
-        self.price = price
-        self.kcal = kcal
-        self.drinkID = drinkID
+        self.volumeMl = volume
+        self.price = price ?? drink.price * volume / drink.volumeMl
+        self.kcalOverride = kcalOverride
+        self.drink = drink
     }
 
-    /// Logs `drink`, optionally in a different size — price and calories scale with it.
-    convenience init(drink: Drink, at timestamp: Date, volumeMl: Double? = nil) {
-        let scale = (volumeMl ?? drink.volumeMl) / drink.volumeMl
-        self.init(timestamp: timestamp, name: drink.name, category: drink.category, vessel: drink.vessel, volumeMl: drink.volumeMl * scale, abv: drink.abv, price: drink.price * scale, kcal: drink.kcal * scale, drinkID: drink.id)
-    }
-
-    var category: DrinkCategory { DrinkCategory(rawValue: categoryRaw) ?? .beer }
-    var vessel: Vessel { Vessel(rawValue: vesselRaw) ?? .pint }
+    var name: String { drink?.name ?? "Deleted drink" }
+    var category: DrinkCategory { drink?.category ?? .units }
+    var vessel: Vessel { drink?.vessel ?? .shot }
+    var abv: Double { drink?.abv ?? 0 }
     var units: Double { Units.of(ml: volumeMl, abv: abv) }
-
-    func recalculateKcal() {
-        kcal = Units.kcal(ml: volumeMl, abv: abv, category: category)
-    }
-}
-
-extension Pour {
-    /// A bare unit count: 1 unit is 10 ml of pure alcohol.
-    convenience init(units: Double, at timestamp: Date, kcal: Double? = nil, price: Double = 0, drinkID: UUID? = nil, id: UUID = UUID()) {
-        self.init(id: id, timestamp: timestamp, name: "Units", category: .units, vessel: .shot, volumeMl: units * 10, abv: 100, price: price, kcal: kcal ?? Units.kcal(ml: units * 10, abv: 100, category: .units), drinkID: drinkID)
-    }
-}
-
-extension Pour {
-    /// Brings a pour in line with a corrected drink. Pours logged at the drink's usual size take its new size and price;
-    /// ones logged at another size keep their size and scale the new price.
-    func correct(to drink: Drink, previousVolumeMl: Double) {
-        name = drink.name
-        categoryRaw = drink.categoryRaw
-        vesselRaw = drink.vesselRaw
-        abv = drink.abv
-        if volumeMl == previousVolumeMl {
-            volumeMl = drink.volumeMl
-            price = drink.price
-        } else {
-            price = drink.price * volumeMl / drink.volumeMl
-        }
-        recalculateKcal()
-    }
+    var kcal: Double { kcalOverride ?? Units.kcal(ml: volumeMl, abv: abv, category: category) }
 }
 
 /// An explicit "I didn't drink" marker. Its absence means the day wasn't logged, not that it was dry.
@@ -119,6 +85,26 @@ extension Pour {
 }
 
 extension ModelContext {
+    /// The drink for bare unit counts (1 unit = 10 ml at 100%).
+    func unitsDrink() -> Drink {
+        let raw = DrinkCategory.units.rawValue
+        if let drink = try? fetch(FetchDescriptor(predicate: #Predicate<Drink> { $0.categoryRaw == raw })).first { return drink }
+        let drink = Drink(name: "Units", category: .units, vessel: .shot, volumeMl: 10, abv: 100, isGeneric: true, order: 99)
+        insert(drink)
+        return drink
+    }
+
+    /// The drink with these details, or a new one hidden from the picker — for imports that name drinks this phone hasn't seen.
+    func drink(named name: String, category: DrinkCategory, vessel: Vessel, volumeMl: Double, abv: Double) -> Drink {
+        let raw = category.rawValue
+        let matches = (try? fetch(FetchDescriptor(predicate: #Predicate<Drink> { $0.name == name && $0.categoryRaw == raw }))) ?? []
+        if let drink = matches.first(where: { $0.abv == abv }) ?? matches.first { return drink }
+        let drink = Drink(name: name, category: category, vessel: vessel, volumeMl: volumeMl, abv: abv)
+        drink.isHidden = true
+        insert(drink)
+        return drink
+    }
+
     func setAlcoholFree(_ dry: Bool, on day: Date) {
         let existing = (try? fetch(FetchDescriptor(predicate: #Predicate<AlcoholFreeDay> { $0.day == day }))) ?? []
         if dry, existing.isEmpty { insert(AlcoholFreeDay(day: day)) }

@@ -58,7 +58,7 @@ struct DrinkEditor: View {
                     }
                     Section {
                         Toggle("Show in picker", isOn: Binding(get: { !draft.isHidden }, set: { draft.isHidden = !$0 }))
-                        if !drink.isGeneric {
+                        if !drink.isGeneric, drink.pours?.isEmpty ?? true {
                             Button("Delete drink", role: .destructive) {
                                 context.delete(drink)
                                 dismiss()
@@ -81,13 +81,7 @@ struct DrinkEditor: View {
         }
     }
 
-    /// Everything already logged as this drink.
-    private var history: [Pour] {
-        guard let id = drink?.id else { return [] }
-        return (try? context.fetch(FetchDescriptor(predicate: #Predicate<Pour> { $0.drinkID == id }))) ?? []
-    }
-
-    /// Writes the draft back, and brings everything already logged as this drink in line with it.
+    /// Writes the draft back. Logged drinks read name and strength from the drink; ones poured at its usual size follow a size correction too.
     private func save() {
         if draft.name.isEmpty { draft.name = "\(draft.vessel.label) of \(draft.category.label.lowercased())" }
         guard let drink else {
@@ -98,7 +92,9 @@ struct DrinkEditor: View {
         }
         let previousVolume = drink.volumeMl
         draft.apply(to: drink)
-        history.forEach { $0.correct(to: drink, previousVolumeMl: previousVolume) }
+        for pour in drink.pours ?? [] where pour.volumeMl == previousVolume {
+            pour.volumeMl = drink.volumeMl
+        }
         dismiss()
     }
 

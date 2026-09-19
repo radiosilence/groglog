@@ -34,7 +34,8 @@ struct AddDrinkSheet: View {
     }
 }
 
-/// Edits a copy and writes it back on Done, so typing doesn't re-render every screen behind the sheet.
+/// One logged drink: when, how much, what it cost. Name and strength belong to the drink, edited from here via its own editor.
+/// Works on a draft saved on Done.
 struct PourEditor: View {
     let pour: Pour
     let day: Date
@@ -42,20 +43,17 @@ struct PourEditor: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Environment(Prefs.self) private var prefs
-    @State private var name: String
     @State private var time: Date
     @State private var volume: Double
-    @State private var abv: Double
     @State private var price: Double
+    @State private var editingDrink = false
 
     init(pour: Pour, day: Date, clock: DayClock) {
         self.pour = pour
         self.day = day
         self.clock = clock
-        _name = State(initialValue: pour.name)
         _time = State(initialValue: pour.timestamp)
         _volume = State(initialValue: pour.volumeMl)
-        _abv = State(initialValue: pour.abv)
         _price = State(initialValue: pour.price)
     }
 
@@ -68,11 +66,14 @@ struct PourEditor: View {
                         DrinkGlyph(category: pour.category, vessel: pour.vessel, volumeMl: volume)
                             .frame(width: 56, height: 56)
                         VStack(alignment: .leading) {
-                            TextField("Name", text: $name).font(.headline)
-                            Text("\(Units.of(ml: volume, abv: abv).unitsText) u")
+                            Text(pour.name).font(.headline)
+                            Text("\(Units.of(ml: volume, abv: pour.abv).unitsText) u")
                                 .font(.subheadline.monospacedDigit())
                                 .foregroundStyle(.secondary)
                         }
+                    }
+                    if let drink = pour.drink, !isUnits {
+                        Button("Edit \(drink.name)", systemImage: "pencil") { editingDrink = true }
                     }
                 }
                 Section {
@@ -80,8 +81,10 @@ struct PourEditor: View {
                     if isUnits {
                         NumberRow(label: "Units", value: Binding(get: { volume / 10 }, set: { volume = $0 * 10 }), suffix: "u")
                     } else {
-                        NumberRow(label: "Volume", value: $volume, suffix: "ml")
-                        NumberRow(label: "Strength", value: $abv, suffix: "% ABV")
+                        if let sizes = pour.drink.map({ Array(Set($0.vessel.volumes + [$0.volumeMl, volume])).sorted() }), sizes.count > 1 {
+                            ChipRow(options: sizes, selection: $volume) { $0.volumeText }
+                        }
+                        NumberRow(label: "Size", value: $volume, suffix: "ml")
                     }
                     MoneyField(label: "Price", value: $price, currency: prefs.currency)
                 }
@@ -100,16 +103,15 @@ struct PourEditor: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done", role: .confirm) {
-                        let resized = volume != pour.volumeMl || abv != pour.abv
-                        pour.name = name
                         pour.timestamp = time
                         pour.volumeMl = volume
-                        pour.abv = abv
                         pour.price = price
-                        if resized { pour.recalculateKcal() }
                         dismiss()
                     }
                 }
+            }
+            .sheet(isPresented: $editingDrink) {
+                if let drink = pour.drink { DrinkEditor(drink: drink) }
             }
         }
     }

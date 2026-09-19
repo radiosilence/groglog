@@ -93,7 +93,7 @@ private func date(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 0, _ min: Int = 0) ->
     let clock = DayClock(rolloverHour: 5, calendar: london)
 
     private func pour(_ at: Date, ml: Double = 568, abv: Double = 5) -> Pour {
-        Pour(timestamp: at, name: "Pint", category: .beer, vessel: .pint, volumeMl: ml, abv: abv, price: 5, kcal: 200, drinkID: nil)
+        Pour(drink: Drink(name: "Pint", category: .beer, vessel: .pint, volumeMl: ml, abv: abv, price: 5), at: at)
     }
 
     @Test func distinguishesDryFromUnlogged() {
@@ -163,19 +163,18 @@ private func date(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 0, _ min: Int = 0) ->
     }
 }
 
-@MainActor @Suite struct CorrectionTests {
-    @Test func correctingADrinkUpdatesPastPoursBySize() {
+@MainActor @Suite struct ReferenceTests {
+    @Test func loggedDrinksFollowTheirDrinkButKeepTheirPrice() {
         let drink = Drink(name: "Staropramen", category: .beer, vessel: .can, volumeMl: 440, abv: 5, price: 2)
         let usual = Pour(drink: drink, at: .now)
         let pint = Pour(drink: drink, at: .now, volumeMl: 568)
         drink.name = "Staropramen Premium"
         drink.abv = 4
-        drink.volumeMl = 500
-        drink.price = 2.5
-        usual.correct(to: drink, previousVolumeMl: 440)
-        pint.correct(to: drink, previousVolumeMl: 440)
-        #expect(usual.name == "Staropramen Premium" && usual.volumeMl == 500 && usual.price == 2.5 && usual.abv == 4)
-        #expect(pint.volumeMl == 568 && abs(pint.price - 2.5 * 568 / 500) < 0.0001)
+        drink.price = 3
+        #expect(usual.name == "Staropramen Premium" && usual.abv == 4)
+        #expect(abs(pint.units - Units.of(ml: 568, abv: 4)) < 0.0001)
+        #expect(usual.price == 2)
+        #expect(abs(pint.price - 2 * 568 / 440) < 0.0001)
     }
 }
 

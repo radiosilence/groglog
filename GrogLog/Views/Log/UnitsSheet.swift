@@ -5,17 +5,15 @@ import SwiftUI
 struct UnitsSheet: View {
     let day: Date
     let ledger: Ledger
-    let drinkID: UUID?
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @State private var units: Double?
     @State private var time: Date
     @FocusState private var focused: Bool
 
-    init(day: Date, ledger: Ledger, drinkID: UUID?) {
+    init(day: Date, ledger: Ledger) {
         self.day = day
         self.ledger = ledger
-        self.drinkID = drinkID
         _time = State(initialValue: ledger.clock.suggestedTime(for: day, after: ledger.pours(on: day).last?.timestamp))
     }
 
@@ -47,7 +45,7 @@ struct UnitsSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Log", role: .confirm) {
                         guard let units, units > 0 else { return }
-                        context.insert(Pour(units: units, at: time, drinkID: drinkID))
+                        context.insert(Pour(drink: context.unitsDrink(), at: time, volumeMl: units * 10))
                         context.setAlcoholFree(false, on: day)
                         dismiss()
                     }

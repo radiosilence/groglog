@@ -13,12 +13,14 @@ struct DrinkPicker: View {
     @State private var countingUnits = false
     @State private var creating = false
     @State private var logged = 0
+    /// Recency as of when the screen appeared, so tapping a drink doesn't shuffle the grid under your thumb.
+    @State private var recency: [UUID: Date] = [:]
 
     private let columns = [GridItem(.adaptive(minimum: 104), spacing: 12)]
 
     var body: some View {
         let pours = ledger.pours(on: day)
-        let countByDrink = Dictionary(grouping: pours.compactMap(\.drinkID)) { $0 }.mapValues(\.count)
+        let countByDrink = Dictionary(grouping: pours.compactMap { $0.drink?.id }) { $0 }.mapValues(\.count)
 
         ScrollView {
             LazyVGrid(columns: columns, spacing: 12) {
@@ -60,13 +62,14 @@ struct DrinkPicker: View {
                 .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $countingUnits) {
-            UnitsSheet(day: day, ledger: ledger, drinkID: drinks.first { $0.category == .units }?.id)
+            UnitsSheet(day: day, ledger: ledger)
                 .presentationDetents([.medium])
         }
         .sheet(isPresented: $creating) {
             DrinkEditor(drink: nil)
         }
         .sensoryFeedback(.impact(weight: .medium), trigger: logged)
+        .onAppear { recency = ledger.lastPoured }
     }
 
     /// Generics and favourites — or, when searching, every drink that matches. Recently drunk first.
@@ -75,7 +78,7 @@ struct DrinkPicker: View {
         return drinks
             .filter { query.isEmpty ? $0.isGeneric || $0.isFavourite : $0.name.localizedStandardContains(query) || $0.category.label.localizedStandardContains(query) }
             .sorted { a, b in
-                switch (ledger.lastPoured[a.id], ledger.lastPoured[b.id]) {
+                switch (recency[a.id], recency[b.id]) {
                 case let (x?, y?): x > y
                 case (.some, nil): true
                 case (nil, .some): false

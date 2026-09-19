@@ -3,10 +3,7 @@ import SwiftData
 
 enum Seed {
     static func drinksIfNeeded(_ context: ModelContext) {
-        let unitsCategory = DrinkCategory.units.rawValue
-        if (try? context.fetchCount(FetchDescriptor(predicate: #Predicate<Drink> { $0.categoryRaw == unitsCategory }))) == 0 {
-            context.insert(Drink(name: "Units", category: .units, vessel: .shot, volumeMl: 10, abv: 100, isGeneric: true, order: 99))
-        }
+        _ = context.unitsDrink()
         guard (try? context.fetchCount(FetchDescriptor<Drink>())) == 1 else { return }
         let generics: [Drink] = [
             Drink(name: "Pint of beer", category: .beer, vessel: .pint, volumeMl: 568, abv: 4.5, price: 5.50, isGeneric: true),
@@ -68,7 +65,7 @@ enum Seed {
             }
             let evening = clock.calendar.date(bySettingHour: 19, minute: 0, second: 0, of: day)!
             if let total = screenshot[key] {
-                context.insert(Pour(units: total.units, at: evening, kcal: total.kcal, price: total.cost))
+                context.insert(Pour(drink: context.unitsDrink(), at: evening, volumeMl: total.units * 10, price: total.cost, kcalOverride: total.kcal))
                 continue
             }
             let roll = Double.random(in: 0..<1, using: &rng)

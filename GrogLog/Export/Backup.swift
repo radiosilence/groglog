@@ -92,7 +92,7 @@ enum Exporter {
                     cost: totals.cost.rounded2,
                     budget: ledger.dailyBudget(on: day, goal: prefs.goal)?.rounded2,
                     pours: ledger.pours(on: day).map {
-                        .init(id: $0.id, time: $0.timestamp, name: $0.name, category: $0.category, vessel: $0.vessel, volumeMl: $0.volumeMl, abv: $0.abv, units: $0.units.rounded2, kcal: $0.kcal.rounded(), price: $0.price, drinkID: $0.drinkID)
+                        .init(id: $0.id, time: $0.timestamp, name: $0.name, category: $0.category, vessel: $0.vessel, volumeMl: $0.volumeMl, abv: $0.abv, units: $0.units.rounded2, kcal: $0.kcal.rounded(), price: $0.price, drinkID: $0.drink?.id)
                     }
                 )
             }
@@ -153,7 +153,8 @@ enum Exporter {
         let backup = try decoder.decode(Backup.self, from: data)
         let clock = prefs.clock
 
-        let drinkIDs = Set(try context.fetch(FetchDescriptor<Drink>()).map(\.id))
+        var drinks = try context.fetch(FetchDescriptor<Drink>())
+        let drinkIDs = Set(drinks.map(\.id))
         let existing = try context.fetch(FetchDescriptor<Pour>())
         let pourIDs = Set(existing.map(\.id))
         let daysWithPours = Set(existing.map { clock.day(for: $0.timestamp) })
@@ -165,6 +166,7 @@ enum Exporter {
             drink.isHidden = record.isHidden
             drink.isFavourite = record.isFavourite ?? false
             context.insert(drink)
+            drinks.append(drink)
         }
 
         var added = 0
@@ -178,7 +180,7 @@ enum Exporter {
             let evening = clock.calendar.date(bySettingHour: 20, minute: 0, second: 0, of: date)!
             let records = day.pours ?? []
             if records.isEmpty, let units = day.units, units > 0 {
-                context.insert(Pour(units: units, at: evening, kcal: day.kcal, price: day.cost ?? 0))
+                context.insert(Pour(drink: context.unitsDrink(), at: evening, volumeMl: units * 10, price: day.cost ?? 0, kcalOverride: day.kcal))
                 added += 1
             }
             for (index, record) in records.enumerated() where !pourIDs.contains(record.id ?? UUID()) {
@@ -187,13 +189,11 @@ enum Exporter {
                 if let volume = record.volumeMl {
                     let category = record.category ?? .beer
                     let abv = record.abv ?? category.defaultABV
-                    context.insert(Pour(
-                        id: id, timestamp: time, name: record.name, category: category,
-                        vessel: record.vessel ?? category.defaultVessel, volumeMl: volume, abv: abv, price: record.price ?? 0,
-                        kcal: record.kcal ?? Units.kcal(ml: volume, abv: abv, category: category), drinkID: record.drinkID
-                    ))
+                    let drink = drinks.first { $0.id == record.drinkID }
+                        ?? context.drink(named: record.name, category: category, vessel: record.vessel ?? category.defaultVessel, volumeMl: volume, abv: abv)
+                    context.insert(Pour(drink: drink, at: time, volumeMl: volume, price: record.price ?? 0, id: id))
                 } else {
-                    context.insert(Pour(units: record.units ?? 0, at: time, kcal: record.kcal, price: record.price ?? 0, drinkID: record.drinkID, id: id))
+                    context.insert(Pour(drink: context.unitsDrink(), at: time, volumeMl: (record.units ?? 0) * 10, price: record.price ?? 0, kcalOverride: record.kcal, id: id))
                 }
                 added += 1
             }

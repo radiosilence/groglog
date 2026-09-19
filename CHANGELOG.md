@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-- Editing a drink updates everything already logged as it; "Save as new drink" is there for when the drink itself changed.
+- Logged drinks reference their drink instead of copying it: edits to name, type or strength apply to everything logged as it, while each entry keeps its own time, size and price. "Save as new drink" for when the drink itself changed; drinks with history can only be hidden.
+- The Log grid no longer re-sorts under your thumb; it picks up the new order next time you open it.
 - Price entry fixed: typing 1, 5, 0 reads £0.01, £0.15, £1.50.
 - Reports opens with **Monthly progress**: what you drank and your budget as 7-day rolling averages over four weeks, with the taper ahead.
 - Dynamic budgets look back past gaps to the last logged day (up to four weeks) and show no budget rather than inventing one when there's no history.
