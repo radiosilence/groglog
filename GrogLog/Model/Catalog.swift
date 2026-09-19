@@ -2,6 +2,15 @@ import Foundation
 
 /// Common UK drinks and their usual serves, so logging a specific brand is a search and a tap.
 /// ABVs are typical UK figures and brands do quietly change them — anything logged from here becomes an editable drink.
+struct CatalogBrand: Identifiable {
+    let name: String
+    let category: DrinkCategory
+    let abv: Double
+    let serves: [(vessel: Vessel, ml: Double)]
+    var id: String { name }
+}
+
+/// One brand in one of its usual sizes.
 struct CatalogItem: Identifiable, Hashable {
     let name: String
     let category: DrinkCategory
@@ -14,28 +23,29 @@ struct CatalogItem: Identifiable, Hashable {
 }
 
 enum Catalog {
-    private typealias Serve = (vessel: Vessel, ml: Double)
+    private typealias Size = (vessel: Vessel, ml: Double)
 
-    private static let pint: Serve = (.pint, 568)
-    private static let half: Serve = (.half, 284)
-    private static let can330: Serve = (.can, 330)
-    private static let can440: Serve = (.can, 440)
-    private static let can500: Serve = (.can, 500)
-    private static let can568: Serve = (.can, 568)
-    private static let bottle275: Serve = (.bottle, 275)
-    private static let bottle330: Serve = (.bottle, 330)
-    private static let bottle500: Serve = (.bottle, 500)
-    private static let bottle568: Serve = (.bottle, 568)
-    private static let bottle660: Serve = (.bottle, 660)
-    private static let glass125: Serve = (.wineGlass, 125)
-    private static let glass175: Serve = (.wineGlass, 175)
-    private static let glass250: Serve = (.wineGlass, 250)
-    private static let flute: Serve = (.flute, 125)
-    private static let wineBottle: Serve = (.wineBottle, 750)
-    private static let single: Serve = (.shot, 25)
-    private static let double: Serve = (.tumbler, 50)
+    private static let pint: Size = (.pint, 568)
+    private static let half: Size = (.half, 284)
+    private static let can330: Size = (.can, 330)
+    private static let can440: Size = (.can, 440)
+    private static let can500: Size = (.can, 500)
+    private static let can568: Size = (.can, 568)
+    private static let bottle275: Size = (.bottle, 275)
+    private static let bottle330: Size = (.bottle, 330)
+    private static let bottle500: Size = (.bottle, 500)
+    private static let bottle568: Size = (.bottle, 568)
+    private static let bottle660: Size = (.bottle, 660)
+    private static let glass125: Size = (.wineGlass, 125)
+    private static let glass175: Size = (.wineGlass, 175)
+    private static let glass250: Size = (.wineGlass, 250)
+    private static let flute: Size = (.flute, 125)
+    private static let wineBottle: Size = (.wineBottle, 750)
+    private static let single: Size = (.shot, 25)
+    private static let single35: Size = (.shot, 35)
+    private static let bottle70cl: Size = (.wineBottle, 700)
 
-    private static let brands: [(String, DrinkCategory, Double, [Serve])] = [
+    private static let entries: [(String, DrinkCategory, Double, [Size])] = [
         // Lager
         ("Stella Artois", .beer, 4.6, [pint, can440, can500, bottle330]),
         ("Carling", .beer, 3.7, [pint, can440, can568]),
@@ -100,16 +110,16 @@ enum Catalog {
         ("Port", .fortified, 20.0, [(.wineGlass, 50)]),
         ("Sherry", .fortified, 15.0, [(.wineGlass, 70)]),
         // Spirits
-        ("Gordon's Gin", .spirit, 37.5, [single, double]),
-        ("Tanqueray", .spirit, 43.1, [single, double]),
-        ("Bombay Sapphire", .spirit, 40.0, [single, double]),
-        ("Smirnoff", .spirit, 37.5, [single, double]),
-        ("Absolut", .spirit, 40.0, [single, double]),
-        ("Jack Daniel's", .spirit, 40.0, [single, double]),
-        ("Jameson", .spirit, 40.0, [single, double]),
-        ("The Famous Grouse", .spirit, 40.0, [single, double]),
-        ("Captain Morgan Spiced", .spirit, 35.0, [single, double]),
-        ("Bacardi", .spirit, 37.5, [single, double]),
+        ("Gordon's Gin", .spirit, 37.5, [single, single35, bottle70cl]),
+        ("Tanqueray", .spirit, 43.1, [single, single35, bottle70cl]),
+        ("Bombay Sapphire", .spirit, 40.0, [single, single35, bottle70cl]),
+        ("Smirnoff", .spirit, 37.5, [single, single35, bottle70cl]),
+        ("Absolut", .spirit, 40.0, [single, single35, bottle70cl]),
+        ("Jack Daniel's", .spirit, 40.0, [single, single35, bottle70cl]),
+        ("Jameson", .spirit, 40.0, [single, single35, bottle70cl]),
+        ("The Famous Grouse", .spirit, 40.0, [single, single35, bottle70cl]),
+        ("Captain Morgan Spiced", .spirit, 35.0, [single, single35, bottle70cl]),
+        ("Bacardi", .spirit, 37.5, [single, single35, bottle70cl]),
         ("Jägermeister", .spirit, 35.0, [single]),
         ("Tequila", .spirit, 38.0, [single]),
         ("Baileys", .spirit, 17.0, [(.tumbler, 50)]),
@@ -126,8 +136,10 @@ enum Catalog {
         ("White Claw", .alcopop, 4.5, [can330]),
     ]
 
-    static let items: [CatalogItem] = brands.flatMap { name, category, abv, serves in
-        serves.map { CatalogItem(name: name, category: category, vessel: $0.vessel, volumeMl: $0.ml, abv: abv) }
+    static let brands: [CatalogBrand] = entries.map { CatalogBrand(name: $0.0, category: $0.1, abv: $0.2, serves: $0.3) }
+
+    static let items: [CatalogItem] = brands.flatMap { brand in
+        brand.serves.map { CatalogItem(name: brand.name, category: brand.category, vessel: $0.vessel, volumeMl: $0.ml, abv: brand.abv) }
     }
 
     static func search(_ query: String) -> [CatalogItem] {

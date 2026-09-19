@@ -44,6 +44,7 @@ struct PourEditor: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(Prefs.self) private var prefs
     @State private var time: Date
+    @State private var vessel: Vessel
     @State private var volume: Double
     @State private var price: Double
     @State private var editingDrink = false
@@ -53,6 +54,7 @@ struct PourEditor: View {
         self.day = day
         self.clock = clock
         _time = State(initialValue: pour.timestamp)
+        _vessel = State(initialValue: pour.vessel)
         _volume = State(initialValue: pour.volumeMl)
         _price = State(initialValue: pour.price)
     }
@@ -63,7 +65,7 @@ struct PourEditor: View {
             Form {
                 Section {
                     HStack(spacing: 14) {
-                        DrinkGlyph(category: pour.category, vessel: pour.vessel, volumeMl: volume)
+                        DrinkGlyph(category: pour.category, vessel: vessel, volumeMl: volume)
                             .frame(width: 56, height: 56)
                         VStack(alignment: .leading) {
                             Text(pour.name).font(.headline)
@@ -81,8 +83,10 @@ struct PourEditor: View {
                     if isUnits {
                         NumberRow(label: "Units", value: Binding(get: { volume / 10 }, set: { volume = $0 * 10 }), suffix: "u")
                     } else {
-                        if let sizes = pour.drink.map({ Array(Set($0.vessel.volumes + [$0.volumeMl, volume])).sorted() }), sizes.count > 1 {
-                            ChipRow(options: sizes, selection: $volume) { $0.volumeText }
+                        let sizes = pour.category.serves.map { Size(vessel: $0.vessel, ml: $0.ml) }
+                        ChipRow(options: sizes.contains(Size(vessel: vessel, ml: volume)) ? sizes : sizes + [Size(vessel: vessel, ml: volume)],
+                                selection: Binding(get: { Size(vessel: vessel, ml: volume) }, set: { vessel = $0.vessel; volume = $0.ml })) {
+                            $0.vessel.label(ml: $0.ml)
                         }
                         NumberRow(label: "Size", value: $volume, suffix: "ml")
                     }
@@ -104,6 +108,7 @@ struct PourEditor: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done", role: .confirm) {
                         pour.timestamp = time
+                        pour.vesselRaw = vessel.rawValue
                         pour.volumeMl = volume
                         pour.price = price
                         dismiss()
@@ -115,4 +120,9 @@ struct PourEditor: View {
             }
         }
     }
+}
+
+private struct Size: Hashable {
+    let vessel: Vessel
+    let ml: Double
 }

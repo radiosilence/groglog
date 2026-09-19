@@ -2,37 +2,36 @@ import Foundation
 import SwiftData
 
 enum Seed {
+    /// Generic drinks at Drinkaware's standard strengths, with the sizes that start out on the Log grid.
+    private static let generics: [(name: String, category: DrinkCategory, serves: [(Vessel, Double, Double)])] = [
+        ("Beer", .beer, [(.pint, 568, 5.50), (.half, 284, 3.00), (.can, 440, 2.00), (.can, 500, 2.50), (.bottle, 330, 4.50), (.bottle, 660, 7.00)]),
+        ("Stout", .stout, [(.pint, 568, 5.80)]),
+        ("Cider", .cider, [(.pint, 568, 5.50), (.bottle, 500, 3.00)]),
+        ("Red wine", .redWine, [(.wineGlass, 175, 6.50), (.wineGlass, 250, 8.50), (.wineBottle, 750, 9.00)]),
+        ("White wine", .whiteWine, [(.wineGlass, 175, 6.50), (.wineGlass, 125, 5.00)]),
+        ("Rosé", .rose, [(.wineGlass, 175, 6.50)]),
+        ("Fizz", .bubbles, [(.flute, 125, 7.00), (.wineBottle, 750, 12.00)]),
+        ("Spirits", .spirit, [(.shot, 25, 4.00)]),
+        ("Alcopop", .alcopop, [(.bottle, 275, 3.50)]),
+        ("Cocktail", .cocktail, [(.coupe, 150, 10.00)]),
+        ("Port or sherry", .fortified, [(.wineGlass, 50, 4.00)]),
+    ]
+
     static func drinksIfNeeded(_ context: ModelContext) {
-        _ = context.unitsDrink()
+        let units = context.unitsDrink()
         guard (try? context.fetchCount(FetchDescriptor<Drink>())) == 1 else { return }
-        let generics: [Drink] = [
-            Drink(name: "Pint of beer", category: .beer, vessel: .pint, volumeMl: 568, abv: 4.5, price: 5.50, isGeneric: true),
-            Drink(name: "Half of beer", category: .beer, vessel: .half, volumeMl: 284, abv: 4.5, price: 3.00, isGeneric: true),
-            Drink(name: "Can of beer", category: .beer, vessel: .can, volumeMl: 440, abv: 4.5, price: 2.00, isGeneric: true),
-            Drink(name: "Can of beer", category: .beer, vessel: .can, volumeMl: 500, abv: 5.0, price: 2.50, isGeneric: true),
-            Drink(name: "Bottle of beer", category: .beer, vessel: .bottle, volumeMl: 330, abv: 5.0, price: 4.50, isGeneric: true),
-            Drink(name: "Bottle of beer", category: .beer, vessel: .bottle, volumeMl: 660, abv: 5.0, price: 7.00, isGeneric: true),
-            Drink(name: "Pint of stout", category: .stout, vessel: .pint, volumeMl: 568, abv: 4.2, price: 5.80, isGeneric: true),
-            Drink(name: "Pint of cider", category: .cider, vessel: .pint, volumeMl: 568, abv: 4.5, price: 5.50, isGeneric: true),
-            Drink(name: "Bottle of cider", category: .cider, vessel: .bottle, volumeMl: 500, abv: 4.5, price: 3.00, isGeneric: true),
-            Drink(name: "Glass of red", category: .redWine, vessel: .wineGlass, volumeMl: 175, abv: 13.5, price: 6.50, isGeneric: true),
-            Drink(name: "Large red", category: .redWine, vessel: .wineGlass, volumeMl: 250, abv: 13.5, price: 8.50, isGeneric: true),
-            Drink(name: "Glass of white", category: .whiteWine, vessel: .wineGlass, volumeMl: 175, abv: 12.5, price: 6.50, isGeneric: true),
-            Drink(name: "Small white", category: .whiteWine, vessel: .wineGlass, volumeMl: 125, abv: 12.5, price: 5.00, isGeneric: true),
-            Drink(name: "Glass of rosé", category: .rose, vessel: .wineGlass, volumeMl: 175, abv: 12, price: 6.50, isGeneric: true),
-            Drink(name: "Bottle of wine", category: .redWine, vessel: .wineBottle, volumeMl: 750, abv: 13.5, price: 9.00, isGeneric: true),
-            Drink(name: "Glass of fizz", category: .bubbles, vessel: .flute, volumeMl: 125, abv: 11, price: 7.00, isGeneric: true),
-            Drink(name: "Bottle of fizz", category: .bubbles, vessel: .wineBottle, volumeMl: 750, abv: 11, price: 12.00, isGeneric: true),
-            Drink(name: "Single spirit", category: .spirit, vessel: .shot, volumeMl: 25, abv: 40, price: 4.00, isGeneric: true),
-            Drink(name: "Double spirit", category: .spirit, vessel: .tumbler, volumeMl: 50, abv: 40, price: 7.00, isGeneric: true),
-            Drink(name: "Alcopop", category: .alcopop, vessel: .bottle, volumeMl: 275, abv: 4, price: 3.50, isGeneric: true),
-            Drink(name: "Cocktail", category: .cocktail, vessel: .coupe, volumeMl: 150, abv: 15, price: 10.00, isGeneric: true),
-            Drink(name: "Port or sherry", category: .fortified, vessel: .wineGlass, volumeMl: 50, abv: 20, price: 4.00, isGeneric: true),
-        ]
-        for (index, drink) in generics.enumerated() {
-            drink.order = 100 + index
+        context.insert(Favourite(drink: units, vessel: .shot, volumeMl: 10, price: 0, order: 99))
+        var order = 100
+        for generic in generics {
+            let (vessel, ml, price) = generic.serves[0]
+            let drink = Drink(name: generic.name, category: generic.category, abv: generic.category.defaultABV, vessel: vessel, volumeMl: ml, price: price, isGeneric: true, order: order)
             context.insert(drink)
+            for (vessel, ml, price) in generic.serves {
+                context.insert(Favourite(drink: drink, vessel: vessel, volumeMl: ml, price: price, order: order))
+                order += 1
+            }
         }
+        try? context.save()
     }
 
     #if DEBUG
@@ -43,9 +42,9 @@ enum Seed {
         let today = clock.today
         let existing = Set(((try? context.fetch(FetchDescriptor<Pour>())) ?? []).map { clock.day(for: $0.timestamp) })
         let favourites = [
-            favourite(named: "Stella Artois", .beer, .can, 440, 4.6, 1.75, in: context),
-            favourite(named: "Henry Westons Vintage", .cider, .bottle, 500, 8.2, 2.75, in: context),
-            favourite(named: "Gipsy Hill Hepcat", .beer, .pint, 568, 4.6, 6.50, in: context),
+            favourite(named: "Stella Artois", .beer, 4.6, .can, 440, 1.75, in: context),
+            favourite(named: "Henry Westons Vintage", .cider, 8.2, .bottle, 500, 2.75, in: context),
+            favourite(named: "Gipsy Hill Hepcat", .beer, 4.6, .pint, 568, 6.50, in: context),
         ]
         let screenshot: [String: (units: Double, kcal: Double, cost: Double)] = [
             "2026-09-12": (30.6, 2696, 42.00), "2026-09-13": (27.6, 2328, 34.80), "2026-09-14": (40.5, 3160, 49.70),
@@ -79,9 +78,9 @@ enum Seed {
             var time = clock.calendar.date(bySettingHour: 13, minute: Int.random(in: 0..<59, using: &rng), second: 0, of: day)!
             var units = 0.0
             while units < target {
-                let drink = favourites[Int.random(in: 0..<10, using: &rng) < 6 ? 0 : Int.random(in: 1...2, using: &rng)]
-                context.insert(Pour(drink: drink, at: time))
-                units += drink.units
+                let serve = favourites[Int.random(in: 0..<10, using: &rng) < 6 ? 0 : Int.random(in: 1...2, using: &rng)]
+                context.insert(Pour(serve, at: time))
+                units += serve.units
                 time = time.addingTimeInterval(Double.random(in: 20...40, using: &rng) * 60)
             }
         }
@@ -95,11 +94,14 @@ enum Seed {
         try? context.delete(model: AlcoholFreeDay.self)
     }
 
-    private static func favourite(named name: String, _ category: DrinkCategory, _ vessel: Vessel, _ ml: Double, _ abv: Double, _ price: Double, in context: ModelContext) -> Drink {
-        if let drink = try? context.fetch(FetchDescriptor(predicate: #Predicate<Drink> { $0.name == name })).first { return drink }
-        let drink = Drink(name: name, category: category, vessel: vessel, volumeMl: ml, abv: abv, price: price, isFavourite: true)
-        context.insert(drink)
-        return drink
+    private static func favourite(named name: String, _ category: DrinkCategory, _ abv: Double, _ vessel: Vessel, _ ml: Double, _ price: Double, in context: ModelContext) -> Serve {
+        let drink = context.drink(named: name, category: category, abv: abv, vessel: vessel, volumeMl: ml)
+        drink.price = price
+        let serve = Serve(drink, vessel, ml, price: price)
+        if !(drink.favourites ?? []).contains(where: { $0.vessel == vessel && $0.volumeMl == ml }) {
+            context.insert(Favourite(drink: drink, vessel: vessel, volumeMl: ml, price: price))
+        }
+        return serve
     }
     #endif
 }

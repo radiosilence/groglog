@@ -39,8 +39,8 @@ struct WeekStat: Identifiable {
 struct Ledger {
     let clock: DayClock
     let firstDay: Date?
-    /// When each drink was last poured, for putting your usuals first.
-    let lastPoured: [UUID: Date]
+    /// When each drink-and-size was last poured (keyed by `Serve.key`), for putting your usuals first.
+    let lastPoured: [String: Date]
     private let byDay: [Date: [Pour]]
     private let dry: Set<Date>
 
@@ -50,8 +50,7 @@ struct Ledger {
         dry = Set(dryDays.map(\.day))
         firstDay = (Array(byDay.keys) + Array(dry)).min()
         lastPoured = pours.reduce(into: [:]) { latest, pour in
-            guard let id = pour.drink?.id else { return }
-            latest[id] = max(latest[id] ?? .distantPast, pour.timestamp)
+            latest[pour.serveKey] = max(latest[pour.serveKey] ?? .distantPast, pour.timestamp)
         }
     }
 

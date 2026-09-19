@@ -10,7 +10,7 @@ struct GrogLogApp: App {
         let demo = ProcessInfo.processInfo.arguments.contains("-demo")
         let prefs = Prefs(store: demo ? UserDefaults(suiteName: "demo")! : .standard)
         container = try! ModelContainer(
-            for: Drink.self, Pour.self, AlcoholFreeDay.self,
+            for: Drink.self, Favourite.self, Pour.self, AlcoholFreeDay.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: demo)
         )
         Seed.drinksIfNeeded(container.mainContext)

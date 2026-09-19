@@ -83,24 +83,39 @@ nonisolated enum DrinkCategory: String, CaseIterable, Codable, Identifiable {
         }
     }
 
+    /// Drinkaware's standard strengths, used for the generic drinks.
     var defaultABV: Double {
         switch self {
-        case .beer, .cider: 4.5
-        case .stout: 4.2
-        case .redWine: 13.5
-        case .whiteWine: 12.5
-        case .rose, .bubbles: 12
+        case .beer, .stout: 4
+        case .cider: 4.5
+        case .redWine, .whiteWine, .rose, .bubbles: 12
         case .spirit: 40
-        case .alcopop: 4
+        case .alcopop: 5
         case .cocktail: 15
         case .fortified: 20
         case .units: 100
         }
     }
 
-    /// "568 ml · 4.6%", or just "units" for bare unit counts.
-    func serving(ml: Double, abv: Double) -> String {
-        self == .units ? "units" : "\(Int(ml)) ml · \(abv.formatted(.number.precision(.fractionLength(0...1))))%"
+    /// The sizes this kind of drink usually comes in.
+    var serves: [(vessel: Vessel, ml: Double)] {
+        switch self {
+        case .beer: [(.pint, 568), (.half, 284), (.can, 330), (.can, 440), (.can, 500), (.can, 568), (.bottle, 330), (.bottle, 500), (.bottle, 660)]
+        case .stout: [(.pint, 568), (.half, 284), (.can, 440), (.can, 500)]
+        case .cider: [(.pint, 568), (.half, 284), (.can, 440), (.can, 500), (.bottle, 500), (.bottle, 568)]
+        case .redWine, .whiteWine, .rose: [(.wineGlass, 125), (.wineGlass, 175), (.wineGlass, 250), (.wineBottle, 750)]
+        case .bubbles: [(.flute, 125), (.wineBottle, 750)]
+        case .spirit: [(.shot, 25), (.shot, 35), (.wineBottle, 700)]
+        case .alcopop: [(.bottle, 275), (.can, 250), (.can, 330)]
+        case .cocktail: [(.coupe, 150), (.tumbler, 250)]
+        case .fortified: [(.wineGlass, 50), (.wineGlass, 70)]
+        case .units: [(.shot, 10)]
+        }
+    }
+
+    /// "Pint · 4.6%", "440 ml can · 5%" — or "any amount" for bare unit counts.
+    func serving(_ vessel: Vessel, ml: Double, abv: Double) -> String {
+        self == .units ? "any amount" : "\(vessel.label(ml: ml)) · \(abv.formatted(.number.precision(.fractionLength(0...1))))%"
     }
 }
 
@@ -121,6 +136,23 @@ nonisolated enum Vessel: String, CaseIterable, Codable, Identifiable {
         case .shot: "Shot"
         case .tumbler: "Tumbler"
         case .coupe: "Cocktail"
+        }
+    }
+
+    /// How a serve reads on a tile: "Pint", "440 ml can", "175 ml glass", "Single".
+    func label(ml: Double) -> String {
+        let size = "\(Int(ml)) ml"
+        return switch self {
+        case .pint: "Pint"
+        case .half: "Half"
+        case .can: "\(size) can"
+        case .bottle: "\(size) bottle"
+        case .wineBottle: ml >= 700 ? "Bottle" : "\(size) bottle"
+        case .wineGlass: "\(size) glass"
+        case .flute: "Glass"
+        case .shot: ml <= 35 ? "\(size) single" : "\(size) shot"
+        case .tumbler: ml == 50 ? "Double" : size
+        case .coupe: size
         }
     }
 

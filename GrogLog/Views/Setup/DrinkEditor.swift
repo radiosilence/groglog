@@ -1,8 +1,8 @@
 import SwiftData
 import SwiftUI
 
-/// Create or edit a drink. Picking a type fills in a sensible vessel, size and strength, so a new drink is usually type → name → done.
-/// Edits a local copy saved on Done; Cancel discards.
+/// Create or edit a drink: what it is (name, type, strength), plus the size and price it's usually had at.
+/// Sizes come from the type, so a beer is offered pints and cans, never a wine glass. Edits a draft saved on Save.
 struct DrinkEditor: View {
     let drink: Drink?
     @Environment(\.modelContext) private var context
@@ -32,38 +32,40 @@ struct DrinkEditor: View {
                 }
 
                 Section {
-                    TextField("Name, e.g. Hepcat", text: $draft.name)
+                    TextField("Name, e.g. Staropramen", text: $draft.name)
                         .font(.headline)
                     if drink?.isGeneric != true {
-                        Toggle("Favourite", systemImage: "star", isOn: $draft.isFavourite)
+                        ChipRow(options: DrinkCategory.allCases.filter { $0 != .units }, selection: category) { $0.label }
                     }
-                    ChipRow(options: DrinkCategory.allCases.filter { $0 != .units }, selection: category) { $0.label }
-                    ChipRow(options: Vessel.allCases, selection: $draft.vessel) { $0.label }
-                    ChipRow(options: draft.vessel.volumes, selection: $draft.volumeMl) { $0.volumeText }
-                    NumberRow(label: "Volume", value: $draft.volumeMl, suffix: "ml")
                     NumberRow(label: "Strength", value: $draft.abv, suffix: "% ABV")
-                    MoneyField(label: "Price", value: $draft.price, currency: prefs.currency)
                 }
 
-                if let drink {
+                if draft.category != .units {
+                    Section {
+                        ChipRow(options: sizes, selection: size) { $0.vessel.label(ml: $0.ml) }
+                        MoneyField(label: "Price", value: $draft.price, currency: prefs.currency)
+                    } header: {
+                        Text("Usual size")
+                    } footer: {
+                        Text("What it's first offered as. Long-press a tile to log it in another size.")
+                    }
+                }
+
+                if let drink, !drink.isGeneric {
                     Section {
                         Button("Save as new drink", systemImage: "plus.square.on.square") {
-                            let new = Drink(name: draft.name, category: draft.category, vessel: draft.vessel, volumeMl: draft.volumeMl, abv: draft.abv)
-                            draft.apply(to: new)
-                            context.insert(new)
+                            insertNew()
                             dismiss()
                         }
-                    } footer: {
-                        Text("Saving updates everything logged as this drink. If the drink itself changed, save it as a new one and the old entries stay as they were.")
-                    }
-                    Section {
-                        Toggle("Show in picker", isOn: Binding(get: { !draft.isHidden }, set: { draft.isHidden = !$0 }))
-                        if !drink.isGeneric, drink.pours?.isEmpty ?? true {
+                        Toggle("Show in pickers", isOn: Binding(get: { !draft.isHidden }, set: { draft.isHidden = !$0 }))
+                        if drink.pours?.isEmpty ?? true {
                             Button("Delete drink", role: .destructive) {
                                 context.delete(drink)
                                 dismiss()
                             }
                         }
+                    } footer: {
+                        Text("Saving updates everything logged as this drink. If the drink itself changed, save it as a new one and the old entries stay as they were.")
                     }
                 }
             }
@@ -75,52 +77,60 @@ struct DrinkEditor: View {
                     Button("Cancel", role: .cancel) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(drink == nil ? "Add" : "Save", role: .confirm, action: save)
+                    Button(drink == nil ? "Add" : "Save", role: .confirm) {
+                        if let drink { draft.apply(to: drink) } else { insertNew() }
+                        dismiss()
+                    }
+                    .disabled(draft.name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
         }
     }
 
-    /// Writes the draft back. Logged drinks read name and strength from the drink; ones poured at its usual size follow a size correction too.
-    private func save() {
-        if draft.name.isEmpty { draft.name = "\(draft.vessel.label) of \(draft.category.label.lowercased())" }
-        guard let drink else {
-            let new = Drink(name: draft.name, category: draft.category, vessel: draft.vessel, volumeMl: draft.volumeMl, abv: draft.abv)
-            draft.apply(to: new)
-            context.insert(new)
-            return dismiss()
-        }
-        let previousVolume = drink.volumeMl
-        draft.apply(to: drink)
-        for pour in drink.pours ?? [] where pour.volumeMl == previousVolume {
-            pour.volumeMl = drink.volumeMl
-        }
-        dismiss()
+    /// A new drink starts on the Log grid at its usual size.
+    private func insertNew() {
+        let new = Drink(name: draft.name, category: draft.category, abv: draft.abv, vessel: draft.vessel, volumeMl: draft.volumeMl, price: draft.price)
+        draft.apply(to: new)
+        context.insert(new)
+        context.insert(Favourite(drink: new, vessel: new.vessel, volumeMl: new.volumeMl, price: new.price))
     }
 
-    /// Changing the type on a new drink resets its serve to that type's usual one.
+    private var sizes: [Size] {
+        let sizes = draft.category.serves.map { Size(vessel: $0.vessel, ml: $0.ml) }
+        let current = Size(vessel: draft.vessel, ml: draft.volumeMl)
+        return sizes.contains(current) ? sizes : sizes + [current]
+    }
+
+    private var size: Binding<Size> {
+        Binding(get: { Size(vessel: draft.vessel, ml: draft.volumeMl) }, set: { draft.vessel = $0.vessel; draft.volumeMl = $0.ml })
+    }
+
+    /// Changing the type resets the size and, for a new drink, the strength to that type's usual.
     private var category: Binding<DrinkCategory> {
         Binding(
             get: { draft.category },
             set: { category in
                 draft.category = category
-                guard drink == nil else { return }
-                draft.vessel = category.defaultVessel
-                draft.volumeMl = category.defaultVessel.volumes[0]
-                draft.abv = category.defaultABV
+                draft.vessel = category.serves[0].vessel
+                draft.volumeMl = category.serves[0].ml
+                if drink == nil { draft.abv = category.defaultABV }
             }
         )
     }
 }
 
+private struct Size: Hashable {
+    let vessel: Vessel
+    let ml: Double
+}
+
 private struct DrinkDraft {
     var name = ""
     var category = DrinkCategory.beer
+    var abv = DrinkCategory.beer.defaultABV
     var vessel = Vessel.pint
     var volumeMl = 568.0
-    var abv = DrinkCategory.beer.defaultABV
     var price = 0.0
-    var isFavourite = true
     var isHidden = false
 
     init() {}
@@ -128,11 +138,10 @@ private struct DrinkDraft {
     init(_ drink: Drink) {
         name = drink.name
         category = drink.category
+        abv = drink.abv
         vessel = drink.vessel
         volumeMl = drink.volumeMl
-        abv = drink.abv
         price = drink.price
-        isFavourite = drink.isFavourite
         isHidden = drink.isHidden
     }
 
@@ -140,20 +149,18 @@ private struct DrinkDraft {
     var kcal: Double { Units.kcal(ml: volumeMl, abv: abv, category: category) }
 
     func apply(to drink: Drink) {
-        drink.name = name
+        drink.name = name.trimmingCharacters(in: .whitespaces)
         drink.category = category
+        drink.abv = abv
         drink.vessel = vessel
         drink.volumeMl = volumeMl
-        drink.abv = abv
         drink.price = price
-        drink.isFavourite = isFavourite
         drink.isHidden = isHidden
     }
 }
 
 struct DrinksScreen: View {
-    @Query(sort: \Drink.order) private var drinks: [Drink]
-    @Environment(\.modelContext) private var context
+    @Query(sort: \Drink.name) private var drinks: [Drink]
     @State private var editing: Drink?
     @State private var creating = false
 
@@ -179,14 +186,11 @@ struct DrinksScreen: View {
                             .frame(width: 36, height: 36)
                         VStack(alignment: .leading) {
                             Text(drink.name)
-                            Text("\(drink.category.serving(ml: drink.volumeMl, abv: drink.abv)) · \(drink.units.unitsText) u")
+                            Text(drink.category == .units ? "any amount" : "\(drink.category.label) · \(drink.abv.abvText)")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
-                        if drink.isFavourite {
-                            Image(systemName: "star.fill").foregroundStyle(Color.grog)
-                        }
                         if drink.isHidden {
                             Image(systemName: "eye.slash").foregroundStyle(.secondary)
                         }
@@ -197,11 +201,6 @@ struct DrinksScreen: View {
                 .swipeActions {
                     Button(drink.isHidden ? "Show" : "Hide", systemImage: drink.isHidden ? "eye" : "eye.slash") { drink.isHidden.toggle() }
                 }
-            }
-            .onMove { from, to in
-                var reordered = drinks
-                reordered.move(fromOffsets: from, toOffset: to)
-                for (index, drink) in reordered.enumerated() { drink.order = index + (drink.isGeneric ? 100 : 0) }
             }
         }
     }

@@ -1,48 +1,47 @@
 import SwiftData
 import SwiftUI
 
-/// Long-press on a drink: pick which one exactly (the generic, a brand of yours, or one from the UK catalogue),
-/// star brands into the main picker, and optionally log it earlier, in another size, or several at once.
+/// Long-press on a tile: which drink exactly — yours, or a UK brand of the same type — with a star to keep it on the
+/// Log grid at this size. The size starts as the tile's and can be overridden from the type's usual sizes.
 struct LogOptionsSheet: View {
-    let base: Drink
+    let base: Serve
     let day: Date
     let ledger: Ledger
-    /// Told which drink was logged, so the picker can bring it to the front.
-    let onLog: (Drink) -> Void
+    /// Told the serve key of what was logged, so the picker can bring it to the front.
+    let onLog: (String) -> Void
     @Query private var drinks: [Drink]
+    @Query private var favourites: [Favourite]
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @State private var selected: String
-    @State private var volume: Double
+    @State private var size: Size
     @State private var count = 1
     @State private var time: Date
     @State private var search = ""
     @State private var editing: Drink?
 
-    init(base: Drink, day: Date, ledger: Ledger, onLog: @escaping (Drink) -> Void) {
+    init(base: Serve, day: Date, ledger: Ledger, onLog: @escaping (String) -> Void) {
         self.base = base
         self.day = day
         self.ledger = ledger
         self.onLog = onLog
-        _selected = State(initialValue: base.id.uuidString)
-        _volume = State(initialValue: base.volumeMl)
+        _selected = State(initialValue: base.drink.id.uuidString)
+        _size = State(initialValue: Size(vessel: base.vessel, ml: base.volumeMl))
         _time = State(initialValue: ledger.clock.suggestedTime(for: day, after: ledger.pours(on: day).last?.timestamp))
     }
 
     var body: some View {
         let choices = self.choices
         let choice = choices.first { $0.id == selected } ?? choices[0]
-        let sizes = Array(Set(choice.vessel.volumes + [choice.volumeMl])).sorted()
 
         NavigationStack {
             Form {
                 Section {
                     ForEach(choices) { option in
-                        ChoiceRow(choice: option, isSelected: option.id == choice.id) {
+                        ChoiceRow(choice: option, ml: size.ml, isSelected: option.id == choice.id, isPinned: favourite(for: option) != nil) {
                             selected = option.id
-                            volume = option.volumeMl
                         } onStar: {
-                            star(option)
+                            togglePin(option)
                         }
                         .contextMenu {
                             if let drink = option.drink {
@@ -55,9 +54,7 @@ struct LogOptionsSheet: View {
                 }
 
                 Section {
-                    if sizes.count > 1 {
-                        ChipRow(options: sizes, selection: $volume) { $0.volumeText }
-                    }
+                    ChipRow(options: sizes, selection: $size) { $0.vessel.label(ml: $0.ml) }
                     Stepper("How many: \(count)", value: $count, in: 1...12)
                     if day == ledger.clock.today {
                         ChipRow(options: [0, 15, 30, 60, 120, 180], selection: minutesAgo) {
@@ -72,21 +69,22 @@ struct LogOptionsSheet: View {
                     }
                 }
             }
-            .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Find a brand")
-            .navigationTitle(base.name)
+            .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Find a drink")
+            .navigationTitle(base.drink.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", role: .cancel) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Log \(count > 1 ? "\(count) " : "")· \((Units.of(ml: volume, abv: choice.abv) * Double(count)).unitsText) u", role: .confirm) {
+                    Button("Log \(count > 1 ? "\(count) " : "")· \((Units.of(ml: size.ml, abv: choice.abv) * Double(count)).unitsText) u", role: .confirm) {
                         let drink = resolve(choice)
+                        let price = favourite(for: choice)?.price ?? drink.price(forMl: size.ml)
                         for at in spreadTimes {
-                            context.insert(Pour(drink: drink, at: at, volumeMl: volume))
+                            context.insert(Pour(drink: drink, at: at, vessel: size.vessel, volumeMl: size.ml, price: price))
                         }
                         context.setAlcoholFree(false, on: day)
-                        onLog(drink)
+                        onLog(Serve.key(drink.id, size.vessel, size.ml))
                         dismiss()
                     }
                     .fontWeight(.semibold)
@@ -97,39 +95,46 @@ struct LogOptionsSheet: View {
         .animation(.snappy, value: count)
     }
 
-    /// The pressed drink first, then your brands of the same kind, then catalogue ones you don't have yet.
+    /// The pressed drink first, then your other drinks of the same kind, then catalogue brands you don't have yet.
     private var choices: [Choice] {
         let query = search.trimmingCharacters(in: .whitespaces)
         let matches = { (name: String) in query.isEmpty || name.localizedStandardContains(query) }
-        let sameKind = { (category: DrinkCategory, vessel: Vessel) in category == base.category && vessel == base.vessel }
-
+        let kind = base.drink.category
         let yours = drinks
-            .filter { !$0.isGeneric && $0.id != base.id && sameKind($0.category, $0.vessel) && matches($0.name) }
-            .sorted { (ledger.lastPoured[$0.id] ?? .distantPast) > (ledger.lastPoured[$1.id] ?? .distantPast) }
-        let catalog = (query.isEmpty ? Catalog.items : Catalog.search(query))
-            .filter { item in
-                sameKind(item.category, item.vessel) && !drinks.contains { $0.name == item.name && $0.vessel == item.vessel }
-            }
-        return [Choice(base)] + yours.map(Choice.init) + catalog.map(Choice.init)
+            .filter { $0 != base.drink && $0.category == kind && !$0.isHidden && matches($0.name) }
+            .sorted { $0.isGeneric != $1.isGeneric ? $0.isGeneric : $0.name < $1.name }
+        let catalog = Catalog.brands.filter { brand in
+            brand.category == kind && matches(brand.name) && !drinks.contains { $0.name == brand.name && $0.category == brand.category }
+        }
+        return [Choice(base.drink)] + yours.map(Choice.init) + catalog.map(Choice.init)
     }
 
-    private func star(_ choice: Choice) {
-        if let drink = choice.drink {
-            if drink.isGeneric { return }
-            drink.isFavourite.toggle()
+    private func favourite(for choice: Choice) -> Favourite? {
+        guard let drink = choice.drink else { return nil }
+        return favourites.first { $0.drink == drink && $0.vessel == size.vessel && $0.volumeMl == size.ml }
+    }
+
+    private func togglePin(_ choice: Choice) {
+        if let pinned = favourite(for: choice) {
+            context.delete(pinned)
         } else {
-            let drink = resolve(choice)
-            drink.isFavourite = true
-            selected = drink.id.uuidString
+            context.insert(Favourite(drink: resolve(choice), vessel: size.vessel, volumeMl: size.ml))
         }
     }
 
-    /// Catalogue picks become your own drinks, so they can be starred, corrected, and come up first next time.
+    /// Catalogue picks become your own drinks, first had at this size.
     private func resolve(_ choice: Choice) -> Drink {
         if let drink = choice.drink { return drink }
-        let drink = Drink(name: choice.name, category: choice.category, vessel: choice.vessel, volumeMl: choice.volumeMl, abv: choice.abv)
-        context.insert(drink)
+        let drink = context.drink(named: choice.name, category: choice.category, abv: choice.abv, vessel: size.vessel, volumeMl: size.ml)
+        selected = drink.id.uuidString
         return drink
+    }
+
+    /// The type's usual sizes, plus the tile's if it's an odd one.
+    private var sizes: [Size] {
+        let usual = base.drink.category.serves.map { Size(vessel: $0.vessel, ml: $0.ml) }
+        let tile = Size(vessel: base.vessel, ml: base.volumeMl)
+        return usual.contains(tile) ? usual : [tile] + usual
     }
 
     /// Several drinks run from the chosen time up to now (or 20 minutes apart on a past day).
@@ -154,13 +159,16 @@ struct LogOptionsSheet: View {
     }
 }
 
-/// One of your drinks or a catalogue entry, presented the same way.
+private struct Size: Hashable {
+    let vessel: Vessel
+    let ml: Double
+}
+
+/// One of your drinks or a catalogue brand, presented the same way.
 private struct Choice: Identifiable {
     let id: String
     let name: String
     let category: DrinkCategory
-    let vessel: Vessel
-    let volumeMl: Double
     let abv: Double
     var drink: Drink?
 
@@ -168,37 +176,33 @@ private struct Choice: Identifiable {
         id = drink.id.uuidString
         name = drink.name
         category = drink.category
-        vessel = drink.vessel
-        volumeMl = drink.volumeMl
         abv = drink.abv
         self.drink = drink
     }
 
-    init(_ item: CatalogItem) {
-        id = item.id
-        name = item.name
-        category = item.category
-        vessel = item.vessel
-        volumeMl = item.volumeMl
-        abv = item.abv
+    init(_ brand: CatalogBrand) {
+        id = "catalog|\(brand.name)"
+        name = brand.name
+        category = brand.category
+        abv = brand.abv
     }
 }
 
 private struct ChoiceRow: View {
     let choice: Choice
+    let ml: Double
     let isSelected: Bool
+    let isPinned: Bool
     let onSelect: () -> Void
     let onStar: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
             Button(action: onSelect) {
-                HStack(spacing: 12) {
-                    DrinkGlyph(category: choice.category, vessel: choice.vessel, volumeMl: choice.volumeMl)
-                        .frame(width: 34, height: 34)
+                HStack {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(choice.name).fontWeight(isSelected ? .semibold : .regular)
-                        Text("\(choice.category.serving(ml: choice.volumeMl, abv: choice.abv)) · \(Units.of(ml: choice.volumeMl, abv: choice.abv).unitsText) u")
+                        Text("\(choice.abv.abvText) · \(Units.of(ml: ml, abv: choice.abv).unitsText) u")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -211,13 +215,11 @@ private struct ChoiceRow: View {
             }
             .buttonStyle(.plain)
 
-            if choice.drink?.isGeneric != true {
-                Button(choice.drink?.isFavourite == true ? "Unfavourite" : "Favourite", systemImage: choice.drink?.isFavourite == true ? "star.fill" : "star", action: onStar)
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.plain)
-                    .foregroundStyle(choice.drink?.isFavourite == true ? Color.grog : .secondary)
-                    .sensoryFeedback(.selection, trigger: choice.drink?.isFavourite)
-            }
+            Button(isPinned ? "Remove from Log grid" : "Add to Log grid", systemImage: isPinned ? "star.fill" : "star", action: onStar)
+                .labelStyle(.iconOnly)
+                .buttonStyle(.plain)
+                .foregroundStyle(isPinned ? Color.grog : .secondary)
+                .sensoryFeedback(.selection, trigger: isPinned)
         }
     }
 }

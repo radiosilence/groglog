@@ -1,34 +1,34 @@
 import SwiftData
 import SwiftUI
 
-/// The logging surface: generics, favourites and anything already logged that day, most recently drunk first.
-/// Tap logs one now; long-press to pick a specific brand, size, time or count.
+/// The logging surface: your Log-grid favourites plus anything already logged that day, each a drink in a size,
+/// most recently drunk first. Tap logs one now; long-press to change the drink, size, time or count.
 struct DrinkPicker: View {
     let day: Date
     let ledger: Ledger
-    @Query(filter: #Predicate<Drink> { !$0.isHidden }, sort: \Drink.order) private var drinks: [Drink]
+    @Query(sort: \Favourite.order) private var favourites: [Favourite]
+    @Query(sort: \Drink.order) private var drinks: [Drink]
     @Environment(\.modelContext) private var context
     @State private var search = ""
-    @State private var options: Drink?
+    @State private var options: Serve?
     @State private var countingUnits = false
     @State private var creating = false
     @State private var logged = 0
-    /// Recency as of when the screen appeared, so tapping a drink doesn't shuffle the grid under your thumb.
+    /// Recency as of when the screen appeared, so tapping a tile doesn't shuffle the grid under your thumb.
     /// Deliberate picks (the long-press sheet, a search result) jump to the front straight away.
-    @State private var recency: [UUID: Date] = [:]
+    @State private var recency: [String: Date] = [:]
 
     private let columns = [GridItem(.adaptive(minimum: 104), spacing: 12)]
 
     var body: some View {
-        let pours = ledger.pours(on: day)
-        let countByDrink = Dictionary(grouping: pours.compactMap { $0.drink?.id }) { $0 }.mapValues(\.count)
+        let counts = Dictionary(grouping: ledger.pours(on: day), by: \.serveKey).mapValues(\.count)
 
         ScrollView {
             LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(matchingDrinks) { drink in
-                    DrinkTile(category: drink.category, vessel: drink.vessel, volumeMl: drink.volumeMl, name: drink.name, abv: drink.abv, count: countByDrink[drink.id] ?? 0)
-                        .onTapGesture { drink.category == .units ? countingUnits = true : log(drink) }
-                        .onLongPressGesture(minimumDuration: 0.35) { drink.category == .units ? countingUnits = true : (options = drink) }
+                ForEach(tiles) { serve in
+                    DrinkTile(serve: serve, count: counts[serve.id] ?? 0)
+                        .onTapGesture { serve.drink.category == .units ? countingUnits = true : log(serve) }
+                        .onLongPressGesture(minimumDuration: 0.35) { serve.drink.category == .units ? countingUnits = true : (options = serve) }
                 }
             }
             .padding(.horizontal)
@@ -41,11 +41,11 @@ struct DrinkPicker: View {
                     .padding([.horizontal, .top])
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(catalog) { item in
-                        DrinkTile(category: item.category, vessel: item.vessel, volumeMl: item.volumeMl, name: item.name, abv: item.abv, count: 0)
+                        DrinkTile(name: item.name, category: item.category, vessel: item.vessel, volumeMl: item.volumeMl, abv: item.abv, count: 0)
                             .onTapGesture {
-                                let drink = adopt(item)
-                                log(drink)
-                                recency[drink.id] = .now
+                                let serve = adopt(item)
+                                log(serve)
+                                recency[serve.id] = .now
                             }
                     }
                 }
@@ -62,8 +62,8 @@ struct DrinkPicker: View {
                 Button("New drink", systemImage: "plus") { creating = true }
             }
         }
-        .sheet(item: $options) { drink in
-            LogOptionsSheet(base: drink, day: day, ledger: ledger) { recency[$0.id] = .now }
+        .sheet(item: $options) { serve in
+            LogOptionsSheet(base: serve, day: day, ledger: ledger) { recency[$0] = .now }
                 .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $countingUnits) {
@@ -77,55 +77,78 @@ struct DrinkPicker: View {
         .onAppear { recency = ledger.lastPoured }
     }
 
-    /// Generics, favourites and whatever's been logged that day — or, when searching, every drink that matches. Recently drunk first.
-    private var matchingDrinks: [Drink] {
+    /// Favourites and the day's drinks — or, when searching, the Log-grid sizes (or default size) of every drink that matches.
+    /// Recently drunk first, then in favourite order.
+    private var tiles: [Serve] {
         let query = search.trimmingCharacters(in: .whitespaces)
-        let loggedToday = Set(ledger.pours(on: day).compactMap { $0.drink?.id })
-        return drinks
-            .filter { drink in
-                query.isEmpty
-                    ? drink.isGeneric || drink.isFavourite || loggedToday.contains(drink.id)
-                    : drink.name.localizedStandardContains(query) || drink.category.label.localizedStandardContains(query)
+        var serves: [Serve]
+        if query.isEmpty {
+            serves = favourites.filter { $0.drink != nil }.map(Serve.init)
+            for pour in ledger.pours(on: day) where !serves.contains(where: { $0.id == pour.serveKey }) {
+                if let drink = pour.drink { serves.append(Serve(drink, pour.vessel, pour.volumeMl, price: pour.price)) }
             }
-            .sorted { a, b in
-                switch (recency[a.id], recency[b.id]) {
-                case let (x?, y?): x > y
-                case (.some, nil): true
-                case (nil, .some): false
-                case (nil, nil): a.order < b.order
+        } else {
+            serves = drinks
+                .filter { $0.name.localizedStandardContains(query) || $0.category.label.localizedStandardContains(query) }
+                .flatMap { drink in
+                    let pinned = favourites.filter { $0.drink == drink }.map(Serve.init)
+                    return pinned.isEmpty ? [Serve(drink)] : pinned
                 }
+        }
+        let order = Dictionary(favourites.enumerated().compactMap { index, favourite in
+            favourite.drink.map { (Serve.key($0.id, favourite.vessel, favourite.volumeMl), index) }
+        }, uniquingKeysWith: min)
+        return serves.sorted { a, b in
+            switch (recency[a.id], recency[b.id]) {
+            case let (x?, y?): x > y
+            case (.some, nil): true
+            case (nil, .some): false
+            case (nil, nil): (order[a.id] ?? .max) < (order[b.id] ?? .max)
             }
+        }
     }
 
     private var catalogMatches: [CatalogItem] {
         Catalog.search(search).filter { item in
-            !drinks.contains { $0.name == item.name && $0.vessel == item.vessel && $0.volumeMl == item.volumeMl }
+            !drinks.contains { $0.name == item.name && $0.category == item.category }
         }
     }
 
-    private func log(_ drink: Drink) {
+    private func log(_ serve: Serve) {
         let last = ledger.pours(on: day).last?.timestamp
-        context.insert(Pour(drink: drink, at: ledger.clock.suggestedTime(for: day, after: last)))
+        context.insert(Pour(serve, at: ledger.clock.suggestedTime(for: day, after: last)))
         context.setAlcoholFree(false, on: day)
         logged += 1
     }
 
-    /// Catalogue picks become your own drinks, so they show up first next time and can be corrected.
-    private func adopt(_ item: CatalogItem) -> Drink {
-        let drink = Drink(name: item.name, category: item.category, vessel: item.vessel, volumeMl: item.volumeMl, abv: item.abv)
-        context.insert(drink)
+    /// A catalogue pick becomes one of your drinks, first had at this size.
+    private func adopt(_ item: CatalogItem) -> Serve {
+        let drink = context.drink(named: item.name, category: item.category, abv: item.abv, vessel: item.vessel, volumeMl: item.volumeMl)
         search = ""
-        return drink
+        return Serve(drink, item.vessel, item.volumeMl)
     }
 }
 
 private struct DrinkTile: View {
+    let name: String
     let category: DrinkCategory
     let vessel: Vessel
     let volumeMl: Double
-    let name: String
     let abv: Double
     let count: Int
+
+    init(name: String, category: DrinkCategory, vessel: Vessel, volumeMl: Double, abv: Double, count: Int) {
+        self.name = name
+        self.category = category
+        self.vessel = vessel
+        self.volumeMl = volumeMl
+        self.abv = abv
+        self.count = count
+    }
+
+    init(serve: Serve, count: Int) {
+        self.init(name: serve.drink.name, category: serve.drink.category, vessel: serve.vessel, volumeMl: serve.volumeMl, abv: serve.drink.abv, count: count)
+    }
 
     var body: some View {
         VStack(spacing: 4) {
@@ -136,9 +159,11 @@ private struct DrinkTile: View {
                 .font(.subheadline.weight(.semibold))
                 .lineLimit(2, reservesSpace: true)
                 .multilineTextAlignment(.center)
-            Text(category == .units ? "any amount" : category.serving(ml: volumeMl, abv: abv))
+            Text(category.serving(vessel, ml: volumeMl, abv: abv))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
             Text(category == .units ? "type it in" : "\(Units.of(ml: volumeMl, abv: abv).unitsText) u")
                 .font(.caption.weight(.bold).monospacedDigit())
                 .foregroundStyle(Color.grog)

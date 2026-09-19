@@ -16,21 +16,28 @@ struct Backup: Codable {
     /// `yyyy-MM-dd` the taper drops under a unit a day, if kept to.
     var projectedUnderOneUnit: String?
     var drinks: [DrinkRecord]?
+    /// The Log grid: drinks in the sizes and at the prices you usually have them.
+    var favourites: [FavouriteRecord]?
     var days: [DayRecord]
 
+    /// What a drink is, with the size and price it was first added at.
     struct DrinkRecord: Codable {
         var id: UUID
         var name: String
         var category: DrinkCategory
+        var abv: Double
         var vessel: Vessel
         var volumeMl: Double
-        var abv: Double
-        var units: Double
         var price: Double
-        var kcalOverride: Double?
         var isGeneric: Bool
-        var isFavourite: Bool?
         var isHidden: Bool
+    }
+
+    struct FavouriteRecord: Codable {
+        var drinkID: UUID
+        var vessel: Vessel
+        var volumeMl: Double
+        var price: Double
         var order: Int
     }
 
@@ -61,7 +68,8 @@ struct Backup: Codable {
 
 enum Exporter {
     static func backup(context: ModelContext, prefs: Prefs) throws -> Backup {
-        let drinks = try context.fetch(FetchDescriptor<Drink>(sortBy: [SortDescriptor(\.order)]))
+        let drinks = try context.fetch(FetchDescriptor<Drink>(sortBy: [SortDescriptor(\.name)]))
+        let favourites = try context.fetch(FetchDescriptor<Favourite>(sortBy: [SortDescriptor(\.order)]))
         let pours = try context.fetch(FetchDescriptor<Pour>())
         let dryDays = try context.fetch(FetchDescriptor<AlcoholFreeDay>())
         let ledger = Ledger(pours: pours, dryDays: dryDays, clock: prefs.clock)
@@ -74,7 +82,10 @@ enum Exporter {
             goal: prefs.goal,
             projectedUnderOneUnit: ledger.projection(goal: prefs.goal).underOneUnit.map(ledger.clock.key),
             drinks: drinks.map {
-                .init(id: $0.id, name: $0.name, category: $0.category, vessel: $0.vessel, volumeMl: $0.volumeMl, abv: $0.abv, units: $0.units.rounded2, price: $0.price, kcalOverride: $0.kcalOverride, isGeneric: $0.isGeneric, isFavourite: $0.isFavourite, isHidden: $0.isHidden, order: $0.order)
+                .init(id: $0.id, name: $0.name, category: $0.category, abv: $0.abv, vessel: $0.vessel, volumeMl: $0.volumeMl, price: $0.price, isGeneric: $0.isGeneric, isHidden: $0.isHidden)
+            },
+            favourites: favourites.compactMap { favourite in
+                favourite.drink.map { .init(drinkID: $0.id, vessel: favourite.vessel, volumeMl: favourite.volumeMl, price: favourite.price, order: favourite.order) }
             },
             days: days.reversed().map { day in
                 let totals = ledger.totals(on: day)
@@ -160,13 +171,18 @@ enum Exporter {
         let daysWithPours = Set(existing.map { clock.day(for: $0.timestamp) })
 
         for record in backup.drinks ?? [] where !drinkIDs.contains(record.id) {
-            let drink = Drink(name: record.name, category: record.category, vessel: record.vessel, volumeMl: record.volumeMl, abv: record.abv, price: record.price, isGeneric: record.isGeneric, order: record.order)
+            let drink = Drink(name: record.name, category: record.category, abv: record.abv, vessel: record.vessel, volumeMl: record.volumeMl, price: record.price, isGeneric: record.isGeneric)
             drink.id = record.id
-            drink.kcalOverride = record.kcalOverride
             drink.isHidden = record.isHidden
-            drink.isFavourite = record.isFavourite ?? false
             context.insert(drink)
             drinks.append(drink)
+        }
+        let pinned = try context.fetch(FetchDescriptor<Favourite>())
+        for record in backup.favourites ?? [] {
+            guard let drink = drinks.first(where: { $0.id == record.drinkID }),
+                  !pinned.contains(where: { $0.drink == drink && $0.vessel == record.vessel && $0.volumeMl == record.volumeMl })
+            else { continue }
+            context.insert(Favourite(drink: drink, vessel: record.vessel, volumeMl: record.volumeMl, price: record.price, order: record.order))
         }
 
         var added = 0
@@ -189,9 +205,10 @@ enum Exporter {
                 if let volume = record.volumeMl {
                     let category = record.category ?? .beer
                     let abv = record.abv ?? category.defaultABV
+                    let vessel = record.vessel ?? category.defaultVessel
                     let drink = drinks.first { $0.id == record.drinkID }
-                        ?? context.drink(named: record.name, category: category, vessel: record.vessel ?? category.defaultVessel, volumeMl: volume, abv: abv)
-                    context.insert(Pour(drink: drink, at: time, volumeMl: volume, price: record.price ?? 0, id: id))
+                        ?? context.drink(named: record.name, category: category, abv: abv, vessel: vessel, volumeMl: volume)
+                    context.insert(Pour(drink: drink, at: time, vessel: vessel, volumeMl: volume, price: record.price ?? 0, id: id))
                 } else {
                     context.insert(Pour(drink: context.unitsDrink(), at: time, volumeMl: (record.units ?? 0) * 10, price: record.price ?? 0, kcalOverride: record.kcal, id: id))
                 }

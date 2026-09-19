@@ -8,9 +8,8 @@ Written because Drinkaware's Drink Coach is low-friction but slow, allows one dr
 
 - **Unlogged ≠ dry.** A day only counts as alcohol-free when you mark it. Gaps show as `?` in the calendar, stay out of averages, and are labelled `not_logged` in exports so an LLM doesn't read a blackout as a good day.
 - **Days end at 5am** (configurable). The 1am pint belongs to the night it was part of.
-- **A logged drink is a reference, not a copy.** Name, type and strength live on the drink, so fixing a typo or an ABV fixes everything logged as it. Each pour keeps only what's particular to it: when, the size poured, and the price paid (prices change). If a drink genuinely changes, "Save as new drink". Drinks with history can be hidden, not deleted.
-- **The budget tapers from reality by default.** "Dynamic tapering" sets each day's budget X% under your average for the chosen period (yesterday, last week, …), so falling behind a plan never demands a sudden drop. Sudden drops from heavy drinking risk withdrawal; the goal editor warns above a 10%/day cut and, around 15+ units/day, suggests getting support. A fixed schedule is available if you want one.
-- **Generics first, brands a long-press away.** Tap "Pint of beer" and you're done. Long-press to pick the specific brand (yours, or ~90 common UK drinks), a size, a time, or several at once. The main grid is generics, starred brands and anything logged that day, most recent first. A tap never reshuffles it; a long-press pick jumps to the front.
+- **A drink is what it is; size is how you had it.** A drink holds name, type and strength (Staropramen, beer, 5%). A Log-grid tile is a drink in a size at the price you usually pay; a log entry is a drink in a size at the price you actually paid. Fixing a drink's name or ABV fixes everything logged as it; prices are copied because they change. Sizes always come from the type — beers get pints, cans and bottles, never a wine glass. Generic drinks use Drinkaware's standard strengths (beer 4%, cider 4.5%, wine 12%, spirits 40%) and are editable.
+- **The grid is yours.** Favourites (drink + size) plus anything logged that day, most recent first. Tap logs it; long-press picks a specific drink of the same type, overrides the size, stars it onto the grid, or logs several earlier. A tap never reshuffles the grid.
 - **Units as an item.** When you only know a total (another app, a night you didn't log), log "Units" directly.
 
 ## Layout
@@ -23,7 +22,7 @@ Written because Drinkaware's Drink Coach is low-friction but slow, allows one dr
 | Reports | Monthly progress (daily units vs the budget, with the fortnight ahead), this month vs last (cumulative), weekly bars, streaks, spend. |
 | Setup | Goal, drinks, day end, currency, export/import. |
 
-Code: `Model/` holds pure logic — `DayClock` (drinking days), `Goal` (scheduled taper), `Ledger` (read-only view of everything logged; budgets, streaks, curves) — plus SwiftData models. Views take a `Ledger` and don't group data themselves.
+Code: `Model/` holds pure logic — `DayClock` (drinking days), `Goal` (taper settings), `Ledger` (read-only view of everything logged; budgets, streaks, curves, projections) — plus SwiftData models: `Drink` (what it is), `Favourite` (a drink + size on the grid), `Pour` (a drink + size + price, logged), `AlcoholFreeDay`. Views take a `Ledger` and don't group data themselves.
 
 ## Data
 

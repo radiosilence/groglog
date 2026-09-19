@@ -207,7 +207,7 @@ struct PourRow: View {
                 .frame(width: 40, height: 40)
             VStack(alignment: .leading, spacing: 2) {
                 Text(pour.name).font(.body.weight(.medium))
-                Text(pour.category.serving(ml: pour.volumeMl, abv: pour.abv))
+                Text(pour.category.serving(pour.vessel, ml: pour.volumeMl, abv: pour.abv))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

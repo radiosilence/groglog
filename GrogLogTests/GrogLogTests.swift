@@ -93,7 +93,7 @@ private func date(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 0, _ min: Int = 0) ->
     let clock = DayClock(rolloverHour: 5, calendar: london)
 
     private func pour(_ at: Date, ml: Double = 568, abv: Double = 5) -> Pour {
-        Pour(drink: Drink(name: "Pint", category: .beer, vessel: .pint, volumeMl: ml, abv: abv, price: 5), at: at)
+        Pour(drink: Drink(name: "Pint", category: .beer, abv: abv, vessel: .pint, volumeMl: ml, price: 5), at: at)
     }
 
     @Test func distinguishesDryFromUnlogged() {
@@ -165,13 +165,13 @@ private func date(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 0, _ min: Int = 0) ->
 
 @MainActor @Suite struct ReferenceTests {
     @Test func loggedDrinksFollowTheirDrinkButKeepTheirPrice() {
-        let drink = Drink(name: "Staropramen", category: .beer, vessel: .can, volumeMl: 440, abv: 5, price: 2)
+        let drink = Drink(name: "Staropramen", category: .beer, abv: 5, vessel: .can, volumeMl: 440, price: 2)
         let usual = Pour(drink: drink, at: .now)
-        let pint = Pour(drink: drink, at: .now, volumeMl: 568)
+        let pint = Pour(drink: drink, at: .now, vessel: .pint, volumeMl: 568)
         drink.name = "Staropramen Premium"
         drink.abv = 4
         drink.price = 3
-        #expect(usual.name == "Staropramen Premium" && usual.abv == 4)
+        #expect(usual.name == "Staropramen Premium" && usual.abv == 4 && pint.vessel == .pint && usual.vessel == .can)
         #expect(abs(pint.units - Units.of(ml: 568, abv: 4)) < 0.0001)
         #expect(usual.price == 2)
         #expect(abs(pint.price - 2 * 568 / 440) < 0.0001)
@@ -180,7 +180,7 @@ private func date(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 0, _ min: Int = 0) ->
 
 @MainActor @Suite struct BackupTests {
     private func container() throws -> ModelContainer {
-        try ModelContainer(for: Drink.self, Pour.self, AlcoholFreeDay.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        try ModelContainer(for: Drink.self, Favourite.self, Pour.self, AlcoholFreeDay.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     }
 
     private func prefs() -> Prefs {
@@ -192,8 +192,9 @@ private func date(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 0, _ min: Int = 0) ->
         let sourceContainer = try container()
         let source = sourceContainer.mainContext
         let prefs = prefs()
-        let drink = Drink(name: "Hepcat", category: .beer, vessel: .pint, volumeMl: 568, abv: 4.6, isFavourite: true)
+        let drink = Drink(name: "Hepcat", category: .beer, abv: 4.6, vessel: .pint, volumeMl: 568)
         source.insert(drink)
+        source.insert(Favourite(drink: drink, vessel: .can, volumeMl: 440, price: 3))
         source.insert(Pour(drink: drink, at: .now.addingTimeInterval(-3600 * 30)))
         source.insert(AlcoholFreeDay(day: prefs.clock.adding(-3, to: prefs.clock.today)))
         let data = try Exporter.json(Exporter.backup(context: source, prefs: prefs))
@@ -204,7 +205,9 @@ private func date(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 0, _ min: Int = 0) ->
         #expect(try Exporter.restore(data, into: target, prefs: prefs) == 0)
         #expect(try target.fetchCount(FetchDescriptor<Pour>()) == 1)
         #expect(try target.fetchCount(FetchDescriptor<AlcoholFreeDay>()) == 1)
-        #expect(try target.fetch(FetchDescriptor<Drink>()).first?.isFavourite == true)
+        let favourite = try #require(try target.fetch(FetchDescriptor<Favourite>()).first)
+        #expect(favourite.drink?.name == "Hepcat" && favourite.vessel == .can && favourite.price == 3)
+        #expect(try target.fetchCount(FetchDescriptor<Favourite>()) == 1)
     }
 
     @Test func importsDailyTotalsFromAnotherApp() throws {
