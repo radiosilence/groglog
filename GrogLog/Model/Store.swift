@@ -14,7 +14,7 @@ struct Store {
 
     static var goal: Goal { real.prefs.goal }
 
-    var logbook: Logbook { Logbook(writer: database.writer, clock: prefs.clock) }
+    var logbook: Logbook { Logbook(writer: database.writer, clock: prefs.clock, mirrorsToHealth: prefs.mirrorsToHealth) }
 
     private static func live() -> Store {
         let prefs = Prefs()

@@ -49,6 +49,8 @@ Setup › Data exports:
 
 The JSON import is lenient enough to hand-convert other apps' data — see [docs/IMPORT.md](docs/IMPORT.md).
 
+Setup › **Copy to Health** mirrors drinks and calories into Apple Health as they're logged. Health counts standard drinks, not UK units — 17.7 ml of alcohol against 10 — so the figures are converted rather than handed over. It's a mirror and never a source: a changed day is rewritten whole from the log, so edits, undos and corrected strengths carry across and the copy can't drift; turning it off takes GrogLog's entries back out.
+
 Sync (iCloud via `CKSyncEngine`, or a server) is future work; every change already goes through `Logbook` as a transaction, which is where a change log would hook in.
 
 ## Building

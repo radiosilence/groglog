@@ -101,3 +101,26 @@ struct TodayView: View {
         return left >= 0 ? "\(left.unitsText) of \(budget.unitsText) left" : "\((-left).unitsText) over \(budget.unitsText)"
     }
 }
+
+#Preview("Circular", as: .accessoryCircular) {
+    TodayWidget()
+} timeline: {
+    TodayEntry(units: 3.5, budget: 4.5)
+    TodayEntry(units: 7.2, budget: 4.5)
+}
+
+#Preview("Rectangular", as: .accessoryRectangular) {
+    TodayWidget()
+} timeline: {
+    TodayEntry(units: 3.5, budget: 4.5)
+    TodayEntry(units: 7.2, budget: 4.5)
+    TodayEntry(isDry: true)
+    TodayEntry(units: 2.3)
+}
+
+#Preview("Inline", as: .accessoryInline) {
+    TodayWidget()
+} timeline: {
+    TodayEntry(units: 3.5, budget: 4.5)
+    TodayEntry(isDry: true)
+}

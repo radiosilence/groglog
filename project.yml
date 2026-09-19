@@ -32,8 +32,11 @@ targets:
       path: GrogLog/GrogLog.entitlements
       properties:
         com.apple.security.application-groups: [group.cc.blit.groglog]
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.access: []
     settings:
       base:
+        INFOPLIST_KEY_NSHealthUpdateUsageDescription: GrogLog copies what you log into Health, so other apps can read it.
         PRODUCT_BUNDLE_IDENTIFIER: cc.blit.groglog
         MARKETING_VERSION: 0.1.0
         CURRENT_PROJECT_VERSION: 1
@@ -90,3 +93,11 @@ schemes:
         GrogLog: all
     test:
       targets: [GrogLogTests]
+  # Running this one puts the simulator straight into a widget preview, which is the only sane way to look at one.
+  GrogLogWidgets:
+    build:
+      targets:
+        GrogLogWidgets: all
+    run:
+      askForAppToLaunch: true
+      launchAutomaticallySubstyle: 2
