@@ -2,8 +2,8 @@ import Charts
 import GRDBQuery
 import SwiftUI
 
-/// Running units through the day, against yesterday and the month's average day. Fetches just the drinks in that
-/// window — about a month's worth — rather than the whole history.
+/// Running units through the day, against yesterday and the average day of the week before. Fetches just that
+/// window's drinks rather than the whole history.
 struct DayChart: View {
     let day: DayKey
     let ledger: Ledger
@@ -18,7 +18,7 @@ struct DayChart: View {
         self.ledger = ledger
         self.budget = budget
         self.tick = tick
-        _pours = Query(constant: EntriesRequest(days: ledger.monthBefore(day).lowerBound...day))
+        _pours = Query(constant: EntriesRequest(days: ledger.weekBefore(day).lowerBound...day))
     }
 
     var body: some View {
@@ -36,7 +36,7 @@ struct DayChart: View {
         let series = [
             Series(name: "Today", color: .grog, points: ledger.cumulative(pours, on: day, from: from, through: nowHour ?? 24)),
             Series(name: "Yesterday", color: .gray.opacity(0.6), points: yesterdayLogged ? ledger.cumulative(pours, on: yesterday, from: from) : []),
-            Series(name: "Month avg", color: .dry, points: ledger.averageCumulative(pours, over: ledger.monthBefore(day), from: from), dashed: true),
+            Series(name: "Week avg", color: .dry, points: ledger.averageCumulative(pours, over: ledger.weekBefore(day), from: from), dashed: true),
         ]
         let at = nowHour ?? 24
         let top = max(2, budget ?? 0, series.flatMap(\.points).map(\.units).max() ?? 0) * 1.1

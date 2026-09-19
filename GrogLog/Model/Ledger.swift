@@ -109,11 +109,8 @@ nonisolated struct Ledger {
         return best
     }
 
-    /// The days before `day` in its month, falling back to the previous 30 days early in the month.
-    func monthBefore(_ day: DayKey) -> ClosedRange<DayKey> {
-        let start = day.monthStart.distance(to: day) >= 7 ? day.monthStart : day - 30
-        return start...(day - 1)
-    }
+    /// The week before `day` — what a day gets compared against.
+    func weekBefore(_ day: DayKey) -> ClosedRange<DayKey> { (day - 7)...(day - 1) }
 
     /// Running units total through a week, stepping at each drink — x is days into the week.
     func weekCurve(_ entries: [Entry], of start: DayKey, through: DayKey? = nil) -> [CurvePoint] {

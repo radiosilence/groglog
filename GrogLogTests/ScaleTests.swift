@@ -49,7 +49,7 @@ import Testing
             for week in 0..<52 { _ = ledger.week(starting: clock.weekStart(of: today) - 7 * week, goal: goal) }
             _ = ledger.projection(goal: goal)
             _ = ledger.longestDryStreak(in: (today - 365)...today)
-            let month = ledger.monthBefore(today)
+            let month = ledger.weekBefore(today)
             let entries = try database.reader.read { try EntriesRequest(days: month.lowerBound...today).fetch($0) }
             _ = ledger.cumulative(entries, on: today)
             _ = ledger.averageCumulative(entries, over: month)
