@@ -22,8 +22,8 @@ struct GoalEditor: View {
                     ForEach([(1, "day"), (7, "week"), (28, "4 wk"), (56, "8 wk"), (84, "12 wk")], id: \.0) { Text($0.1).tag($0.0) }
                 }
                 .pickerStyle(.segmented)
-                Toggle("From today", isOn: $prefs.goal.fromToday)
-                if !goal.fromToday {
+                Toggle("Dynamic tapering", isOn: $prefs.goal.isDynamic)
+                if !goal.isDynamic {
                     NumberRow(label: "From", value: $prefs.goal.baselineWeekly, suffix: "u/week")
                     if let recent, abs(recent - goal.baselineWeekly) > 0.5 {
                         Button("Use my last 4 weeks (\(recent.unitsText) u/week)") {
@@ -34,6 +34,7 @@ struct GoalEditor: View {
                 }
                 NumberRow(label: "Down to", value: $prefs.goal.targetWeekly, suffix: "u/week")
                 BurndownPreview(goal: goal, ledger: ledger)
+                ProjectionRow(ledger: ledger, goal: goal)
                 if goal.isFasterThanSafe {
                     Label("That's more than 10% a day. Cutting heavy drinking that fast risks withdrawal — a slower taper is safer.", systemImage: "exclamationmark.triangle.fill")
                         .font(.subheadline)
@@ -50,16 +51,36 @@ struct GoalEditor: View {
         } footer: {
             if goal.isEnabled {
                 let perDay = (goal.dailyCut * 100).formatted(.number.precision(.fractionLength(0...1)))
-                if goal.fromToday {
-                    Text("Each day's budget is about \(perDay)% under what you've actually been drinking lately, down to \(goal.targetWeekly.unitsText) u/week. Go over and it simply carries on from there — no schedule to catch up with. The UK low-risk guideline is \(Int(Units.weeklyGuideline)) u/week.")
+                if goal.isDynamic {
+                    let window = goal.periodDays == 1 ? "yesterday" : "your average over the last \(goal.periodDays) days"
+                    Text("Each day's budget is \(Int(goal.reductionPercent))% under \(window), down to \(goal.targetWeekly.unitsText) u/week. Go over and it simply carries on from there — no schedule to catch up with. The UK low-risk guideline is \(Int(Units.weeklyGuideline)) u/week.")
                 } else {
-                    let end = goal.end().map { " by \($0.formatted(date: .abbreviated, time: .omitted))" } ?? ""
-                    Text("\(goal.baselineWeekly.unitsText) → \(goal.targetWeekly.unitsText) u/week\(end), about \(perDay)% less each day. The UK low-risk guideline is \(Int(Units.weeklyGuideline)) u/week.")
+                    Text("\(goal.baselineWeekly.unitsText) → \(goal.targetWeekly.unitsText) u/week from \(goal.start.formatted(date: .abbreviated, time: .omitted)), about \(perDay)% less each day. The UK low-risk guideline is \(Int(Units.weeklyGuideline)) u/week.")
                 }
             } else {
                 Text("Pick how fast to cut down and get a daily and weekly unit budget.")
             }
         }
+    }
+}
+
+/// Where the taper lands if you keep to it.
+struct ProjectionRow: View {
+    let ledger: Ledger
+    let goal: Goal
+
+    var body: some View {
+        let projection = ledger.projection(goal: goal)
+        VStack(alignment: .leading, spacing: 6) {
+            if let target = projection.target {
+                LabeledContent("\(goal.targetWeekly.unitsText) u/week by", value: target.formatted(date: .abbreviated, time: .omitted))
+            }
+            if let stop = projection.underOneUnit {
+                LabeledContent("Under 1 u/day by", value: stop.formatted(date: .abbreviated, time: .omitted))
+                    .foregroundStyle(Color.dry)
+            }
+        }
+        .font(.subheadline.monospacedDigit())
     }
 }
 
@@ -92,7 +113,7 @@ private struct BurndownPreview: View {
 
     var body: some View {
         let clock = ledger.clock
-        let start = goal.fromToday ? clock.today : clock.calendar.startOfDay(for: goal.start)
+        let start = goal.isDynamic ? clock.today : clock.calendar.startOfDay(for: goal.start)
         let points = stride(from: 0, through: 84, by: 3).map { clock.adding($0, to: start) }
         Chart {
             ForEach(points, id: \.self) { day in

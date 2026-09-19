@@ -13,6 +13,8 @@ struct Backup: Codable {
     var dayStartsAtHour: Int?
     var currency: String?
     var goal: Goal?
+    /// `yyyy-MM-dd` the taper drops under a unit a day, if kept to.
+    var projectedUnderOneUnit: String?
     var drinks: [DrinkRecord]?
     var days: [DayRecord]
 
@@ -70,6 +72,7 @@ enum Exporter {
             dayStartsAtHour: prefs.rolloverHour,
             currency: prefs.currency,
             goal: prefs.goal,
+            projectedUnderOneUnit: ledger.projection(goal: prefs.goal).underOneUnit.map(ledger.clock.key),
             drinks: drinks.map {
                 .init(id: $0.id, name: $0.name, category: $0.category, vessel: $0.vessel, volumeMl: $0.volumeMl, abv: $0.abv, units: $0.units.rounded2, price: $0.price, kcalOverride: $0.kcalOverride, isGeneric: $0.isGeneric, isFavourite: $0.isFavourite, isHidden: $0.isHidden, order: $0.order)
             },
@@ -113,10 +116,13 @@ enum Exporter {
             "",
         ]
         if let goal = backup.goal, goal.isEnabled {
-            let schedule = goal.fromToday
-                ? "recalculated daily from the last few drinking days, so there is no schedule to fall behind"
+            let schedule = goal.isDynamic
+                ? "dynamic: each day's budget is the cut applied to the average over the previous period, so there is no schedule to fall behind"
                 : "on a fixed schedule from \(goal.baselineWeekly.unitsText) units/week starting \(goal.start.formatted(date: .abbreviated, time: .omitted))"
             lines.append("Goal: cut \(Int(goal.reductionPercent))% every \(goal.periodDays) day(s), compounding daily, down to \(goal.targetWeekly.unitsText) units/week — \(schedule).")
+            if let stop = backup.projectedUnderOneUnit {
+                lines.append("At this rate: under 1 unit/day by \(stop).")
+            }
             lines.append("")
         }
         lines += ["## Days (newest first)", ""]

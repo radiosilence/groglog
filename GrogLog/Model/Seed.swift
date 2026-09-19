@@ -12,9 +12,9 @@ enum Seed {
             Drink(name: "Pint of beer", category: .beer, vessel: .pint, volumeMl: 568, abv: 4.5, price: 5.50, isGeneric: true),
             Drink(name: "Half of beer", category: .beer, vessel: .half, volumeMl: 284, abv: 4.5, price: 3.00, isGeneric: true),
             Drink(name: "Can of beer", category: .beer, vessel: .can, volumeMl: 440, abv: 4.5, price: 2.00, isGeneric: true),
-            Drink(name: "Big can of beer", category: .beer, vessel: .can, volumeMl: 500, abv: 5.0, price: 2.50, isGeneric: true),
+            Drink(name: "Can of beer", category: .beer, vessel: .can, volumeMl: 500, abv: 5.0, price: 2.50, isGeneric: true),
             Drink(name: "Bottle of beer", category: .beer, vessel: .bottle, volumeMl: 330, abv: 5.0, price: 4.50, isGeneric: true),
-            Drink(name: "Big bottle of beer", category: .beer, vessel: .bottle, volumeMl: 660, abv: 5.0, price: 7.00, isGeneric: true),
+            Drink(name: "Bottle of beer", category: .beer, vessel: .bottle, volumeMl: 660, abv: 5.0, price: 7.00, isGeneric: true),
             Drink(name: "Pint of stout", category: .stout, vessel: .pint, volumeMl: 568, abv: 4.2, price: 5.80, isGeneric: true),
             Drink(name: "Pint of cider", category: .cider, vessel: .pint, volumeMl: 568, abv: 4.5, price: 5.50, isGeneric: true),
             Drink(name: "Bottle of cider", category: .cider, vessel: .bottle, volumeMl: 500, abv: 4.5, price: 3.00, isGeneric: true),
@@ -89,7 +89,7 @@ enum Seed {
             }
         }
         if !prefs.goal.isEnabled {
-            prefs.goal = Goal(isEnabled: true, fromToday: true, reductionPercent: 10, periodDays: 1)
+            prefs.goal = Goal(isEnabled: true, isDynamic: true, reductionPercent: 10, periodDays: 1)
         }
     }
 

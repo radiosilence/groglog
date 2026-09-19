@@ -128,6 +128,29 @@ private struct Art {
             solids = Self.stem(from: 46, width: 3) + [Path(ellipseIn: CGRect(x: 33, y: 88, width: 34, height: 7))]
             garnish = true
         }
+        if let (full, exponent) = Self.sizing[vessel] {
+            scale(by: pow(volumeMl / full, exponent))
+        }
+    }
+
+    /// Rectangular containers are drawn to size: the largest common serve fills the frame and smaller ones shrink
+    /// towards its base, so a 330 can sits visibly shorter than a 568.
+    private static let sizing: [Vessel: (full: Double, exponent: Double)] = [
+        .can: (568, 0.6),
+        .bottle: (660, 0.5),
+        .wineBottle: (750, 0.4),
+    ]
+
+    private mutating func scale(by factor: Double) {
+        let factor = min(1, max(0.5, factor))
+        let transform = CGAffineTransform(translationX: 50, y: 96)
+            .scaledBy(x: pow(factor, 0.35), y: factor)
+            .translatedBy(x: -50, y: -96)
+        glass = glass.applying(transform)
+        bowl = bowl?.applying(transform)
+        solids = solids.map { $0.applying(transform) }
+        label = label?.applying(transform)
+        labelMark = labelMark?.applying(transform)
     }
 
     func draw(in context: inout GraphicsContext, category: DrinkCategory) {
@@ -155,7 +178,9 @@ private struct Art {
             let rim = bounds.minY
             let head = Path(CGRect(x: 0, y: rim, width: 100, height: surface - rim + 1)).intersection(glass)
             var bubbles = Path()
-            for x in stride(from: bounds.minX + 5, through: bounds.maxX - 5, by: 8.5) {
+            let count = max(2, Int((bounds.width - 10) / 8.5) + 1)
+            for index in 0..<count {
+                let x = bounds.minX + 5 + (bounds.width - 10) * CGFloat(index) / CGFloat(count - 1)
                 bubbles.addEllipse(in: CGRect(x: x - 5.5, y: rim - 4.5, width: 11, height: 10))
             }
             foam = head.union(bubbles)
