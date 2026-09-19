@@ -283,6 +283,9 @@ private struct DaySummaryBar: View {
                     if let last = pours.last { logbook.delete(last.pour) }
                 }
                 .labelStyle(.iconOnly)
+                // A full-size target, or a near miss lands on the tile behind the bar.
+                .frame(width: 44, height: 44)
+                .contentShape(.rect)
             case .alcoholFree:
                 Label("Alcohol-free", systemImage: "leaf.fill").foregroundStyle(Color.dry)
                 Spacer()
@@ -299,9 +302,11 @@ private struct DaySummaryBar: View {
         .font(.subheadline.monospacedDigit())
         .contentTransition(.numericText())
         .animation(.snappy, value: totals.units)
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
+        .padding(.leading, 18)
+        .padding(.trailing, 6)
+        .padding(.vertical, 6)
         .glassEffect(.regular, in: .capsule)
+        .contentShape(.capsule)
         .padding(.horizontal)
         .padding(.bottom, 6)
     }
