@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- The day rollover holds on the nights the clocks change: for an hour each changeover, a drink could land on the wrong side of "day ends at".
+- Hiding a drink takes it off the Log grid and out of search, not just the long-press sheet. It still shows on a day it was had.
+- The goal is edited as a draft, saved on Done and discarded on Cancel, from one sheet everywhere. Setup shows a summary row rather than the editor inline, where every keystroke was written straight to settings.
+- Marking a day dry buzzes; un-marking it no longer does.
+- Log tiles are buttons to VoiceOver, with the long-press sheet as an "Options" action.
 - Reports leads with Weekly progress and Monthly progress — the same chart over different spans — both scrollable and pinchable, with today banded.
 - This week joins This month: the running total by drink time against the last three weeks and the week's budget.
 - The Day chart compares against the week before rather than the month.

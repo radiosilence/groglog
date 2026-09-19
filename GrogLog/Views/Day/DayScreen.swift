@@ -125,7 +125,7 @@ struct DayScreen: View {
         .sheet(isPresented: $adding) {
             AddDrinkSheet(day: day)
         }
-        .sheet(isPresented: $settingGoal) { GoalSheet() }
+        .sheet(isPresented: $settingGoal) { GoalSheet(goal: prefs.goal) }
         .sheet(item: $editing) { entry in
             PourEditor(entry: entry, day: day)
         }

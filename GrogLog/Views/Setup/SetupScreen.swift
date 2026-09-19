@@ -8,12 +8,23 @@ struct SetupScreen: View {
     @State private var importing = false
     @AppStorage("demoMode") private var demoMode = false
     @State private var importResult: String?
+    @State private var settingGoal = false
 
     var body: some View {
         @Bindable var prefs = prefs
 
         Form {
-            GoalEditor(ledger: ledger)
+            Section {
+                Button { settingGoal = true } label: {
+                    LabeledContent {
+                        Text(goalSummary).foregroundStyle(Color.grog)
+                    } label: {
+                        Text("Goal").foregroundStyle(Color.primary)
+                    }
+                }
+            } footer: {
+                Text("Pick how fast to cut down and get a daily and weekly unit budget.")
+            }
 
             Section {
                 NavigationLink("Drinks") { DrinksScreen() }
@@ -54,6 +65,7 @@ struct SetupScreen: View {
             #endif
         }
         .navigationTitle("Setup")
+        .sheet(isPresented: $settingGoal) { GoalSheet(goal: prefs.goal) }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { result in
             do {
                 let url = try result.get()
@@ -66,5 +78,12 @@ struct SetupScreen: View {
             }
         }
         .alert(importResult ?? "", isPresented: Binding(get: { importResult != nil }, set: { if !$0 { importResult = nil } })) {}
+    }
+
+    private var goalSummary: String {
+        let goal = prefs.goal
+        guard goal.isEnabled else { return "Off" }
+        let every = goal.periodDays == 1 ? "a day" : goal.periodDays == 7 ? "a week" : "every \(goal.periodDays / 7) weeks"
+        return "−\(Int(goal.reductionPercent))% \(every)"
     }
 }

@@ -4,39 +4,37 @@ import SwiftUI
 /// Pick a cut and a timeframe; the budget tapers daily from your recent average to the target.
 struct GoalEditor: View {
     let ledger: Ledger
-    @Environment(Prefs.self) private var prefs
+    @Binding var goal: Goal
 
     var body: some View {
-        @Bindable var prefs = prefs
-        let goal = prefs.goal
         let recent = ledger.recentWeeklyAverage()
         // Amounts are stored per week but people think in a day's drinking, whatever the taper's pace.
         let per = "u/day"
         let amount = { (weekly: Double) in "\((weekly / 7).unitsText) u/day" }
         let perPeriod = { (keyPath: WritableKeyPath<Goal, Double>) in
-            Binding(get: { prefs.goal[keyPath: keyPath] / 7 }, set: { prefs.goal[keyPath: keyPath] = $0 * 7 })
+            Binding(get: { goal[keyPath: keyPath] / 7 }, set: { goal[keyPath: keyPath] = $0 * 7 })
         }
 
         Section {
-            Toggle("Cut down", isOn: $prefs.goal.isEnabled)
+            Toggle("Cut down", isOn: $goal.isEnabled)
             if goal.isEnabled {
-                Picker("Cut", selection: $prefs.goal.reductionPercent) {
+                Picker("Cut", selection: $goal.reductionPercent) {
                     ForEach([10.0, 25, 33, 50], id: \.self) { Text("−\(Int($0))%") }
                 }
                 .pickerStyle(.segmented)
-                Picker("Every", selection: $prefs.goal.periodDays) {
+                Picker("Every", selection: $goal.periodDays) {
                     ForEach([(1, "day"), (7, "week"), (28, "4 wk"), (56, "8 wk"), (84, "12 wk")], id: \.0) { Text($0.1).tag($0.0) }
                 }
                 .pickerStyle(.segmented)
-                Toggle("Dynamic tapering", isOn: $prefs.goal.isDynamic)
+                Toggle("Dynamic tapering", isOn: $goal.isDynamic)
                 if !goal.isDynamic {
                     NumberRow(label: "From", value: perPeriod(\.baselineWeekly), suffix: per)
                     if let recent, abs(recent - goal.baselineWeekly) > 0.5 {
                         Button("Use my last 4 weeks (\(amount(recent)))") {
-                            prefs.goal.baselineWeekly = recent
+                            goal.baselineWeekly = recent
                         }
                     }
-                    DatePicker("Starting", selection: $prefs.goal.start, displayedComponents: .date)
+                    DatePicker("Starting", selection: $goal.start, displayedComponents: .date)
                 }
                 NumberRow(label: "Down to", value: perPeriod(\.targetWeekly), suffix: per)
                 BurndownPreview(goal: goal, ledger: ledger)
@@ -91,25 +89,38 @@ struct ProjectionRow: View {
     }
 }
 
-/// The goal as a shareable sheet, for reaching it from wherever you notice you want one.
+/// The goal as a sheet, for reaching it from wherever you notice you want one. Edits a draft saved on Done, which
+/// opens switched on — asking for the sheet is asking for a goal.
 struct GoalSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(Prefs.self) private var prefs
+    @State private var draft: Goal
+
+    init(goal: Goal) {
+        var draft = goal
+        draft.isEnabled = true
+        _draft = State(initialValue: draft)
+    }
 
     var body: some View {
         NavigationStack {
             LedgerReader { ledger in
-                Form { GoalEditor(ledger: ledger) }
+                Form { GoalEditor(ledger: ledger, goal: $draft) }
             }
             .navigationTitle("Goal")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", role: .cancel) { dismiss() }
+                }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done", role: .confirm) { dismiss() }
+                    Button("Done", role: .confirm) {
+                        prefs.goal = draft
+                        dismiss()
+                    }
                 }
             }
         }
-        .onAppear { prefs.goal.isEnabled = true }
     }
 }
 

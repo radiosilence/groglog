@@ -35,7 +35,7 @@ struct ReportsScreen: View {
             Button(prefs.goal.isEnabled ? "Goal" : "Set a goal", systemImage: "target") { settingGoal = true }
                 .labelStyle(.titleAndIcon)
         }
-        .sheet(isPresented: $settingGoal) { GoalSheet() }
+        .sheet(isPresented: $settingGoal) { GoalSheet(goal: prefs.goal) }
     }
 }
 
