@@ -37,9 +37,11 @@ struct DrinkPicker: View {
             let tiles = self.tiles
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(tiles) { serve in
+                    let isUnits = serve.drink.category == .units
                     DrinkTile(serve: serve, count: counts[serve.id] ?? 0, pulse: pulses[serve.id] ?? 0)
-                        .onTapGesture { serve.drink.category == .units ? countingUnits = true : log(serve) }
-                        .onLongPressGesture(minimumDuration: 0.35) { serve.drink.category == .units ? countingUnits = true : (options = serve) }
+                        .onTapGesture { isUnits ? countingUnits = true : log(serve) }
+                        .onLongPressGesture(minimumDuration: 0.35) { isUnits ? countingUnits = true : (options = serve) }
+                        .accessibilityAction(named: "Options") { isUnits ? countingUnits = true : (options = serve) }
                 }
             }
             .padding(.horizontal)
@@ -156,20 +158,6 @@ private struct DrinkTile: View {
     let count: Int
     var pulse = 0
 
-    init(name: String, category: DrinkCategory, vessel: Vessel, volumeMl: Double, abv: Double, count: Int, pulse: Int = 0) {
-        self.name = name
-        self.category = category
-        self.vessel = vessel
-        self.volumeMl = volumeMl
-        self.abv = abv
-        self.count = count
-        self.pulse = pulse
-    }
-
-    init(serve: Serve, count: Int, pulse: Int) {
-        self.init(name: serve.drink.name, category: serve.drink.category, vessel: serve.vessel, volumeMl: serve.volumeMl, abv: serve.drink.abv, count: count, pulse: pulse)
-    }
-
     private var units: Double { Units.of(ml: volumeMl, abv: abv) }
 
     var body: some View {
@@ -199,6 +187,8 @@ private struct DrinkTile: View {
             }
         }
         .contentShape(.rect(cornerRadius: 20))
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
     }
 
     private func card(_ pour: Pour) -> some View {
@@ -259,6 +249,12 @@ private struct DrinkTile: View {
         var tilt = 0.0
         var rise = 1.0
         var badge = 1.0
+    }
+}
+
+private extension DrinkTile {
+    init(serve: Serve, count: Int, pulse: Int) {
+        self.init(name: serve.drink.name, category: serve.drink.category, vessel: serve.vessel, volumeMl: serve.volumeMl, abv: serve.drink.abv, count: count, pulse: pulse)
     }
 }
 

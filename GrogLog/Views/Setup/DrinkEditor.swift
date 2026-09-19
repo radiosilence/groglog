@@ -44,7 +44,7 @@ struct DrinkEditor: View {
 
                 if draft.category != .units {
                     Section {
-                        ChipRow(options: sizes, selection: size) { $0.vessel.label(ml: $0.ml) }
+                        ChipRow(options: draft.category.sizes(including: size.wrappedValue), selection: size) { $0.label }
                         MoneyField(label: "Price", value: $draft.price, currency: prefs.currency)
                     } header: {
                         Text("Usual size")
@@ -97,14 +97,8 @@ struct DrinkEditor: View {
         }
     }
 
-    private var sizes: [Size] {
-        let sizes = draft.category.serves.map { Size(vessel: $0.vessel, ml: $0.ml) }
-        let current = Size(vessel: draft.vessel, ml: draft.volumeMl)
-        return sizes.contains(current) ? sizes : sizes + [current]
-    }
-
-    private var size: Binding<Size> {
-        Binding(get: { Size(vessel: draft.vessel, ml: draft.volumeMl) }, set: { draft.vessel = $0.vessel; draft.volumeMl = $0.ml })
+    private var size: Binding<ServeSize> {
+        Binding(get: { ServeSize(draft.vessel, draft.volumeMl) }, set: { draft.vessel = $0.vessel; draft.volumeMl = $0.ml })
     }
 
     /// Changing the type resets the size and, for a new drink, the strength to that type's usual.
@@ -113,17 +107,11 @@ struct DrinkEditor: View {
             get: { draft.category },
             set: { category in
                 draft.category = category
-                draft.vessel = category.serves[0].vessel
-                draft.volumeMl = category.serves[0].ml
+                size.wrappedValue = category.serves[0]
                 if drink == nil { draft.abv = category.defaultABV }
             }
         )
     }
-}
-
-private struct Size: Hashable {
-    let vessel: Vessel
-    let ml: Double
 }
 
 struct DrinksScreen: View {

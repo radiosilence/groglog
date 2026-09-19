@@ -216,7 +216,7 @@ nonisolated enum Exporter {
                     added += 1
                     touched.insert(day)
                 }
-                for (index, pour) in pours.enumerated() where !existingPours.contains(pour.id ?? UUID()) {
+                for (index, pour) in pours.enumerated() where pour.id.map(existingPours.contains) != true {
                     let time = pour.time ?? evening.addingTimeInterval(Double(index) * 30 * 60)
                     let id = pour.id ?? UUID()
                     if let volume = pour.volumeMl {

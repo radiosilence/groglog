@@ -24,7 +24,7 @@ struct DayChart: View {
     var body: some View {
         let clock = ledger.clock
         let yesterday = day - 1
-        let now = max(tick, .now)
+        let now = Date.now
         let nowHour = day == ledger.today ? clock.hours(now, into: day) : nil
         let firstHour = pours
             .filter { $0.day == day.number || $0.day == yesterday.number }
@@ -58,14 +58,14 @@ struct DayChart: View {
             Chart {
                 ForEach(series.reversed()) { s in
                     ForEach(s.points) { point in
-                        LineMark(x: .value("Hour", point.hour), y: .value("Units", point.units), series: .value("Series", s.name))
+                        LineMark(x: .value("Hour", point.x), y: .value("Units", point.units), series: .value("Series", s.name))
                             .interpolationMethod(s.dashed ? .linear : .stepEnd)
                             .foregroundStyle(s.color)
                             .lineStyle(StrokeStyle(lineWidth: s.name == "Today" ? 3 : 2, lineCap: .round, dash: s.dashed ? [4, 4] : []))
                     }
                 }
                 ForEach(series[0].points) { point in
-                    AreaMark(x: .value("Hour", point.hour), yStart: .value("Units", 0), yEnd: .value("Units", point.units))
+                    AreaMark(x: .value("Hour", point.x), yStart: .value("Units", 0), yEnd: .value("Units", point.units))
                         .interpolationMethod(.stepEnd)
                         .foregroundStyle(LinearGradient(colors: [Color.grog.opacity(0.35), Color.grog.opacity(0.02)], startPoint: .top, endPoint: .bottom))
                 }
@@ -111,6 +111,6 @@ private struct Series: Identifiable {
 
     func value(at hour: Double) -> Double? {
         guard !points.isEmpty else { return nil }
-        return points.last { $0.hour <= hour }?.units ?? 0
+        return points.last { $0.x <= hour }?.units ?? 0
     }
 }

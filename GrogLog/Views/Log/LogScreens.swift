@@ -82,11 +82,8 @@ struct PourEditor: View {
                     if isUnits {
                         NumberRow(label: "Units", value: Binding(get: { volume / 10 }, set: { volume = $0 * 10 }), suffix: "u")
                     } else {
-                        let sizes = entry.category.serves.map { Size(vessel: $0.vessel, ml: $0.ml) }
-                        ChipRow(options: sizes.contains(Size(vessel: vessel, ml: volume)) ? sizes : sizes + [Size(vessel: vessel, ml: volume)],
-                                selection: Binding(get: { Size(vessel: vessel, ml: volume) }, set: { vessel = $0.vessel; volume = $0.ml })) {
-                            $0.vessel.label(ml: $0.ml)
-                        }
+                        let size = ServeSize(vessel, volume)
+                        ChipRow(options: entry.category.sizes(including: size), selection: Binding(get: { size }, set: { vessel = $0.vessel; volume = $0.ml })) { $0.label }
                         NumberRow(label: "Size", value: $volume, suffix: "ml")
                     }
                     MoneyField(label: "Price", value: $price, currency: prefs.currency)
@@ -114,9 +111,4 @@ struct PourEditor: View {
             .sheet(isPresented: $editingDrink) { DrinkEditor(drink: entry.drink) }
         }
     }
-}
-
-private struct Size: Hashable {
-    let vessel: Vessel
-    let ml: Double
 }

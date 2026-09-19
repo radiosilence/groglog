@@ -15,7 +15,7 @@ struct LogOptionsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(Prefs.self) private var prefs
     @State private var selected: String
-    @State private var size: Size
+    @State private var size: ServeSize
     @State private var count = 1
     @State private var time: Date
     @State private var search = ""
@@ -27,7 +27,7 @@ struct LogOptionsSheet: View {
         self.ledger = ledger
         self.onLog = onLog
         _selected = State(initialValue: base.drink.id.uuidString)
-        _size = State(initialValue: Size(vessel: base.vessel, ml: base.volumeMl))
+        _size = State(initialValue: ServeSize(base.vessel, base.volumeMl))
         _time = State(initialValue: ledger.clock.suggestedTime(for: day, after: last))
     }
 
@@ -55,7 +55,7 @@ struct LogOptionsSheet: View {
                 }
 
                 Section {
-                    ChipRow(options: sizes, selection: $size) { $0.vessel.label(ml: $0.ml) }
+                    ChipRow(options: base.drink.category.sizes(including: ServeSize(base.vessel, base.volumeMl)), selection: $size) { $0.label }
                     Stepper("How many: \(count)", value: $count, in: 1...12)
                     if day == ledger.today {
                         ChipRow(options: [0, 15, 30, 60, 120, 180], selection: minutesAgo) {
@@ -129,13 +129,6 @@ struct LogOptionsSheet: View {
         return drink
     }
 
-    /// The type's usual sizes, plus the tile's if it's an odd one.
-    private var sizes: [Size] {
-        let usual = base.drink.category.serves.map { Size(vessel: $0.vessel, ml: $0.ml) }
-        let tile = Size(vessel: base.vessel, ml: base.volumeMl)
-        return usual.contains(tile) ? usual : [tile] + usual
-    }
-
     /// Several drinks run from the chosen time up to now (or 20 minutes apart on a past day).
     private var spreadTimes: [Date] {
         guard count > 1 else { return [time] }
@@ -156,11 +149,6 @@ struct LogOptionsSheet: View {
     private var resolvedTime: Binding<Date> {
         Binding(get: { time }, set: { time = ledger.clock.resolve($0, into: day) })
     }
-}
-
-private struct Size: Hashable {
-    let vessel: Vessel
-    let ml: Double
 }
 
 /// One of your drinks or a catalogue brand, presented the same way.

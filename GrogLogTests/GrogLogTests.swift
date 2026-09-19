@@ -203,7 +203,7 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
             Entry(pour: Pour(drinkId: drink.id, timestamp: $0, day: day.number, vessel: .pint, volumeMl: 568, price: 5), drink: drink)
         }
         let points = Ledger(days: [], clock: clock).cumulative(entries, on: day)
-        #expect(points.map(\.hour) == [0, 15, 20, 24])
+        #expect(points.map(\.x) == [0, 15, 20, 24])
         #expect(abs(points.last!.units - 2 * Units.of(ml: 568, abv: 5)) < 0.001)
     }
 }

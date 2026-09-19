@@ -6,7 +6,7 @@ struct CatalogBrand: Identifiable {
     let name: String
     let category: DrinkCategory
     let abv: Double
-    let serves: [(vessel: Vessel, ml: Double)]
+    let serves: [ServeSize]
     var id: String { name }
 }
 
@@ -23,36 +23,34 @@ struct CatalogItem: Identifiable, Hashable {
 }
 
 enum Catalog {
-    private typealias Size = (vessel: Vessel, ml: Double)
+    private static let pint = ServeSize(.pint, 568)
+    private static let half = ServeSize(.half, 284)
+    private static let can330 = ServeSize(.can, 330)
+    private static let can440 = ServeSize(.can, 440)
+    private static let can500 = ServeSize(.can, 500)
+    private static let can568 = ServeSize(.can, 568)
+    private static let bottle275 = ServeSize(.bottle, 275)
+    private static let bottle330 = ServeSize(.bottle, 330)
+    private static let bottle500 = ServeSize(.bottle, 500)
+    private static let bottle568 = ServeSize(.bottle, 568)
+    private static let bottle660 = ServeSize(.bottle, 660)
+    private static let glass125 = ServeSize(.wineGlass, 125)
+    private static let glass175 = ServeSize(.wineGlass, 175)
+    private static let glass250 = ServeSize(.wineGlass, 250)
+    private static let flute = ServeSize(.flute, 125)
+    private static let wineBottle = ServeSize(.wineBottle, 750)
+    private static let single = ServeSize(.shot, 25)
+    private static let single35 = ServeSize(.shot, 35)
+    private static let bottle70cl = ServeSize(.wineBottle, 700)
 
-    private static let pint: Size = (.pint, 568)
-    private static let half: Size = (.half, 284)
-    private static let can330: Size = (.can, 330)
-    private static let can440: Size = (.can, 440)
-    private static let can500: Size = (.can, 500)
-    private static let can568: Size = (.can, 568)
-    private static let bottle275: Size = (.bottle, 275)
-    private static let bottle330: Size = (.bottle, 330)
-    private static let bottle500: Size = (.bottle, 500)
-    private static let bottle568: Size = (.bottle, 568)
-    private static let bottle660: Size = (.bottle, 660)
-    private static let glass125: Size = (.wineGlass, 125)
-    private static let glass175: Size = (.wineGlass, 175)
-    private static let glass250: Size = (.wineGlass, 250)
-    private static let flute: Size = (.flute, 125)
-    private static let wineBottle: Size = (.wineBottle, 750)
-    private static let single: Size = (.shot, 25)
-    private static let single35: Size = (.shot, 35)
-    private static let bottle70cl: Size = (.wineBottle, 700)
-
-    private static let entries: [(String, DrinkCategory, Double, [Size])] = [
+    private static let entries: [(String, DrinkCategory, Double, [ServeSize])] = [
         // Lager
         ("Stella Artois", .beer, 4.6, [pint, can440, can500, bottle330]),
         ("Carling", .beer, 3.7, [pint, can440, can568]),
         ("Foster's", .beer, 3.7, [pint, can440, can568]),
         ("Carlsberg", .beer, 3.8, [pint, can440]),
         ("Heineken", .beer, 5.0, [pint, can440, bottle330]),
-        ("Peroni Nastro Azzurro", .beer, 5.0, [pint, bottle330, (.bottle, 620)]),
+        ("Peroni Nastro Azzurro", .beer, 5.0, [pint, bottle330, .init(.bottle, 620)]),
         ("Birra Moretti", .beer, 4.3, [pint, bottle330, can440]),
         ("Madrí", .beer, 4.6, [pint, can440]),
         ("Camden Hells", .beer, 4.6, [pint, can330]),
@@ -107,8 +105,8 @@ enum Catalog {
         ("Shiraz", .redWine, 14.0, [glass175, glass250, wineBottle]),
         ("Pinot Noir", .redWine, 13.0, [glass175, glass250, wineBottle]),
         ("Provence rosé", .rose, 12.5, [glass175, glass250, wineBottle]),
-        ("Port", .fortified, 20.0, [(.wineGlass, 50)]),
-        ("Sherry", .fortified, 15.0, [(.wineGlass, 70)]),
+        ("Port", .fortified, 20.0, [.init(.wineGlass, 50)]),
+        ("Sherry", .fortified, 15.0, [.init(.wineGlass, 70)]),
         // Spirits
         ("Gordon's Gin", .spirit, 37.5, [single, single35, bottle70cl]),
         ("Tanqueray", .spirit, 43.1, [single, single35, bottle70cl]),
@@ -122,15 +120,15 @@ enum Catalog {
         ("Bacardi", .spirit, 37.5, [single, single35, bottle70cl]),
         ("Jägermeister", .spirit, 35.0, [single]),
         ("Tequila", .spirit, 38.0, [single]),
-        ("Baileys", .spirit, 17.0, [(.tumbler, 50)]),
+        ("Baileys", .spirit, 17.0, [.init(.tumbler, 50)]),
         // Mixed & ready-to-drink
-        ("Gin & tonic", .cocktail, 4.2, [(.tumbler, 225)]),
-        ("Double gin & tonic", .cocktail, 7.5, [(.tumbler, 250)]),
-        ("Pimm's & lemonade", .cocktail, 5.0, [(.tumbler, 250)]),
-        ("Aperol Spritz", .cocktail, 8.0, [(.wineGlass, 200)]),
-        ("Espresso Martini", .cocktail, 15.0, [(.coupe, 120)]),
-        ("Margarita", .cocktail, 16.0, [(.coupe, 150)]),
-        ("Gordon's G&T can", .alcopop, 5.0, [(.can, 250)]),
+        ("Gin & tonic", .cocktail, 4.2, [.init(.tumbler, 225)]),
+        ("Double gin & tonic", .cocktail, 7.5, [.init(.tumbler, 250)]),
+        ("Pimm's & lemonade", .cocktail, 5.0, [.init(.tumbler, 250)]),
+        ("Aperol Spritz", .cocktail, 8.0, [.init(.wineGlass, 200)]),
+        ("Espresso Martini", .cocktail, 15.0, [.init(.coupe, 120)]),
+        ("Margarita", .cocktail, 16.0, [.init(.coupe, 150)]),
+        ("Gordon's G&T can", .alcopop, 5.0, [.init(.can, 250)]),
         ("WKD", .alcopop, 4.0, [bottle275]),
         ("Smirnoff Ice", .alcopop, 4.0, [bottle275]),
         ("White Claw", .alcopop, 4.5, [can330]),

@@ -117,6 +117,7 @@ nonisolated enum Seed {
     #endif
 }
 
+#if DEBUG
 nonisolated struct SeededRandom: RandomNumberGenerator {
     var seed: UInt64
 
@@ -125,3 +126,4 @@ nonisolated struct SeededRandom: RandomNumberGenerator {
         return seed
     }
 }
+#endif

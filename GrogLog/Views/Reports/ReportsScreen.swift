@@ -39,9 +39,8 @@ struct ReportsScreen: View {
     }
 }
 
-/// The last four weeks as two trend lines — what you drank and your budget, each a 7-day rolling average so the
-/// Drinking against the budget: the orange line is units drunk in the last 24 hours at any moment, so each night is
-/// a hump you can compare with that day's budget, which runs on as the dashed plan from today.
+/// Drinking against the budget as two trend lines — daily units and the daily budget, each averaged over `smoothing`
+/// days — with the budget running on as the dashed plan from today.
 private struct ProgressCard: View {
     let title: String
     /// As far back as the chart scrolls; the drinks themselves are only fetched for this window.
@@ -68,7 +67,7 @@ private struct ProgressCard: View {
     var body: some View {
         let calendar = ledger.clock.calendar
         let today = ledger.today
-        // The whole history is drawn; the chart shows a month of it at a time and scrolls back through the rest.
+        // Everything back to `history` days is drawn; the chart shows a window of it and scrolls through the rest.
         let start = max(ledger.firstDay ?? today - 27, today - history)
         // Never show more days than there are; a window wider than the data leaves it stranded at the left.
         let days = min(Int((window / pinch).rounded()), start.distance(to: today + 15))
@@ -77,9 +76,13 @@ private struct ProgressCard: View {
             average(to: day) { ledger.isLogged($0) || $0 == today ? ledger.totals(on: $0).units : nil }
                 .map { (date: day.date(in: calendar), units: $0) }
         }
-        let budgets = { (days: ClosedRange<DayKey>) in days.compactMap { day in self.average(to: day) { ledger.dailyBudget(on: $0, goal: goal) }.map { (day, $0) } } }
-        let behind = goal.isEnabled ? budgets(past) : []
-        let ahead = goal.isEnabled ? budgets(today...(today + 14)).map { ($0.0.date(in: calendar), $0.1) } : []
+        // Each day's budget worked out once, not once per window it's averaged into — this runs every frame of a pinch.
+        let daily = Dictionary(uniqueKeysWithValues: ((start - smoothing)...(today + 14)).compactMap { day in
+            ledger.dailyBudget(on: day, goal: goal).map { (day, $0) }
+        })
+        let budgets = { (days: ClosedRange<DayKey>) in days.compactMap { day in self.average(to: day) { daily[$0] }.map { (day, $0) } } }
+        let behind = budgets(past)
+        let ahead = budgets(today...(today + 14)).map { ($0.0.date(in: calendar), $0.1) }
         // Scale to the window in view, so an old binge doesn't flatten the recent weeks.
         let shown = drank.filter { $0.date >= ledger.clock.start(of: today - days) }
         let top = max(10, shown.map(\.units).max() ?? 0, ahead.map(\.1).max() ?? 0) * 1.15
@@ -182,11 +185,11 @@ private struct WeekCard: View {
         let clock = ledger.clock
         let today = ledger.today
         let start = clock.weekStart(of: today)
-        let current = ledger.weekCurve(entries, of: start, through: today)
-        let earlier = (1...3).map { ledger.weekCurve(entries, of: start - 7 * $0) }.filter { $0.count > 1 }
+        let current = ledger.runningTotal(entries, over: start...(start + 6), through: today)
+        let earlier = (1...3).map { ledger.runningTotal(entries, over: (start - 7 * $0)...(start - 7 * $0 + 6)) }.filter { $0.count > 1 }
         let budget = goal.isEnabled ? ledger.weekBudgetCurve(of: start, goal: goal) : []
         let into = Double(start.distance(to: today)) + min(1, clock.hours(.now, into: today) / 24)
-        let lastWeek = earlier.first?.last { $0.hour <= into }?.units
+        let lastWeek = earlier.first?.last { $0.x <= into }?.units
         let now = current.last?.units ?? 0
 
         Card(title: "This week") {
@@ -211,25 +214,25 @@ private struct WeekCard: View {
             Chart {
                 ForEach(Array(earlier.enumerated()), id: \.offset) { index, week in
                     ForEach(week) { point in
-                        LineMark(x: .value("Day", point.hour), y: .value("Units", point.units), series: .value("Week", "-\(index + 1)"))
+                        LineMark(x: .value("Day", point.x), y: .value("Units", point.units), series: .value("Week", "-\(index + 1)"))
                             .foregroundStyle(Color.gray.opacity(0.5 - Double(index) * 0.12))
                             .lineStyle(StrokeStyle(lineWidth: 1.5))
                     }
                 }
                 ForEach(budget) { point in
-                    LineMark(x: .value("Day", point.hour), y: .value("Units", point.units), series: .value("Week", "budget"))
+                    LineMark(x: .value("Day", point.x), y: .value("Units", point.units), series: .value("Week", "budget"))
                         .foregroundStyle(Color.dry)
                         .lineStyle(StrokeStyle(lineWidth: 2, dash: [4, 4]))
                 }
                 ForEach(current) { point in
-                    AreaMark(x: .value("Day", point.hour), yStart: .value("Units", 0), yEnd: .value("Units", point.units))
+                    AreaMark(x: .value("Day", point.x), yStart: .value("Units", 0), yEnd: .value("Units", point.units))
                         .foregroundStyle(LinearGradient(colors: [Color.grog.opacity(0.3), Color.grog.opacity(0.02)], startPoint: .top, endPoint: .bottom))
-                    LineMark(x: .value("Day", point.hour), y: .value("Units", point.units), series: .value("Week", "this"))
+                    LineMark(x: .value("Day", point.x), y: .value("Units", point.units), series: .value("Week", "this"))
                         .foregroundStyle(Color.grog)
                         .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
                 }
                 if let last = current.last {
-                    PointMark(x: .value("Day", last.hour), y: .value("Units", last.units))
+                    PointMark(x: .value("Day", last.x), y: .value("Units", last.units))
                         .foregroundStyle(Color.grog)
                         .symbolSize(80)
                 }
@@ -269,10 +272,10 @@ private struct MonthCard: View {
         let today = ledger.today
         let thisMonth = today.monthStart
         let lastMonth = (thisMonth - 1).monthStart
-        let current = ledger.monthCurve(entries, of: thisMonth, through: today)
-        let previous = ledger.monthCurve(entries, of: lastMonth)
+        let current = ledger.runningTotal(entries, over: thisMonth...(thisMonth + thisMonth.daysInMonth - 1), through: today)
+        let previous = ledger.runningTotal(entries, over: lastMonth...(thisMonth - 1))
         let dayOfMonth = today.components.day
-        let lastAtSameDay = previous.last { $0.hour <= Double(dayOfMonth) }?.units ?? 0
+        let lastAtSameDay = previous.last { $0.x <= Double(dayOfMonth) }?.units ?? 0
         let now = current.last?.units ?? 0
         let hasLastMonth = (previous.last?.units ?? 0) > 0
 
@@ -297,19 +300,19 @@ private struct MonthCard: View {
 
             Chart {
                 ForEach(hasLastMonth ? previous : []) {
-                    LineMark(x: .value("Day", $0.hour), y: .value("Units", $0.units), series: .value("Month", "Last"))
+                    LineMark(x: .value("Day", $0.x), y: .value("Units", $0.units), series: .value("Month", "Last"))
                         .foregroundStyle(Color.gray.opacity(0.6))
                         .lineStyle(StrokeStyle(lineWidth: 2))
                 }
                 ForEach(current) {
-                    AreaMark(x: .value("Day", $0.hour), yStart: .value("Units", 0), yEnd: .value("Units", $0.units))
+                    AreaMark(x: .value("Day", $0.x), yStart: .value("Units", 0), yEnd: .value("Units", $0.units))
                         .foregroundStyle(LinearGradient(colors: [Color.grog.opacity(0.35), Color.grog.opacity(0.02)], startPoint: .top, endPoint: .bottom))
-                    LineMark(x: .value("Day", $0.hour), y: .value("Units", $0.units), series: .value("Month", "This"))
+                    LineMark(x: .value("Day", $0.x), y: .value("Units", $0.units), series: .value("Month", "This"))
                         .foregroundStyle(Color.grog)
                         .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
                 }
                 if let last = current.last {
-                    PointMark(x: .value("Day", last.hour), y: .value("Units", last.units))
+                    PointMark(x: .value("Day", last.x), y: .value("Units", last.units))
                         .foregroundStyle(Color.grog)
                         .symbolSize(80)
                 }
@@ -396,11 +399,7 @@ private struct SummaryTiles: View {
     let currency: String
 
     var body: some View {
-        let totals = stats.reduce(into: DayTotals()) { sum, week in
-            sum.units += week.totals.units
-            sum.kcal += week.totals.kcal
-            sum.cost += week.totals.cost
-        }
+        let totals = stats.reduce(DayTotals()) { $0 + $1.totals }
         let dry = stats.reduce(0) { $0 + $1.dryDays }
         let unlogged = stats.reduce(0) { $0 + $1.unloggedDays }
         let fullWeeks = stats.dropLast().filter { $0.unloggedDays < 7 }

@@ -98,8 +98,8 @@ nonisolated enum DrinkCategory: String, CaseIterable, Codable, Identifiable {
     }
 
     /// The sizes this kind of drink usually comes in.
-    var serves: [(vessel: Vessel, ml: Double)] {
-        switch self {
+    var serves: [ServeSize] {
+        let sizes: [(Vessel, Double)] = switch self {
         case .beer: [(.pint, 568), (.half, 284), (.can, 330), (.can, 440), (.can, 500), (.can, 568), (.bottle, 330), (.bottle, 500), (.bottle, 660)]
         case .stout: [(.pint, 568), (.half, 284), (.can, 440), (.can, 500)]
         case .cider: [(.pint, 568), (.half, 284), (.can, 440), (.can, 500), (.bottle, 500), (.bottle, 568)]
@@ -111,6 +111,12 @@ nonisolated enum DrinkCategory: String, CaseIterable, Codable, Identifiable {
         case .fortified: [(.wineGlass, 50), (.wineGlass, 70)]
         case .units: [(.shot, 10)]
         }
+        return sizes.map(ServeSize.init)
+    }
+
+    /// The usual sizes, led by `size` when it's an odd one.
+    func sizes(including size: ServeSize) -> [ServeSize] {
+        serves.contains(size) ? serves : [size] + serves
     }
 
     /// "Pint · 4.6%", "440 ml can · 5%" — or "any amount" for bare unit counts.
@@ -119,25 +125,23 @@ nonisolated enum DrinkCategory: String, CaseIterable, Codable, Identifiable {
     }
 }
 
+/// A vessel at a volume: a size a drink comes in.
+nonisolated struct ServeSize: Hashable, Sendable {
+    let vessel: Vessel
+    let ml: Double
+
+    init(_ vessel: Vessel, _ ml: Double) {
+        self.vessel = vessel
+        self.ml = ml
+    }
+
+    var label: String { vessel.label(ml: ml) }
+}
+
 nonisolated enum Vessel: String, CaseIterable, Codable, Identifiable {
     case pint, half, can, bottle, wineBottle, wineGlass, flute, shot, tumbler, coupe
 
     var id: Self { self }
-
-    var label: String {
-        switch self {
-        case .pint: "Pint"
-        case .half: "Half"
-        case .can: "Can"
-        case .bottle: "Bottle"
-        case .wineBottle: "Wine bottle"
-        case .wineGlass: "Wine glass"
-        case .flute: "Flute"
-        case .shot: "Shot"
-        case .tumbler: "Tumbler"
-        case .coupe: "Cocktail"
-        }
-    }
 
     /// How a serve reads on a tile: "Pint", "440 ml can", "175 ml glass", "Single".
     func label(ml: Double) -> String {

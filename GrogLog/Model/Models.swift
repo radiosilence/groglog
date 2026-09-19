@@ -15,9 +15,6 @@ nonisolated struct Drink: Codable, Hashable, Identifiable, Sendable, FetchableRe
     var isHidden = false
     var sortOrder = 0
 
-    static let pours = hasMany(Pour.self)
-    static let favourites = hasMany(Favourite.self)
-
     /// The price to assume for a size: the default price scaled by volume.
     func price(forMl ml: Double) -> Double { price * ml / volumeMl }
 }
