@@ -123,10 +123,10 @@ private struct DrinkTile: View {
                 .font(.subheadline.weight(.semibold))
                 .lineLimit(2, reservesSpace: true)
                 .multilineTextAlignment(.center)
-            Text(category.serving(ml: volumeMl, abv: abv))
+            Text(category == .units ? "any amount" : category.serving(ml: volumeMl, abv: abv))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-            Text("\(Units.of(ml: volumeMl, abv: abv).unitsText) u")
+            Text(category == .units ? "type it in" : "\(Units.of(ml: volumeMl, abv: abv).unitsText) u")
                 .font(.caption.weight(.bold).monospacedDigit())
                 .foregroundStyle(Color.grog)
         }

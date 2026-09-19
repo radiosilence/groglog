@@ -144,21 +144,40 @@ struct Ledger {
         return points
     }
 
-    /// The unit budget for `day`. On a fixed schedule it's the goal's own; "from today", it's the average of the last
-    /// few drinking days before `day` (or before today, projecting forward) cut by the goal's daily rate.
+    /// The unit budget for `day`: the taper, held at the target once it gets there.
     func dailyBudget(on day: Date, goal: Goal) -> Double? {
+        taper(on: day, goal: goal).map { max($0.budget, min(goal.targetWeekly / 7, $0.reference)) }
+    }
+
+    /// When today's taper, carried on, reaches the target — and drops under a unit a day, the point where stopping is a small step.
+    func projection(goal: Goal) -> (target: Date?, underOneUnit: Date?) {
+        guard let today = taper(on: clock.today, goal: goal), goal.dailyCut > 0 else { return (nil, nil) }
+        func date(reaching level: Double) -> Date? {
+            guard level > 0 else { return nil }
+            let days = today.budget <= level ? 0 : log(level / today.budget) / log(1 - goal.dailyCut)
+            return clock.adding(Int(days.rounded(.up)), to: clock.today)
+        }
+        return (date(reaching: goal.targetWeekly / 7), date(reaching: 1))
+    }
+
+    /// The unfloored budget for `day` and the level it tapers from. Scheduled: from the baseline on the start date.
+    /// Dynamic: the cut applied to your average over the previous period (dry days count as zero, unlogged days are
+    /// left out), continuing the taper daily for future days.
+    private func taper(on day: Date, goal: Goal) -> (budget: Double, reference: Double)? {
         guard goal.isEnabled else { return nil }
-        guard goal.fromToday else { return goal.scheduledBudget(on: day, calendar: clock.calendar) }
-        let today = clock.today
-        let anchor = min(day, today)
-        let recent = (1...14)
-            .map { clock.adding(-$0, to: anchor) }
-            .filter { status(on: $0) == .drank }
-            .prefix(3)
-        let level = recent.isEmpty ? goal.baselineWeekly / 7 : recent.reduce(0) { $0 + totals(on: $1).units } / Double(recent.count)
-        let daysAhead = max(0, clock.calendar.dateComponents([.day], from: today, to: day).day ?? 0)
-        let budget = level * pow(1 - goal.dailyCut, Double(1 + daysAhead))
-        return max(min(goal.targetWeekly / 7, level), budget)
+        let calendar = clock.calendar
+        guard goal.isDynamic else {
+            let elapsed = calendar.dateComponents([.day], from: calendar.startOfDay(for: goal.start), to: day).day ?? 0
+            guard elapsed >= 0 else { return nil }
+            let reference = goal.baselineWeekly / 7
+            return (reference * pow(1 - goal.dailyCut, Double(elapsed)), reference)
+        }
+        let anchor = min(day, clock.today)
+        let window = (1...max(1, goal.periodDays)).map { clock.adding(-$0, to: anchor) }
+            .filter { [.drank, .alcoholFree].contains(status(on: $0)) }
+        let average = window.isEmpty ? goal.baselineWeekly / 7 : window.reduce(0) { $0 + totals(on: $1).units } / Double(window.count)
+        let daysAhead = max(0, calendar.dateComponents([.day], from: anchor, to: day).day ?? 0)
+        return (average * (1 - goal.reductionPercent / 100) * pow(1 - goal.dailyCut, Double(daysAhead)), average)
     }
 
     func week(starting start: Date, goal: Goal) -> WeekStat {

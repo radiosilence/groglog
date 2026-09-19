@@ -217,24 +217,3 @@ private struct ChoiceRow: View {
         }
     }
 }
-
-/// A row of pill buttons for picking one of a few values.
-struct ChipRow<Value: Hashable>: View {
-    let options: [Value]
-    @Binding var selection: Value
-    let label: (Value) -> String
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(options, id: \.self) { option in
-                    Button(label(option)) { selection = option }
-                        .buttonStyle(.bordered)
-                        .tint(option == selection ? .grog : .secondary)
-                        .fontWeight(option == selection ? .semibold : .regular)
-                }
-            }
-        }
-        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-    }
-}

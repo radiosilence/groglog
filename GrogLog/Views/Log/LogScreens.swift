@@ -34,38 +34,56 @@ struct AddDrinkSheet: View {
     }
 }
 
+/// Edits a copy and writes it back on Done, so typing doesn't re-render every screen behind the sheet.
 struct PourEditor: View {
-    @Bindable var pour: Pour
+    let pour: Pour
     let day: Date
     let clock: DayClock
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Environment(Prefs.self) private var prefs
+    @State private var name: String
+    @State private var time: Date
+    @State private var volume: Double
+    @State private var abv: Double
+    @State private var price: Double
+
+    init(pour: Pour, day: Date, clock: DayClock) {
+        self.pour = pour
+        self.day = day
+        self.clock = clock
+        _name = State(initialValue: pour.name)
+        _time = State(initialValue: pour.timestamp)
+        _volume = State(initialValue: pour.volumeMl)
+        _abv = State(initialValue: pour.abv)
+        _price = State(initialValue: pour.price)
+    }
 
     var body: some View {
+        let isUnits = pour.category == .units
         NavigationStack {
             Form {
                 Section {
                     HStack(spacing: 14) {
-                        DrinkGlyph(category: pour.category, vessel: pour.vessel, volumeMl: pour.volumeMl)
+                        DrinkGlyph(category: pour.category, vessel: pour.vessel, volumeMl: volume)
                             .frame(width: 56, height: 56)
                         VStack(alignment: .leading) {
-                            TextField("Name", text: $pour.name).font(.headline)
-                            Text("\(pour.units.unitsText) u · \(pour.kcal.kcalText) kcal")
+                            TextField("Name", text: $name).font(.headline)
+                            Text("\(Units.of(ml: volume, abv: abv).unitsText) u")
                                 .font(.subheadline.monospacedDigit())
                                 .foregroundStyle(.secondary)
                         }
                     }
                 }
                 Section {
-                    DatePicker("Time", selection: Binding(get: { pour.timestamp }, set: { pour.timestamp = clock.resolve($0, into: day) }), displayedComponents: .hourAndMinute)
-                    NumberRow(label: "Volume", value: $pour.volumeMl, suffix: "ml")
-                    NumberRow(label: "Strength", value: $pour.abv, suffix: "% ABV")
-                    LabeledContent("Price") {
-                        TextField("Price", value: $pour.price, format: .currency(code: prefs.currency))
-                            .multilineTextAlignment(.trailing)
-                            .keyboardType(.decimalPad)
+                    DatePicker("Time", selection: Binding(get: { time }, set: { time = clock.resolve($0, into: day) }), displayedComponents: .hourAndMinute)
+                    if isUnits {
+                        NumberRow(label: "Units", value: Binding(get: { volume / 10 }, set: { volume = $0 * 10 }), suffix: "u")
+                    } else {
+                        NumberRow(label: "Volume", value: $volume, suffix: "ml")
+                        NumberRow(label: "Strength", value: $abv, suffix: "% ABV")
                     }
+                    MoneyField(label: "Price", value: $price, currency: prefs.currency)
                 }
                 Section {
                     Button("Delete", role: .destructive) {
@@ -74,32 +92,24 @@ struct PourEditor: View {
                     }
                 }
             }
-            .onChange(of: pour.volumeMl) { pour.recalculateKcal() }
-            .onChange(of: pour.abv) { pour.recalculateKcal() }
             .navigationTitle("Drink")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done", role: .confirm) { dismiss() }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", role: .cancel) { dismiss() }
                 }
-            }
-        }
-    }
-}
-
-/// A labelled decimal field with a unit suffix.
-struct NumberRow: View {
-    let label: String
-    @Binding var value: Double
-    let suffix: String
-
-    var body: some View {
-        LabeledContent(label) {
-            HStack(spacing: 4) {
-                TextField(label, value: $value, format: .number)
-                    .multilineTextAlignment(.trailing)
-                    .keyboardType(.decimalPad)
-                Text(suffix).foregroundStyle(.secondary)
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done", role: .confirm) {
+                        let resized = volume != pour.volumeMl || abv != pour.abv
+                        pour.name = name
+                        pour.timestamp = time
+                        pour.volumeMl = volume
+                        pour.abv = abv
+                        pour.price = price
+                        if resized { pour.recalculateKcal() }
+                        dismiss()
+                    }
+                }
             }
         }
     }

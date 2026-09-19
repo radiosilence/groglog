@@ -48,9 +48,16 @@ private struct BurndownCard: View {
 
         Card(title: "Burndown") {
             if let budget = ledger.dailyBudget(on: today, goal: goal) {
-                Text("Today's budget \(budget.unitsText) u")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                let projection = ledger.projection(goal: goal)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Today's budget \(budget.unitsText) u")
+                    if let stop = projection.underOneUnit {
+                        Text("Under 1 u/day by \(stop.formatted(date: .abbreviated, time: .omitted)) at this rate")
+                            .foregroundStyle(Color.dry)
+                    }
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
             }
             Chart {
                 ForEach(past, id: \.self) { day in

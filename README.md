@@ -9,7 +9,7 @@ Written because Drinkaware's Drink Coach is low-friction but slow, allows one dr
 - **Unlogged ≠ dry.** A day only counts as alcohol-free when you mark it. Gaps show as `?` in the calendar, stay out of averages, and are labelled `not_logged` in exports so an LLM doesn't read a blackout as a good day.
 - **Days end at 5am** (configurable). The 1am pint belongs to the night it was part of.
 - **Pours snapshot their drink.** Editing a drink's ABV or price never rewrites history.
-- **The budget tapers from reality by default.** "From today" mode cuts X% from the average of your last few drinking days, so falling behind a plan never demands a sudden drop. Sudden drops from heavy drinking risk withdrawal; the goal editor warns above a 10%/day cut and, around 15+ units/day, suggests getting support. A fixed schedule is available if you want one.
+- **The budget tapers from reality by default.** "Dynamic tapering" sets each day's budget X% under your average for the chosen period (yesterday, last week, …), so falling behind a plan never demands a sudden drop. Sudden drops from heavy drinking risk withdrawal; the goal editor warns above a 10%/day cut and, around 15+ units/day, suggests getting support. A fixed schedule is available if you want one.
 - **Generics first, brands a long-press away.** Tap "Pint of beer" and you're done. Long-press to pick the specific brand (yours, or ~90 common UK drinks), a size, a time, or several at once. Star a brand to put it in the main grid. Tiles sort by most recently drunk.
 - **Units as an item.** When you only know a total (another app, a night you didn't log), log "Units" directly.
 
@@ -44,6 +44,6 @@ xcodegen generate
 open GrogLog.xcodeproj
 ```
 
-Requires Xcode 26+ / iOS 26. `scripts/shoot.sh <dir> [light|dark]` builds, launches with sample data (`-demo`) and screenshots every tab (`-tab <name>` picks the starting tab). Debug builds have Setup › Developer › Load sample data.
+Requires Xcode 26+ / iOS 26. The app icon is rendered from the pint glyph by `scripts/render-icon.sh`. `scripts/shoot.sh <dir> [light|dark]` builds, launches with sample data (`-demo`) and screenshots every tab (`-tab <name>` picks the starting tab). Debug builds have Setup › Developer › Load sample data.
 
 Tests: `xcodebuild -scheme GrogLog -destination 'platform=iOS Simulator,name=iPhone 18 Pro' test`.

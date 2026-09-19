@@ -46,41 +46,46 @@ private func date(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 0, _ min: Int = 0) ->
     }
 }
 
-@Suite struct GoalTests {
-    let weekly = Goal(isEnabled: true, baselineWeekly: 70, reductionPercent: 10, periodDays: 7, start: date(2026, 9, 1), targetWeekly: 14)
+@MainActor @Suite struct TaperTests {
+    let empty = Ledger(pours: [], dryDays: [], clock: DayClock(rolloverHour: 5, calendar: london))
+    let weekly = Goal(isEnabled: true, isDynamic: false, baselineWeekly: 70, reductionPercent: 10, periodDays: 7, start: date(2026, 9, 1), targetWeekly: 14)
 
-    @Test func compoundsSmoothlyPerPeriod() throws {
-        #expect(weekly.scheduledBudget(on: date(2026, 9, 1), calendar: london) == 10)
-        let aWeekIn = try #require(weekly.scheduledBudget(on: date(2026, 9, 8), calendar: london))
+    @Test func scheduleCompoundsSmoothlyPerPeriod() throws {
+        #expect(empty.dailyBudget(on: date(2026, 9, 1), goal: weekly) == 10)
+        let aWeekIn = try #require(empty.dailyBudget(on: date(2026, 9, 8), goal: weekly))
         #expect(abs(aWeekIn - 9) < 0.0001)
-        let midWeek = try #require(weekly.scheduledBudget(on: date(2026, 9, 4), calendar: london))
+        let midWeek = try #require(empty.dailyBudget(on: date(2026, 9, 4), goal: weekly))
         #expect(midWeek < 10 && midWeek > 9)
     }
 
     @Test func holdsAtTheTarget() {
-        #expect(weekly.scheduledBudget(on: date(2028, 1, 1), calendar: london) == 2)
+        #expect(empty.dailyBudget(on: date(2028, 1, 1), goal: weekly) == 2)
     }
 
     @Test func tenPercentADayIsExactlyTheSafeLimit() {
-        let daily = Goal(isEnabled: true, baselineWeekly: 210, reductionPercent: 10, periodDays: 1, start: date(2026, 9, 1))
+        var daily = weekly
+        daily.periodDays = 1
         #expect(!daily.isFasterThanSafe)
-        #expect(abs(daily.scheduledBudget(on: date(2026, 9, 2), calendar: london)! - 27) < 0.0001)
-        var faster = daily
-        faster.reductionPercent = 25
-        #expect(faster.isFasterThanSafe)
+        daily.reductionPercent = 25
+        #expect(daily.isFasterThanSafe)
     }
 
-    @Test func endsWhenTheTargetIsReached() throws {
-        let end = try #require(weekly.end(calendar: london))
-        let days = london.dateComponents([.day], from: date(2026, 9, 1), to: end).day!
-        #expect((100...110).contains(days))
+    @Test func projectsTargetAndStopDates() throws {
+        var goal = weekly
+        goal.start = empty.clock.today
+        let projection = empty.projection(goal: goal)
+        let toTarget = empty.clock.calendar.dateComponents([.day], from: empty.clock.today, to: try #require(projection.target)).day!
+        let toStop = empty.clock.calendar.dateComponents([.day], from: empty.clock.today, to: try #require(projection.underOneUnit)).day!
+        // 10/day → 2/day at 10%/week ≈ 107 days; → 1/day ≈ 153 days.
+        #expect((105...109).contains(toTarget))
+        #expect((150...156).contains(toStop))
     }
 
     @Test func noBudgetBeforeStartOrWhenOff() {
-        #expect(weekly.scheduledBudget(on: date(2026, 8, 31), calendar: london) == nil)
+        #expect(empty.dailyBudget(on: date(2026, 8, 31), goal: weekly) == nil)
         var off = weekly
         off.isEnabled = false
-        #expect(off.scheduledBudget(on: date(2026, 9, 10), calendar: london) == nil)
+        #expect(empty.dailyBudget(on: date(2026, 9, 10), goal: off) == nil)
     }
 }
 
@@ -120,15 +125,18 @@ private func date(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 0, _ min: Int = 0) ->
         #expect(abs(points.last!.units - 2 * Units.of(ml: 568, abv: 5)) < 0.001)
     }
 
-    @Test func fromTodayBudgetsOffRecentDrinkingNotASchedule() throws {
+    @Test func dynamicBudgetIsTheCutOffTheRecentAverageNotASchedule() throws {
         let today = clock.today
         let evening = { (daysAgo: Int) in clock.start(of: clock.adding(-daysAgo, to: today)).addingTimeInterval(15 * 3600) }
-        // Three recent 20-unit days: tomorrow's budget is 10% under that, however far "behind" an old plan would say.
-        let pours = (1...3).map { pour(evening($0), ml: 1000, abv: 20) }
-        let ledger = Ledger(pours: pours, dryDays: [], clock: clock)
-        let goal = Goal(isEnabled: true, fromToday: true, baselineWeekly: 10, reductionPercent: 10, periodDays: 1, start: clock.adding(-60, to: today))
+        // Last week: 20 u, a dry day (0) and 5 u logged; the rest unlogged and left out. Average 8.33, less 10%.
+        let ledger = Ledger(
+            pours: [pour(evening(2), ml: 1000, abv: 20), pour(evening(5), ml: 500, abv: 10)],
+            dryDays: [AlcoholFreeDay(day: clock.adding(-1, to: today))],
+            clock: clock
+        )
+        let goal = Goal(isEnabled: true, isDynamic: true, baselineWeekly: 10, reductionPercent: 10, periodDays: 7, start: clock.adding(-60, to: today))
         let budget = try #require(ledger.dailyBudget(on: today, goal: goal))
-        #expect(abs(budget - 18) < 0.0001)
+        #expect(abs(budget - 7.5) < 0.0001)
     }
 
     @Test func averageLeavesOutUnloggedDays() {
