@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- A day's spend can be set by hand, for a night you know the damage but not each round. It stands in for the drinks' prices in the day, Reports and exports until cleared, when it falls back to what they add up to. Units and calories are untouched.
 - The long-press sheet puts size, how many and when first: with 200-odd brands below, they were a long scroll away.
 - Number pads get a Done button. Units, strength, goal amounts and price had no way to put the keyboard away.
 - The day rollover holds on the nights the clocks change: for an hour each changeover, a drink could land on the wrong side of "day ends at".

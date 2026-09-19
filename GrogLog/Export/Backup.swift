@@ -47,6 +47,8 @@ nonisolated struct Backup: Codable, Sendable {
         var units: Double?
         var kcal: Double?
         var cost: Double?
+        /// Set when the day's spend was entered by hand; `cost` is then that figure rather than the drinks' prices.
+        var spentByHand: Double?
         var budget: Double?
         var pours: [PourRecord]?
     }
@@ -111,6 +113,7 @@ nonisolated enum Exporter {
                     units: totals.units.rounded2,
                     kcal: totals.kcal.rounded(),
                     cost: totals.cost.rounded2,
+                    spentByHand: ledger.spendOverride(on: day)?.rounded2,
                     budget: ledger.dailyBudget(on: day, goal: settings.goal)?.rounded2,
                     pours: (byDay[day.number] ?? []).map {
                         .init(id: $0.id, time: $0.timestamp, name: $0.name, category: $0.category, vessel: $0.vessel, volumeMl: $0.volumeMl, abv: $0.abv, units: $0.units.rounded2, kcal: $0.kcal.rounded(), price: $0.price, drinkID: $0.drink.id)
@@ -207,6 +210,12 @@ nonisolated enum Exporter {
                 guard let day = DayKey(record.date), !daysWithPours.contains(day.number) else { continue }
                 if record.status == "alcohol_free" {
                     try Day(number: day.number, isAlcoholFree: true).save(db)
+                }
+                if let spent = record.spentByHand {
+                    var row = try Day.fetchOne(db, key: day.number) ?? Day(number: day.number)
+                    row.costOverride = spent
+                    try row.save(db)
+                    touched.insert(day)
                 }
                 let evening = logbook.clock.suggestedTime(for: day, after: nil)
                 let pours = record.pours ?? []

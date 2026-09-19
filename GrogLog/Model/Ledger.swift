@@ -12,6 +12,13 @@ nonisolated struct DayTotals {
 
     init() {}
 
+    init(_ row: Day) {
+        units = row.units
+        kcal = row.kcal
+        cost = row.spend
+        count = row.count
+    }
+
     init(_ entries: some Sequence<Entry>) {
         for entry in entries {
             units += entry.units
@@ -54,31 +61,27 @@ nonisolated struct Ledger {
     let clock: DayClock
     let today: DayKey
     let firstDay: DayKey?
-    private let days: [Int: (totals: DayTotals, isAlcoholFree: Bool)]
+    private let days: [Int: Day]
 
     init(days rows: [Day], clock: DayClock) {
         self.clock = clock
         today = clock.today
-        var days: [Int: (totals: DayTotals, isAlcoholFree: Bool)] = [:]
-        days.reserveCapacity(rows.count)
-        for row in rows {
-            var totals = DayTotals()
-            totals.units = row.units
-            totals.kcal = row.kcal
-            totals.cost = row.cost
-            totals.count = row.count
-            days[row.number] = (totals, row.isAlcoholFree)
-        }
-        self.days = days
+        days = Dictionary(rows.map { ($0.number, $0) }, uniquingKeysWith: { first, _ in first })
         firstDay = days.keys.min().map(DayKey.init(number:))
     }
 
-    func totals(on day: DayKey) -> DayTotals { days[day.number]?.totals ?? DayTotals() }
+    func totals(on day: DayKey) -> DayTotals { days[day.number].map(DayTotals.init) ?? DayTotals() }
+
+    /// The spend set by hand for a day, if there is one — what the drinks cost is ignored while it stands.
+    func spendOverride(on day: DayKey) -> Double? { days[day.number]?.costOverride }
+
+    /// What the day's drinks add up to, whether or not a spend is set by hand.
+    func derivedSpend(on day: DayKey) -> Double { days[day.number]?.cost ?? 0 }
 
     func status(on day: DayKey) -> DayStatus {
-        if let entry = days[day.number] {
-            if entry.totals.count > 0 { return .drank }
-            if entry.isAlcoholFree { return .alcoholFree }
+        if let row = days[day.number] {
+            if row.count > 0 { return .drank }
+            if row.isAlcoholFree { return .alcoholFree }
         }
         if day > today { return .future }
         if day == today { return .today }
@@ -86,8 +89,8 @@ nonisolated struct Ledger {
         return .unlogged
     }
 
-    /// Drank or marked dry — anything but a gap.
-    func isLogged(_ day: DayKey) -> Bool { days[day.number] != nil }
+    /// Drank or marked dry — anything but a gap. A day carrying only a hand-set spend isn't logged.
+    func isLogged(_ day: DayKey) -> Bool { days[day.number].map { $0.count > 0 || $0.isAlcoholFree } ?? false }
 
     /// Consecutive alcohol-free days up to today. An empty today doesn't break the streak — the night is young.
     func dryStreak() -> Int {

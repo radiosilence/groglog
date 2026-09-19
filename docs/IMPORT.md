@@ -42,6 +42,7 @@ List `pours` instead. A pour with `volumeMl` is a drink (`abv` defaults from `ca
 - `status` — `drank`, `alcohol_free`, or `not_logged` (ignored). Only explicit `alcohol_free` marks a day dry.
 - `category` — `beer`, `stout`, `cider`, `redWine`, `whiteWine`, `rose`, `bubbles`, `spirit`, `alcopop`, `cocktail`, `fortified`, `units`.
 - `vessel` — `pint`, `half`, `can`, `bottle`, `wineBottle`, `wineGlass`, `flute`, `shot`, `tumbler`, `coupe`.
+- `spentByHand` — the day's spend entered by hand, standing in for what its drinks cost. GrogLog's own backups carry it; leave it out and `cost` is taken from the pours.
 - Top-level `dayStartsAtHour`, `currency` and `goal` restore settings when present; leave them out to keep yours.
 
 ## Prompt for converting screenshots
