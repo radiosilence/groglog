@@ -8,20 +8,23 @@ struct DayChart: View {
     let day: DayKey
     let ledger: Ledger
     let budget: Double?
-    let now: Date
+    /// The last timeline tick; only there to move the "now" marker along. Drawing uses the real time, so a drink
+    /// logged between ticks shows at once.
+    let tick: Date
     @Query<EntriesRequest> private var pours: [Entry]
 
-    init(day: DayKey, ledger: Ledger, budget: Double?, now: Date) {
+    init(day: DayKey, ledger: Ledger, budget: Double?, tick: Date) {
         self.day = day
         self.ledger = ledger
         self.budget = budget
-        self.now = now
+        self.tick = tick
         _pours = Query(constant: EntriesRequest(days: ledger.monthBefore(day).lowerBound...day))
     }
 
     var body: some View {
         let clock = ledger.clock
         let yesterday = day - 1
+        let now = max(tick, .now)
         let nowHour = day == ledger.today ? clock.hours(now, into: day) : nil
         let firstHour = pours
             .filter { $0.day == day.number || $0.day == yesterday.number }

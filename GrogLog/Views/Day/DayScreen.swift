@@ -47,7 +47,7 @@ struct DayScreen: View {
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 8, trailing: 4))
                 TimelineView(.everyMinute) { timeline in
-                    DayChart(day: day, ledger: ledger, budget: budget, now: timeline.date)
+                    DayChart(day: day, ledger: ledger, budget: budget, tick: timeline.date)
                 }
             }
 
