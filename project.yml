@@ -17,6 +17,7 @@ settings:
     SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
     SWIFT_APPROACHABLE_CONCURRENCY: YES
     CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: 2256Q92VF2
     "CODE_SIGN_IDENTITY[sdk=iphonesimulator*]": "-"
 targets:
   GrogLog:
