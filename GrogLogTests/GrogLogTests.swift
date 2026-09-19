@@ -173,6 +173,18 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(abs(try #require(try ledger(logbook).dailyBudget(on: today, goal: goal)) - 12) < 0.0001)
     }
 
+    @Test func planRunsBackwardsToWhereYouWere() throws {
+        let (logbook, drink) = try logbook(drink: beer(abv: 10, ml: 2000))
+        let today = clock.today
+        logbook.log(Serve(drink), at: [clock.start(of: today - 1).addingTimeInterval(15 * 3600)])
+        let goal = Goal(isEnabled: true, isDynamic: true, reductionPercent: 10, periodDays: 1)
+        let ledger = try ledger(logbook)
+        // Today's budget is 90% of yesterday's 20 u; run back a day, the plan lands on what was drunk.
+        #expect(abs(try #require(ledger.plan(on: today, goal: goal)) - 18) < 0.0001)
+        #expect(abs(try #require(ledger.plan(on: today - 1, goal: goal)) - 20) < 0.0001)
+        #expect(abs(try #require(ledger.plan(on: today + 1, goal: goal)) - 16.2) < 0.0001)
+    }
+
     @Test func looksPastGapsButNotForever() throws {
         let (logbook, drink) = try logbook(drink: beer(abv: 10, ml: 1000))
         let today = clock.today

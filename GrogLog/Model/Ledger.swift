@@ -155,6 +155,13 @@ nonisolated struct Ledger {
         taper(on: day, goal: goal).map { max($0.budget, min(goal.targetWeekly / 7, $0.reference)) }
     }
 
+    /// The plan as one curve through `day`: on a fixed schedule, the schedule; dynamically, today's budget run forward
+    /// as the taper and backward as it would have been — where the plan would have had you, to compare against what you did.
+    func plan(on day: DayKey, goal: Goal) -> Double? {
+        guard goal.isDynamic, day < today else { return dailyBudget(on: day, goal: goal) }
+        return taper(on: today, goal: goal).map { $0.budget / pow(1 - goal.dailyCut, Double(day.distance(to: today))) }
+    }
+
     /// When today's taper, carried on, reaches the target — and drops under a unit a day, the point where stopping is a small step.
     func projection(goal: Goal) -> (target: DayKey?, underOneUnit: DayKey?) {
         guard let now = taper(on: today, goal: goal), goal.dailyCut > 0 else { return (nil, nil) }

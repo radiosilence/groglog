@@ -35,8 +35,8 @@ struct ReportsScreen: View {
 }
 
 /// The last four weeks as two trend lines — what you drank and your budget, each a 7-day rolling average so the
-/// The last four weeks day by day: what you drank against the budget each day had, and the plan from here on —
-/// starting where your drinking left off, so you can see where you kept to it and where you didn't.
+/// The last four weeks day by day against the plan as one curve — run back through the past to show where it would
+/// have had you, and on through the fortnight ahead.
 private struct MonthlyProgressCard: View {
     let ledger: Ledger
     let goal: Goal
@@ -49,11 +49,10 @@ private struct MonthlyProgressCard: View {
         // Days drunk or dry; today only once it has drinks, so an empty evening isn't drawn as a dry day.
         let drankDays = past.filter { ledger.isLogged($0) && !($0 == today && ledger.status(on: today) == .today) }
         let drank = drankDays.map { ($0.date(in: calendar), ledger.totals(on: $0).units) }
-        let budget = past.filter { $0 < today }.compactMap { day in ledger.dailyBudget(on: day, goal: goal).map { (day.date(in: calendar), $0) } }
-        let anchor = drankDays.last(where: { $0 < today }).map { ($0.date(in: calendar), ledger.totals(on: $0).units) }
-        let plan = (anchor.map { [$0] } ?? []) + (today...(today + 14)).compactMap { day in
-            ledger.dailyBudget(on: day, goal: goal).map { (day.date(in: calendar), $0) }
-        }
+        let planned = { (days: ClosedRange<DayKey>) in days.compactMap { day in ledger.plan(on: day, goal: goal).map { (day.date(in: calendar), $0) } } }
+        let behind = goal.isEnabled ? planned(past) : []
+        let ahead = goal.isEnabled ? planned(today...(today + 14)) : []
+        let top = max(10, drank.map(\.1).max() ?? 0, ahead.map(\.1).max() ?? 0) * 1.15
 
         Card(title: "Monthly progress") {
             if let todays = ledger.dailyBudget(on: today, goal: goal) {
@@ -77,21 +76,27 @@ private struct MonthlyProgressCard: View {
                         .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
                         .interpolationMethod(.monotone)
                 }
-                if goal.isEnabled {
-                    ForEach(budget, id: \.0) { day, units in
-                        LineMark(x: .value("Day", day, unit: .day), y: .value("Units", units), series: .value("Line", "Budget"))
-                            .foregroundStyle(Color.dry)
-                            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                            .interpolationMethod(.monotone)
-                    }
-                    ForEach(plan, id: \.0) { day, units in
-                        LineMark(x: .value("Day", day, unit: .day), y: .value("Units", units), series: .value("Line", "Plan"))
-                            .foregroundStyle(Color.dry)
-                            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, dash: [4, 4]))
-                            .interpolationMethod(.monotone)
-                    }
+                ForEach(behind, id: \.0) { day, units in
+                    LineMark(x: .value("Day", day, unit: .day), y: .value("Units", units), series: .value("Line", "Plan"))
+                        .foregroundStyle(Color.dry)
+                        .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                        .interpolationMethod(.monotone)
                 }
+                ForEach(ahead, id: \.0) { day, units in
+                    LineMark(x: .value("Day", day, unit: .day), y: .value("Units", units), series: .value("Line", "Ahead"))
+                        .foregroundStyle(Color.dry)
+                        .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, dash: [4, 4]))
+                        .interpolationMethod(.monotone)
+                }
+                RuleMark(x: .value("Today", today.date(in: calendar), unit: .day))
+                    .foregroundStyle(.secondary.opacity(0.35))
+                    .lineStyle(StrokeStyle(lineWidth: 1))
+                    .annotation(position: .top, alignment: .center) {
+                        Text("today").font(.caption2).foregroundStyle(.secondary)
+                    }
             }
+            .chartYScale(domain: 0...top)
+            .clipped()
             .chartXAxis {
                 AxisMarks(values: .stride(by: .day, count: 7)) { AxisGridLine(); AxisValueLabel(format: .dateTime.day().month(.abbreviated)) }
             }
@@ -100,8 +105,8 @@ private struct MonthlyProgressCard: View {
             HStack(spacing: 16) {
                 LegendKey(label: "Drank", color: .grog)
                 if goal.isEnabled {
-                    LegendKey(label: "Budget", color: .dry)
-                    LegendKey(label: "Plan", color: .dry, dashed: true)
+                    LegendKey(label: "Plan", color: .dry)
+                    LegendKey(label: "To come", color: .dry, dashed: true)
                 }
             }
             if !goal.isEnabled {
