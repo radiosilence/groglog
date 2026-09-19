@@ -1,5 +1,6 @@
 import Foundation
 import GRDB
+import os
 
 /// The SQLite database: schema, migrations, and where it lives. Writes go through `Logbook`.
 nonisolated struct AppDatabase: Sendable {
@@ -12,10 +13,36 @@ nonisolated struct AppDatabase: Sendable {
 
     var reader: any DatabaseReader { writer }
 
-    /// The real log, in Application Support, in WAL mode so reads never wait on a write.
+    /// The app group the app and its widgets share. Separate processes get separate sandboxes; this is the overlap.
+    static let appGroup = "group.cc.blit.groglog"
+
+    /// The real log, in the group container, in WAL mode so reads never wait on a write.
     static func onDisk() throws -> AppDatabase {
-        let folder = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-        return try AppDatabase(DatabasePool(path: folder.appending(path: "groglog.sqlite").path, configuration: configuration))
+        try AppDatabase(DatabasePool(path: try location().path, configuration: configuration))
+    }
+
+    /// The log lived in Application Support before there were widgets, where only the app could reach it. It moves
+    /// across the first time the group container exists. If any part of that fails the old file is still the log, so
+    /// a failed move costs a widget, never a history.
+    private static func location() throws -> URL {
+        let files = FileManager.default
+        let old = try files.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+            .appending(path: "groglog.sqlite")
+        guard let new = files.containerURL(forSecurityApplicationGroupIdentifier: appGroup)?.appending(path: "groglog.sqlite") else { return old }
+        guard files.fileExists(atPath: old.path), !files.fileExists(atPath: new.path) else { return new }
+        do {
+            // Fold the write-ahead log into the file first, so one move carries the lot and a left-behind -wal
+            // can't strand the newest drinks.
+            let pool = try DatabasePool(path: old.path, configuration: configuration)
+            try pool.writeWithoutTransaction { try $0.execute(sql: "PRAGMA wal_checkpoint(TRUNCATE)") }
+            try pool.close()
+            try files.moveItem(at: old, to: new)
+            for suffix in ["-wal", "-shm"] { try? files.removeItem(atPath: old.path + suffix) }
+            return new
+        } catch {
+            Logger(subsystem: "cc.blit.groglog", category: "database").error("Couldn't move the log into the app group: \(error)")
+            return old
+        }
     }
 
     /// Tests and demo mode.

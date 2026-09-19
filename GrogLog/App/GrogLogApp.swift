@@ -25,49 +25,6 @@ struct GrogLogApp: App {
     }
 }
 
-struct Store {
-    let id = UUID()
-    let database: AppDatabase
-    let prefs: Prefs
-
-    /// One handle to the real log per process. Intents run outside the view hierarchy, with no environment to read
-    /// the database from, so they come here for it — and share the app's handle when it's already running.
-    static let real = live()
-
-    /// Writes for intents.
-    static var logbook: Logbook { real.logbook }
-
-    static var goal: Goal { real.prefs.goal }
-
-    var logbook: Logbook { Logbook(writer: database.writer, clock: prefs.clock) }
-
-    private static func live() -> Store {
-        let prefs = Prefs()
-        let database = try! AppDatabase.onDisk()
-        let logbook = Logbook(writer: database.writer, clock: prefs.clock)
-        try! Seed.drinksIfNeeded(logbook)
-        #if DEBUG
-        // `-importBackup <path>` merges a backup file on launch, for moving data between builds.
-        if let path = UserDefaults.standard.string(forKey: "importBackup"), let data = FileManager.default.contents(atPath: path) {
-            _ = try? Exporter.restore(data, writer: database.writer, prefs: prefs)
-        }
-        #endif
-        return Store(database: database, prefs: prefs)
-    }
-
-    #if DEBUG
-    static func demo() -> Store {
-        let prefs = Prefs(store: UserDefaults(suiteName: "demo")!)
-        prefs.goal = Goal(isEnabled: true, reductionPercent: 10, periodDays: 7)
-        let database = try! AppDatabase.inMemory()
-        let logbook = Logbook(writer: database.writer, clock: prefs.clock)
-        try! Seed.drinksIfNeeded(logbook)
-        try! Seed.sample(logbook)
-        return Store(database: database, prefs: prefs)
-    }
-    #endif
-}
-
 struct RootView: View {
     @Environment(Prefs.self) private var prefs
     @Environment(\.scenePhase) private var scenePhase
@@ -95,5 +52,7 @@ struct RootView: View {
         }
         // Reading scenePhase re-evaluates `today` when the app comes back the next morning.
         .onChange(of: scenePhase) {}
+        // The Lock Screen widget: two taps from a locked phone to a logged drink.
+        .onOpenURL { if $0.host() == "log" { tab = "log" } }
     }
 }

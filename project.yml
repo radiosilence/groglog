@@ -27,6 +27,11 @@ targets:
     dependencies:
       - package: GRDB
       - package: GRDBQuery
+      - target: GrogLogWidgets
+    entitlements:
+      path: GrogLog/GrogLog.entitlements
+      properties:
+        com.apple.security.application-groups: [group.cc.blit.groglog]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cc.blit.groglog
@@ -39,6 +44,36 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+  # The widget is a separate process, so it compiles the model layer in rather than sharing the app's.
+  GrogLogWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - GrogLogWidgets
+      - GrogLog/Model
+      - GrogLog/Export
+      - GrogLog/Intents
+      - GrogLog/Views/Shared/Theme.swift
+    dependencies:
+      - package: GRDB
+      - package: GRDBQuery
+    entitlements:
+      path: GrogLogWidgets/GrogLogWidgets.entitlements
+      properties:
+        com.apple.security.application-groups: [group.cc.blit.groglog]
+    info:
+      path: GrogLogWidgets/Info.plist
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cc.blit.groglog.widgets
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
+        TARGETED_DEVICE_FAMILY: "1"
+        INFOPLIST_KEY_CFBundleDisplayName: GrogLog
+        SKIP_INSTALL: YES
   GrogLogTests:
     type: bundle.unit-test
     platform: iOS

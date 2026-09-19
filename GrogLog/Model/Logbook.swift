@@ -1,6 +1,7 @@
 import Foundation
 import GRDB
 import GRDBQuery
+import WidgetKit
 import os
 
 /// Every change to the log goes through here, each as one transaction. After a change the affected days' totals are
@@ -195,7 +196,10 @@ nonisolated struct Logbook: Sendable {
     @discardableResult
     private func write<T>(_ body: (Database) throws -> T) -> T? {
         do {
-            return try writer.write(body)
+            let result = try writer.write(body)
+            // Widgets are a separate process watching the same file, and nothing tells them a write landed.
+            WidgetCenter.shared.reloadAllTimelines()
+            return result
         } catch {
             Logger(subsystem: "cc.blit.groglog", category: "logbook").fault("Write failed: \(error)")
             assertionFailure("Write failed: \(error)")
