@@ -24,6 +24,7 @@ struct DrinkGlyph: View {
             Art(vessel: vessel, volumeMl: volumeMl ?? vessel.volumes[0]).draw(in: &context, category: category, fill: fill)
         }
         .aspectRatio(1, contentMode: .fit)
+        .drawingGroup()
         .accessibilityHidden(true)
     }
 }
