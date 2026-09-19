@@ -123,6 +123,38 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(try logbook.writer.read { try Day.fetchCount($0) } == 0)
     }
 
+    @Test func handSetSpendStandsUntilCleared() throws {
+        let (logbook, drink) = try logbook()
+        let day = DayKey(year: 2026, month: 9, day: 19)
+        logbook.log(Serve(drink), at: [date(2026, 9, 19, 20), date(2026, 9, 19, 22)])
+        #expect(try ledger(logbook).totals(on: day).cost == 10)
+
+        logbook.setSpend(42, on: day)
+        #expect(try ledger(logbook).totals(on: day).cost == 42)
+        #expect(try ledger(logbook).derivedSpend(on: day) == 10)
+
+        // Another round, and a rebuild, leave it standing.
+        logbook.log(Serve(drink), at: [date(2026, 9, 19, 23)])
+        logbook.rebuild()
+        #expect(try ledger(logbook).totals(on: day).cost == 42)
+        #expect(try ledger(logbook).derivedSpend(on: day) == 15)
+
+        logbook.setSpend(nil, on: day)
+        #expect(try ledger(logbook).spendOverride(on: day) == nil)
+        #expect(try ledger(logbook).totals(on: day).cost == 15)
+    }
+
+    @Test func aSpendOnItsOwnIsntADrinkingDay() throws {
+        let (logbook, _) = try logbook()
+        let day = DayKey(year: 2026, month: 9, day: 1)
+        logbook.setSpend(20, on: day)
+        let after = try ledger(logbook)
+        #expect(after.totals(on: day).cost == 20)
+        #expect(!after.isLogged(day))
+        logbook.setSpend(nil, on: day)
+        #expect(try logbook.writer.read { try Day.fetchCount($0) } == 0)
+    }
+
     @Test func rebuildAgreesWithIncrementalUpdates() throws {
         let (logbook, drink) = try logbook()
         for offset in 0..<20 {

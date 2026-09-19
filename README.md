@@ -13,6 +13,7 @@ Written because Drinkaware's Drink Coach is low-friction but slow, allows one dr
 - **The grid is yours.** Favourites (drink + size) plus anything logged that day, most recent first. Tap logs it; long-press picks a specific drink of the same type, overrides the size, stars it onto the grid, or logs several earlier. A tap never reshuffles the grid.
 - **Charts show the shape, not just the total.** Day, week and month charts are running totals that step at each drink, so a heavy night is a steep climb. Progress charts smooth daily units over a few days — today counting as it goes — against the budget smoothed the same way, so they read as a trend rather than a comb. A day inside its budget reads teal, just over amber, well over red.
 - **Units as an item.** When you only know a total (another app, a night you didn't log), log "Units" directly.
+- **Spend can be set for a whole day.** A round-by-round price is a chore on a big night; set what the day cost and it stands in for the drinks' prices everywhere, until you clear it.
 
 ## Layout
 
@@ -20,7 +21,7 @@ Written because Drinkaware's Drink Coach is low-friction but slow, allows one dr
 |---|---|
 | Log | The picker for today. Search, tap, long-press, undo. |
 | Calendar | History; tap a day to see or backfill it, long-press to mark it dry. |
-| Day | Running units through the day vs yesterday and the week's average day, plus the day's budget draining. |
+| Day | Running units through the day vs yesterday and the week's average day, the day's budget draining, and what it cost. |
 | Reports | Weekly and monthly progress (smoothed daily units against the budget, with the fortnight ahead — scroll and pinch), this week and this month against earlier ones, weekly bars, streaks, spend. |
 | Setup | Goal, drinks, day end, currency, export/import. |
 
@@ -28,7 +29,7 @@ Written because Drinkaware's Drink Coach is low-friction but slow, allows one dr
 
 SQLite via [GRDB](https://github.com/groue/GRDB.swift), built to stay instant after years of heavy use:
 
-- **Day totals are stored, entries are fetched by day.** Each `day` row holds a drinking day's units, kcal, cost, count and dry mark — a few hundred rows a year. Calendar, Reports, budgets, streaks and projections read only these. Individual `pour`s are indexed by day and fetched only for the days on screen.
+- **Day totals are stored, entries are fetched by day.** Each `day` row holds a drinking day's units, kcal, cost, count, dry mark and any hand-set spend — a few hundred rows a year. Calendar, Reports, budgets, streaks and projections read only these. Individual `pour`s are indexed by day and fetched only for the days on screen.
 - **Every write is one transaction through `Logbook`.** Log, undo, edit, mark dry, change a drink: the affected days are recomputed from their entries in the same transaction. Totals are always derived, never incremented, so they can't drift; `rebuild()` is the same arithmetic over everything.
 - **Screens observe the database.** `GRDBQuery` requests (`Queries.swift`) re-run after each commit, so every screen updates the moment a write lands, whoever made it.
 - **Migrations are explicit and append-only** (`AppDatabase`). The database is never erased to change its schema.

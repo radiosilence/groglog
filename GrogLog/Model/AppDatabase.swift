@@ -73,6 +73,11 @@ nonisolated struct AppDatabase: Sendable {
                 t.column("count", .integer).notNull()
             }
         }
+        migrator.registerMigration("v2-spend-override") { db in
+            try db.alter(table: "day") { t in
+                t.add(column: "costOverride", .double)
+            }
+        }
         return migrator
     }
 }

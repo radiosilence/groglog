@@ -63,8 +63,11 @@ nonisolated struct Day: Codable, Hashable, Sendable, FetchableRecord, Persistabl
     var kcal = 0.0
     var cost = 0.0
     var count = 0
+    /// What the day actually cost, when the drinks' prices aren't worth keeping straight. Cleared, spend falls back to `cost`.
+    var costOverride: Double?
 
     var key: DayKey { DayKey(number: number) }
+    var spend: Double { costOverride ?? cost }
 }
 
 /// A log entry with its drink — what screens show.

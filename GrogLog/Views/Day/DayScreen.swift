@@ -29,6 +29,7 @@ struct DayScreen: View {
     @State private var adding = false
     @State private var editing: Entry?
     @State private var settingGoal = false
+    @State private var settingSpend = false
 
     init(day: DayKey, ledger: Ledger) {
         self.day = day
@@ -40,10 +41,12 @@ struct DayScreen: View {
         let logbook = database.logbook(prefs)
         let status = ledger.status(on: day)
         let budget = ledger.dailyBudget(on: day, goal: prefs.goal)
+        let totals = ledger.totals(on: day)
+        let spendOverride = ledger.spendOverride(on: day)
 
         List {
             Section {
-                TotalsHeader(totals: ledger.totals(on: day), budget: budget, currency: prefs.currency)
+                TotalsHeader(totals: totals, budget: budget, currency: prefs.currency)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 8, trailing: 4))
                 TimelineView(.everyMinute) { timeline in
@@ -53,7 +56,7 @@ struct DayScreen: View {
 
             if let budget {
                 Section("Budget") {
-                    BudgetBar(used: ledger.totals(on: day).units, budget: budget)
+                    BudgetBar(used: totals.units, budget: budget)
                 }
             } else if prefs.goal.isEnabled {
                 Section("Budget") {
@@ -105,6 +108,20 @@ struct DayScreen: View {
             case .future:
                 EmptyView()
             }
+
+            if status == .drank || spendOverride != nil {
+                Section {
+                    Button { settingSpend = true } label: {
+                        LabeledContent("Spent", value: totals.cost.money(prefs.currency))
+                            .foregroundStyle(spendOverride == nil ? .secondary : Color.grog)
+                    }
+                    .tint(.primary)
+                } footer: {
+                    Text(spendOverride == nil
+                         ? "Added up from what each drink cost. Set the day's total instead if you'd rather not price every round."
+                         : "Set by hand for the day. What the drinks cost is ignored until you clear it.")
+                }
+            }
         }
         .navigationTitle(title)
         .sensoryFeedback(.success, trigger: status) { _, new in new == .alcoholFree }
@@ -126,6 +143,7 @@ struct DayScreen: View {
             AddDrinkSheet(day: day)
         }
         .sheet(isPresented: $settingGoal) { GoalSheet(goal: prefs.goal) }
+        .sheet(isPresented: $settingSpend) { SpendSheet(day: day, derived: ledger.derivedSpend(on: day), override: spendOverride) }
         .sheet(item: $editing) { entry in
             PourEditor(entry: entry, day: day)
         }
@@ -135,6 +153,60 @@ struct DayScreen: View {
         if day == ledger.today { return "Today" }
         if day == ledger.today - 1 { return "Yesterday" }
         return day.date(in: ledger.clock.calendar).formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+    }
+}
+
+/// A day's spend set in one go, for a night you know the damage but not each round. Cleared, it falls back to what
+/// the drinks add up to.
+private struct SpendSheet: View {
+    let day: DayKey
+    let derived: Double
+    let override: Double?
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.databaseContext) private var database
+    @Environment(Prefs.self) private var prefs
+    @State private var amount: Double
+
+    init(day: DayKey, derived: Double, override: Double?) {
+        self.day = day
+        self.derived = derived
+        self.override = override
+        _amount = State(initialValue: override ?? derived)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    MoneyField(label: "Spent", value: $amount, currency: prefs.currency)
+                } footer: {
+                    Text("Stands in for what the drinks add up to. Units and calories are unaffected.")
+                }
+                if override != nil {
+                    Section {
+                        Button("Back to drink prices", role: .destructive) {
+                            database.logbook(prefs).setSpend(nil, on: day)
+                            dismiss()
+                        }
+                    } footer: {
+                        Text("The drinks logged come to \(derived.money(prefs.currency)).")
+                    }
+                }
+            }
+            .navigationTitle("Spent")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", role: .cancel) { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save", role: .confirm) {
+                        database.logbook(prefs).setSpend(amount, on: day)
+                        dismiss()
+                    }
+                }
+            }
+        }
     }
 }
 
