@@ -11,15 +11,17 @@ struct ReportsScreen: View {
         let clock = ledger.clock
         let today = ledger.today
         let thisWeek = clock.weekStart(of: today)
-        let stats = (0..<weeks).reversed().map { ledger.week(starting: thisWeek - 7 * $0, goal: prefs.goal) }
-        let days = max(stats[0].start, ledger.firstDay ?? today)...today
+        let firstWeek = min(clock.weekStart(of: ledger.firstDay ?? today), thisWeek - 7 * (weeks - 1))
+        let stats = stride(from: firstWeek.number, through: thisWeek.number, by: 7).map { ledger.week(starting: DayKey(number: $0), goal: prefs.goal) }
+        let shown = stats.suffix(weeks)
+        let days = max(shown[shown.startIndex].start, ledger.firstDay ?? today)...today
 
         ScrollView {
             VStack(spacing: 16) {
                 MonthlyProgressCard(ledger: ledger, goal: prefs.goal) { settingGoal = true }
                 MonthCard(ledger: ledger)
                 WeeksCard(stats: stats, weeks: $weeks)
-                SummaryTiles(ledger: ledger, stats: stats, days: days, currency: prefs.currency)
+                SummaryTiles(ledger: ledger, stats: Array(shown), days: days, currency: prefs.currency)
                 WeekdayCard(ledger: ledger, days: days)
             }
             .padding()
@@ -35,9 +37,8 @@ struct ReportsScreen: View {
 }
 
 /// The last four weeks as two trend lines — what you drank and your budget, each a 7-day rolling average so the
-/// The last four weeks day by day against the budget. A fixed schedule is one line, solid behind today and dashed
-/// ahead. A dynamic budget is worked out afresh each day, so the past shows each day's own budget as a tick — the
-/// orange line over or under it is how that day went — and the plan runs dashed from today.
+/// Day by day against the budget: what you drank, and the budget each day had joined into one line — its steps are
+/// where a dynamic budget reacted to a heavy or light day — running on as the dashed plan from today.
 private struct MonthlyProgressCard: View {
     let ledger: Ledger
     let goal: Goal
@@ -46,12 +47,14 @@ private struct MonthlyProgressCard: View {
     var body: some View {
         let calendar = ledger.clock.calendar
         let today = ledger.today
-        let past = (today - 27)...today
+        // The whole history is drawn; the chart shows a month of it at a time and scrolls back through the rest.
+        let window = 35
+        let past = (ledger.firstDay ?? today - 27)...today
         // Days drunk or dry; today only once it has drinks, so an empty evening isn't drawn as a dry day.
         let drankDays = past.filter { ledger.isLogged($0) && !($0 == today && ledger.status(on: today) == .today) }
         let drank = drankDays.map { ($0.date(in: calendar), ledger.totals(on: $0).units) }
         let budgets = { (days: ClosedRange<DayKey>) in days.compactMap { day in ledger.dailyBudget(on: day, goal: goal).map { (day, $0) } } }
-        let behind = goal.isEnabled ? budgets(past).filter { $0.0 < today || !goal.isDynamic } : []
+        let behind = goal.isEnabled ? budgets(past) : []
         let ahead = goal.isEnabled ? budgets(today...(today + 14)).map { ($0.0.date(in: calendar), $0.1) } : []
         let top = max(10, drank.map(\.1).max() ?? 0, ahead.map(\.1).max() ?? 0) * 1.15
 
@@ -68,10 +71,6 @@ private struct MonthlyProgressCard: View {
                 .foregroundStyle(.secondary)
             }
             Chart {
-                // Today's band: where the day so far sits against its budget.
-                let noon = today.date(in: calendar).addingTimeInterval(12 * 3600)
-                RectangleMark(xStart: .value("From", noon.addingTimeInterval(-12 * 3600)), xEnd: .value("To", noon.addingTimeInterval(12 * 3600)))
-                    .foregroundStyle(.primary.opacity(0.09))
                 ForEach(drank, id: \.0) { day, units in
                     AreaMark(x: .value("Day", day, unit: .day), y: .value("Units", units), series: .value("Line", "Drank"))
                         .foregroundStyle(LinearGradient(colors: [Color.grog.opacity(0.3), Color.grog.opacity(0.02)], startPoint: .top, endPoint: .bottom))
@@ -82,36 +81,35 @@ private struct MonthlyProgressCard: View {
                         .interpolationMethod(.monotone)
                 }
                 ForEach(behind, id: \.0) { day, units in
-                    if goal.isDynamic {
-                        let noon = day.date(in: calendar).addingTimeInterval(12 * 3600)
-                        RuleMark(xStart: .value("From", noon.addingTimeInterval(-8 * 3600)), xEnd: .value("To", noon.addingTimeInterval(8 * 3600)), y: .value("Budget", units))
-                            .foregroundStyle(Color.dry)
-                            .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
-                    } else {
-                        LineMark(x: .value("Day", day.date(in: calendar), unit: .day), y: .value("Units", units), series: .value("Line", "Budget"))
-                            .foregroundStyle(Color.dry)
-                            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                            .interpolationMethod(.monotone)
-                    }
+                    LineMark(x: .value("Day", day.date(in: calendar)), y: .value("Units", units), series: .value("Line", "Budget"))
+                        .foregroundStyle(Color.dry)
+                        .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
                 }
                 ForEach(ahead, id: \.0) { day, units in
-                    LineMark(x: .value("Day", day, unit: .day), y: .value("Units", units), series: .value("Line", "Ahead"))
+                    LineMark(x: .value("Day", day), y: .value("Units", units), series: .value("Line", "Ahead"))
                         .foregroundStyle(Color.dry)
                         .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, dash: [4, 4]))
                         .interpolationMethod(.monotone)
                 }
+                // Today's band: drawn over the data in plain grey so it mutes rather than tints.
+                let noon = today.date(in: calendar).addingTimeInterval(12 * 3600)
+                RectangleMark(xStart: .value("From", noon.addingTimeInterval(-12 * 3600)), xEnd: .value("To", noon.addingTimeInterval(12 * 3600)))
+                    .foregroundStyle(.gray.opacity(0.18))
             }
             .chartYScale(domain: 0...top)
             .clipped()
             .chartXAxis {
                 AxisMarks(values: .stride(by: .day, count: 7)) { AxisGridLine(); AxisValueLabel(format: .dateTime.day().month(.abbreviated)) }
             }
+            .chartScrollableAxes(.horizontal)
+            .chartXVisibleDomain(length: Double(window) * 86_400)
+            .chartScrollPosition(initialX: (today - (window - 15)).date(in: calendar))
             .frame(height: 220)
 
             HStack(spacing: 16) {
                 LegendKey(label: "Drank", color: .grog)
                 if goal.isEnabled {
-                    LegendKey(label: goal.isDynamic ? "Day's budget" : "Budget", color: .dry)
+                    LegendKey(label: "Budget", color: .dry)
                     LegendKey(label: "Plan", color: .dry, dashed: true)
                 }
             }
@@ -159,8 +157,6 @@ private struct MonthCard: View {
             }
 
             Chart {
-                RectangleMark(xStart: .value("From", Double(dayOfMonth) - 0.5), xEnd: .value("To", Double(dayOfMonth) + 0.5))
-                    .foregroundStyle(.primary.opacity(0.09))
                 ForEach(hasLastMonth ? previous : []) {
                     LineMark(x: .value("Day", $0.hour), y: .value("Units", $0.units), series: .value("Month", "Last"))
                         .foregroundStyle(Color.gray.opacity(0.6))
@@ -178,6 +174,8 @@ private struct MonthCard: View {
                         .foregroundStyle(Color.grog)
                         .symbolSize(80)
                 }
+                RectangleMark(xStart: .value("From", Double(dayOfMonth) - 0.5), xEnd: .value("To", Double(dayOfMonth) + 0.5))
+                    .foregroundStyle(.gray.opacity(0.18))
             }
             .chartXScale(domain: 0...31)
             .chartXAxis {
@@ -213,10 +211,6 @@ private struct WeeksCard: View {
             .pickerStyle(.segmented)
 
             Chart {
-                if let thisWeek = stats.last?.start.date(in: calendar) {
-                    RectangleMark(xStart: .value("From", thisWeek.addingTimeInterval(-12 * 3600)), xEnd: .value("To", thisWeek.addingTimeInterval(6.5 * 24 * 3600)))
-                        .foregroundStyle(.primary.opacity(0.09))
-                }
                 ForEach(stats) { week in
                     BarMark(x: .value("Week", week.start.date(in: calendar), unit: .weekOfYear), y: .value("Units", week.totals.units))
                         .foregroundStyle(week.budget.map { week.totals.units > $0 } == true ? Color.over.gradient : Color.grog.gradient)
@@ -228,6 +222,10 @@ private struct WeeksCard: View {
                         .foregroundStyle(Color.dry)
                         .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
                 }
+                if let thisWeek = stats.last?.start.date(in: calendar) {
+                    RectangleMark(xStart: .value("From", thisWeek.addingTimeInterval(-12 * 3600)), xEnd: .value("To", thisWeek.addingTimeInterval(6.5 * 24 * 3600)))
+                        .foregroundStyle(.gray.opacity(0.18))
+                }
                 RuleMark(y: .value("Guideline", Units.weeklyGuideline))
                     .foregroundStyle(.secondary.opacity(0.6))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
@@ -235,11 +233,16 @@ private struct WeeksCard: View {
                         Text("14 u guideline").font(.caption2).foregroundStyle(.secondary)
                     }
             }
+            .chartScrollableAxes(.horizontal)
+            .chartXVisibleDomain(length: Double(weeks) * 7 * 86_400)
+            .chartScrollPosition(initialX: (stats.last!.start - 7 * (weeks - 1)).date(in: prefs.clock.calendar))
             .frame(height: 220)
 
             HStack(spacing: 16) {
                 LegendKey(label: "Units", color: .grog)
                 LegendKey(label: "Budget", color: .dry)
+                Spacer()
+                Text("scroll back").font(.caption).foregroundStyle(.tertiary)
             }
         }
     }
