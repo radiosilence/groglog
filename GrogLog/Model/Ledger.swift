@@ -198,8 +198,7 @@ nonisolated struct Ledger {
     private func taper(on day: DayKey, goal: Goal) -> (budget: Double, reference: Double)? {
         guard goal.isEnabled else { return nil }
         guard goal.isDynamic else {
-            let start = clock.calendar.dateComponents([.year, .month, .day], from: goal.start)
-            let elapsed = DayKey(year: start.year!, month: start.month!, day: start.day!).distance(to: day)
+            let elapsed = DayKey(goal.start, in: clock.calendar).distance(to: day)
             guard elapsed >= 0 else { return nil }
             let reference = goal.baselineWeekly / 7
             return (reference * pow(1 - goal.dailyCut, Double(elapsed)), reference)

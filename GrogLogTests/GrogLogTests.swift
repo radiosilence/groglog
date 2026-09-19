@@ -71,6 +71,16 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(clock.day(for: date(2026, 9, 20, 5, 0)) == DayKey(year: 2026, month: 9, day: 20))
     }
 
+    @Test func theRolloverHoldsOnTheNightsTheClocksChange() {
+        // Back an hour on 25 October, forward on 29 March: 04:30 is still last night, 05:30 is already today.
+        #expect(clock.day(for: date(2026, 10, 25, 4, 30)) == DayKey(year: 2026, month: 10, day: 24))
+        #expect(clock.day(for: date(2026, 3, 29, 5, 30)) == DayKey(year: 2026, month: 3, day: 29))
+        for day in [DayKey(year: 2026, month: 10, day: 25), DayKey(year: 2026, month: 3, day: 29)] {
+            #expect(clock.day(for: clock.start(of: day)) == day)
+            #expect(clock.day(for: clock.start(of: day).addingTimeInterval(-60)) == day - 1)
+        }
+    }
+
     @Test func resolvingATimeLandsWithinTheDrinkingDay() {
         let day = DayKey(year: 2026, month: 9, day: 19)
         #expect(clock.resolve(date(2000, 1, 1, 1, 30), into: day) == date(2026, 9, 20, 1, 30))

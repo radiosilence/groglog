@@ -107,7 +107,7 @@ struct DayScreen: View {
             }
         }
         .navigationTitle(title)
-        .sensoryFeedback(.success, trigger: status == .alcoholFree)
+        .sensoryFeedback(.success, trigger: status) { _, new in new == .alcoholFree }
         .safeAreaInset(edge: .bottom) {
             if status != .future {
                 Button { adding = true } label: {

@@ -8,10 +8,10 @@ nonisolated struct DayClock {
 
     var today: DayKey { day(for: .now) }
 
+    /// Decided on the wall clock, so it agrees with `start(of:)` on the nights the clocks change.
     func day(for date: Date) -> DayKey {
-        let shifted = calendar.date(byAdding: .hour, value: -rolloverHour, to: date)!
-        let c = calendar.dateComponents([.year, .month, .day], from: shifted)
-        return DayKey(year: c.year!, month: c.month!, day: c.day!)
+        let hour = calendar.component(.hour, from: date)
+        return DayKey(date, in: calendar) - (hour < rolloverHour ? 1 : 0)
     }
 
     func start(of day: DayKey) -> Date {

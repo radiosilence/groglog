@@ -120,8 +120,7 @@ private struct BurndownPreview: View {
 
     var body: some View {
         let calendar = ledger.clock.calendar
-        let scheduled = calendar.dateComponents([.year, .month, .day], from: goal.start)
-        let start = goal.isDynamic ? ledger.today : DayKey(year: scheduled.year!, month: scheduled.month!, day: scheduled.day!)
+        let start = goal.isDynamic ? ledger.today : DayKey(goal.start, in: calendar)
         let points = stride(from: 0, through: 84, by: 3).map { start + $0 }
         Chart {
             ForEach(points, id: \.self) { day in

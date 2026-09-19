@@ -19,6 +19,12 @@ nonisolated struct DayKey: Hashable, Comparable, Strideable, Codable, CustomStri
         number = era * 146_097 + doe - 719_468
     }
 
+    /// The civil date `date` falls on in `calendar`.
+    init(_ date: Date, in calendar: Calendar) {
+        let c = calendar.dateComponents([.year, .month, .day], from: date)
+        self.init(year: c.year!, month: c.month!, day: c.day!)
+    }
+
     init?(_ string: String) {
         let parts = string.split(separator: "-").compactMap { Int($0) }
         guard parts.count == 3 else { return nil }

@@ -98,9 +98,10 @@ struct DrinkPicker: View {
     }
 
     /// Favourites and the day's drinks — or, when searching, the Log-grid sizes (or default size) of every drink that matches.
-    /// Recently drunk first, then in favourite order.
+    /// Recently drunk first, then in favourite order. Hidden drinks only show if had that day.
     private var tiles: [Serve] {
         let query = search.trimmingCharacters(in: .whitespaces)
+        let favourites = favourites.filter { !$0.drink.isHidden }
         var serves: [Serve]
         if query.isEmpty {
             serves = favourites.map(\.serve)
@@ -109,7 +110,7 @@ struct DrinkPicker: View {
             }
         } else {
             serves = drinks
-                .filter { $0.name.localizedStandardContains(query) || $0.category.label.localizedStandardContains(query) }
+                .filter { !$0.isHidden && ($0.name.localizedStandardContains(query) || $0.category.label.localizedStandardContains(query)) }
                 .flatMap { drink in
                     let pinned = favourites.filter { $0.drink.id == drink.id }.map(\.serve)
                     return pinned.isEmpty ? [Serve(drink)] : pinned
