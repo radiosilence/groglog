@@ -197,7 +197,8 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
 
     @Test func projectsTargetAndStopDates() throws {
         var goal = weekly
-        goal.start = .now
+        // Started today — by the clock, not the calendar: before 5am `.now` is still yesterday's drinking day.
+        goal.start = clock.start(of: empty.today)
         let projection = empty.projection(goal: goal)
         #expect((105...109).contains(empty.today.distance(to: try #require(projection.target))))
         #expect((150...156).contains(empty.today.distance(to: try #require(projection.underOneUnit))))
