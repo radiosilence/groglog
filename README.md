@@ -31,6 +31,7 @@ SQLite via [GRDB](https://github.com/groue/GRDB.swift), built to stay instant af
 
 - **Day totals are stored, entries are fetched by day.** Each `day` row holds a drinking day's units, kcal, cost, count, dry mark and any hand-set spend — a few hundred rows a year. Calendar, Reports, budgets, streaks and projections read only these. Individual `pour`s are indexed by day and fetched only for the days on screen.
 - **Every write is one transaction through `Logbook`.** Log, undo, edit, mark dry, change a drink: the affected days are recomputed from their entries in the same transaction. Totals are always derived, never incremented, so they can't drift; `rebuild()` is the same arithmetic over everything.
+- **Logging is an `AppIntent` too.** Shortcuts, the Action Button and widgets reach the same `Logbook` transaction as a tap on the grid, so there's no second write path to keep in step.
 - **Screens observe the database.** `GRDBQuery` requests (`Queries.swift`) re-run after each commit, so every screen updates the moment a write lands, whoever made it.
 - **Migrations are explicit and append-only** (`AppDatabase`). The database is never erased to change its schema.
 - **Days are integers.** `DayKey` is days since 1970 with pure civil-date arithmetic; each entry stores the day it counted towards when logged, so timezones don't move old nights.

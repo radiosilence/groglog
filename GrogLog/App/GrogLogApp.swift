@@ -5,7 +5,7 @@ import SwiftUI
 struct GrogLogApp: App {
     /// Debug builds can swap to a throwaway in-memory database of sample data; the real log is never touched.
     @AppStorage("demoMode") private var demoMode = false
-    @State private var real = Store.real()
+    @State private var real = Store.real
     @State private var demo: Store?
 
     var body: some Scene {
@@ -25,12 +25,23 @@ struct GrogLogApp: App {
     }
 }
 
-private struct Store {
+struct Store {
     let id = UUID()
     let database: AppDatabase
     let prefs: Prefs
 
-    static func real() -> Store {
+    /// One handle to the real log per process. Intents run outside the view hierarchy, with no environment to read
+    /// the database from, so they come here for it — and share the app's handle when it's already running.
+    static let real = live()
+
+    /// Writes for intents.
+    static var logbook: Logbook { real.logbook }
+
+    static var goal: Goal { real.prefs.goal }
+
+    var logbook: Logbook { Logbook(writer: database.writer, clock: prefs.clock) }
+
+    private static func live() -> Store {
         let prefs = Prefs()
         let database = try! AppDatabase.onDisk()
         let logbook = Logbook(writer: database.writer, clock: prefs.clock)

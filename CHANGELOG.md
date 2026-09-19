@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Logging is an App Intent, so Shortcuts and the Action Button — and a widget button next — write through the same `Logbook` transaction a tap on the grid does. Marking today alcohol-free is one too, and refuses on a day that already has drinks rather than leaving a mark that the next retotal would clear.
 - A day's spend can be set by hand, for a night you know the damage but not each round. It stands in for the drinks' prices in the day, Reports and exports until cleared, when it falls back to what they add up to. Units and calories are untouched.
 - Catalogue drinks arrive with a price instead of £0.00. Adopting one used to create a drink with no price at all, so anything picked from the catalogue logged as free and the spend charts quietly read zero — worse than the generic it replaced. Every serve now carries its own price rather than one per brand scaled by volume, because a pint and its supermarket can differ by more than double per millilitre. A pint, a glass or a measure is priced as a London bar; a can or a bottle as a supermarket. The figures are estimates, not looked-up prices (#9), and the on-trade/off-trade split is a fudge until #10 lands.
 - The silly end of the cellar: nine champagnes from Moët to Cristal, and a few bottles nobody logs twice — Dom Pérignon P3 1971, Château d'Yquem 1811, Mouton Rothschild 1945, Penfolds Grange 1951, Screaming Eagle 1992, and the Veuve Clicquot salvaged off Åland, which fermented cool and slow on the seabed and measured 9%.
