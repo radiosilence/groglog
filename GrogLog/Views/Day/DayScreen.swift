@@ -70,6 +70,20 @@ struct DayScreen: View {
                 }
             }
 
+            if status == .drank || spendOverride != nil {
+                Section {
+                    Button { settingSpend = true } label: {
+                        LabeledContent("Spent", value: totals.cost.money(prefs.currency))
+                            .foregroundStyle(spendOverride == nil ? .secondary : Color.grog)
+                    }
+                    .tint(.primary)
+                } footer: {
+                    Text(spendOverride == nil
+                         ? "Added up from what each drink cost. Set the day's total instead if you'd rather not price every round."
+                         : "Set by hand for the day. What the drinks cost is ignored until you clear it.")
+                }
+            }
+
             switch status {
             case .drank:
                 Section("Drinks") {
@@ -107,20 +121,6 @@ struct DayScreen: View {
                 }
             case .future:
                 EmptyView()
-            }
-
-            if status == .drank || spendOverride != nil {
-                Section {
-                    Button { settingSpend = true } label: {
-                        LabeledContent("Spent", value: totals.cost.money(prefs.currency))
-                            .foregroundStyle(spendOverride == nil ? .secondary : Color.grog)
-                    }
-                    .tint(.primary)
-                } footer: {
-                    Text(spendOverride == nil
-                         ? "Added up from what each drink cost. Set the day's total instead if you'd rather not price every round."
-                         : "Set by hand for the day. What the drinks cost is ignored until you clear it.")
-                }
             }
         }
         .navigationTitle(title)
