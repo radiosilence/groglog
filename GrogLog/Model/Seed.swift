@@ -37,52 +37,67 @@ nonisolated enum Seed {
     }
 
     #if DEBUG
-    /// History shaped like the original Drink Coach screenshots — mostly heavy days, the odd dry run, a few gaps, and
-    /// the real 12–18 Sep 2026 totals — over `days` days, in one transaction. For demo mode's own in-memory database.
+    /// A drinker getting a grip, with the whole arc inside this month: heavy through the first week, a dry run that
+    /// doesn't stick, the bad one — awake at five on the wine — and then a taper of measured beers starting later each
+    /// evening. Earlier months are just the old normal. For demo mode's own in-memory database.
     static func sample(_ logbook: Logbook, days: Int = 120) throws {
         let clock = logbook.clock
-        let screenshot: [String: (units: Double, kcal: Double, cost: Double)] = [
-            "2026-09-12": (30.6, 2696, 42.00), "2026-09-13": (27.6, 2328, 34.80), "2026-09-14": (40.5, 3160, 49.70),
-            "2026-09-15": (35.5, 2278, 36.60), "2026-09-16": (38.8, 3236, 48.60), "2026-09-17": (29.2, 2611, 36.50),
-            "2026-09-18": (29.1, 2444, 32.80),
-        ]
-        let dryRun = Set((6...11).map { String(format: "2026-09-%02d", $0) })
+        let today = clock.today
+        let thisMonth = today.monthStart
+        let dryRun = 6...11
+        let binge = 12...13
+        let taperFrom = 14
         var rng = SeededRandom(seed: 42)
 
         try logbook.bulk { db in
-            let favourites = try [
+            let beers = try [
                 favourite("Stella Artois", .beer, 4.6, .can, 440, 1.75, logbook, db),
-                favourite("Henry Westons Vintage", .cider, 8.2, .bottle, 500, 2.75, logbook, db),
                 favourite("Gipsy Hill Hepcat", .beer, 4.6, .pint, 568, 6.50, logbook, db),
             ]
-            let units = try logbook.unitsDrink(db)
+            let heavy = try beers + [
+                favourite("Henry Westons Vintage", .cider, 8.2, .bottle, 500, 2.75, logbook, db),
+            ]
+            let wine = try favourite("Rioja", .redWine, 13.5, .wineGlass, 250, 6.50, logbook, db)
+
             var touched: Set<DayKey> = []
             for offset in (1...days).reversed() {
                 let day = clock.today - offset
-                if dryRun.contains(day.description) {
+                let date = day.components.day
+                let thisMonth = day.monthStart == thisMonth
+                let onTheWine = thisMonth && binge.contains(date)
+                // How far into the taper, once it starts.
+                let taper = thisMonth && date >= taperFrom
+                    ? min(1, Double(date - taperFrom) / Double(max(1, today.components.day - taperFrom)))
+                    : 0
+
+                if thisMonth && dryRun.contains(date) {
                     try Day(number: day.number, isAlcoholFree: true).save(db)
                     continue
                 }
-                if let total = screenshot[day.description] {
-                    let evening = clock.start(of: day).addingTimeInterval(14 * 3600)
-                    try Pour(drinkId: units.id, timestamp: evening, day: day.number, vessel: .shot, volumeMl: total.units * 10, price: total.cost, kcalOverride: total.kcal).insert(db)
-                    touched.insert(day)
-                    continue
-                }
-                let roll = Double.random(in: 0..<1, using: &rng)
-                if roll < 0.06 { continue }
-                if roll < 0.14 {
+                if !onTheWine, Double.random(in: 0..<1, using: &rng) < (taper > 0 ? 0.1 + taper * 0.3 : 0.08) {
                     try Day(number: day.number, isAlcoholFree: true).save(db)
                     continue
                 }
-                let target = Double.random(in: [1, 6, 7].contains(day.weekday) ? 28...42 : 18...34, using: &rng)
-                var time = clock.start(of: day).addingTimeInterval(Double.random(in: 8...9, using: &rng) * 3600)
+                if !thisMonth, Double.random(in: 0..<1, using: &rng) < 0.05 { continue }
+
+                // Easing down rather than lurching: the taper sets the level, the noise is small.
+                let target = onTheWine
+                    ? Double.random(in: 42...48, using: &rng)
+                    : taper > 0
+                        ? (30 - taper * 22) * Double.random(in: 0.9...1.1, using: &rng)
+                        : Double.random(in: 28...38, using: &rng)
+                // The binge starts at first light; on the taper the first drink creeps later each evening.
+                let opening = onTheWine
+                    ? Double.random(in: 0.2...1, using: &rng)
+                    : Double.random(in: 8...10, using: &rng) + taper * 5
+                var time = clock.start(of: day).addingTimeInterval(opening * 3600)
                 var total = 0.0
                 while total < target {
-                    let serve = favourites[Int.random(in: 0..<10, using: &rng) < 6 ? 0 : Int.random(in: 1...2, using: &rng)]
+                    let serve = onTheWine && Int.random(in: 0..<10, using: &rng) < 7 ? wine
+                        : (taper > 0 ? beers : heavy).randomElement(using: &rng)!
                     try Pour(drinkId: serve.drink.id, timestamp: time, day: day.number, vessel: serve.vessel, volumeMl: serve.volumeMl, price: serve.price).insert(db)
                     total += serve.units
-                    time = time.addingTimeInterval(Double.random(in: 20...40, using: &rng) * 60)
+                    time = time.addingTimeInterval(Double.random(in: onTheWine ? 20...30 : taper > 0 ? 35...65 : 25...45, using: &rng) * 60)
                 }
                 touched.insert(day)
             }

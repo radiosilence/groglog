@@ -47,7 +47,7 @@ private struct Store {
     #if DEBUG
     static func demo() -> Store {
         let prefs = Prefs(store: UserDefaults(suiteName: "demo")!)
-        if !prefs.goal.isEnabled { prefs.goal = Goal(isEnabled: true, reductionPercent: 10, periodDays: 7) }
+        prefs.goal = Goal(isEnabled: true, reductionPercent: 10, periodDays: 7)
         let database = try! AppDatabase.inMemory()
         let logbook = Logbook(writer: database.writer, clock: prefs.clock)
         try! Seed.drinksIfNeeded(logbook)

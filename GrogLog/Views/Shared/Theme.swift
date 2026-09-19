@@ -6,11 +6,11 @@ extension Color {
     static let dry = Color(red: 0.20, green: 0.74, blue: 0.60)
     static let over = Color(red: 0.88, green: 0.24, blue: 0.30)
 
-    /// Amber within budget, sliding to red the further over a day goes.
+    /// Teal for a day inside its budget, amber just over, sliding to red the further past it goes.
     static func heat(units: Double, budget: Double?) -> Color {
         let limit = budget ?? Units.weeklyGuideline / 7
-        guard units > limit else { return .grog }
-        return Color.grog.mix(with: .over, by: min(1, (units - limit) / (limit * 2)))
+        guard units > limit else { return .dry }
+        return Color.grog.mix(with: .over, by: min(1, (units - limit) / limit))
     }
 }
 

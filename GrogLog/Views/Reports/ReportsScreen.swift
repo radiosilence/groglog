@@ -72,7 +72,9 @@ private struct MonthlyProgressCard: View {
         let budgets = { (days: ClosedRange<DayKey>) in days.compactMap { day in ledger.dailyBudget(on: day, goal: goal).map { (day, $0) } } }
         let behind = goal.isEnabled ? budgets(past) : []
         let ahead = goal.isEnabled ? budgets(today...(today + 14)).map { ($0.0.date(in: calendar), $0.1) } : []
-        let top = max(10, drank.map(\.units).max() ?? 0, ahead.map(\.1).max() ?? 0) * 1.15
+        // Scale to the window in view, so an old binge doesn't flatten the recent weeks.
+        let shown = drank.filter { $0.date >= ledger.clock.start(of: today - days) }
+        let top = max(10, shown.map(\.units).max() ?? 0, ahead.map(\.1).max() ?? 0) * 1.15
 
         Card(title: "Monthly progress") {
             if let todays = ledger.dailyBudget(on: today, goal: goal) {
