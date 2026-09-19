@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Number pads get a Done button. Units, strength, goal amounts and price had no way to put the keyboard away.
 - The day rollover holds on the nights the clocks change: for an hour each changeover, a drink could land on the wrong side of "day ends at".
 - Hiding a drink takes it off the Log grid and out of search, not just the long-press sheet. It still shows on a day it was had.
 - The goal is edited as a draft, saved on Done and discarded on Cancel, from one sheet everywhere. Setup shows a summary row rather than the editor inline, where every keystroke was written straight to settings.

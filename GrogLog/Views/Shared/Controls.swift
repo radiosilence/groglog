@@ -26,6 +26,7 @@ struct NumberRow: View {
     let label: String
     @Binding var value: Double
     let suffix: String
+    @FocusState private var focused: Bool
 
     var body: some View {
         LabeledContent(label) {
@@ -33,7 +34,24 @@ struct NumberRow: View {
                 TextField(label, value: $value, format: .number)
                     .multilineTextAlignment(.trailing)
                     .keyboardType(.decimalPad)
+                    .focused($focused)
+                    .keypadDone($focused)
                 Text(suffix).foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+extension View {
+    /// Number pads have no return key, so a field using one needs its own way out.
+    /// Gated on focus so only the field being typed into puts a button up.
+    func keypadDone(_ focused: FocusState<Bool>.Binding) -> some View {
+        toolbar {
+            if focused.wrappedValue {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { focused.wrappedValue = false }
+                }
             }
         }
     }
@@ -57,6 +75,7 @@ struct MoneyField: View {
                     TextField(label, text: $digits)
                         .keyboardType(.numberPad)
                         .focused($focused)
+                        .keypadDone($focused)
                         .opacity(0)
                 }
         }

@@ -25,6 +25,7 @@ struct UnitsSheet: View {
                             .font(.system(size: 52, weight: .bold, design: .rounded))
                             .keyboardType(.decimalPad)
                             .focused($focused)
+                            .keypadDone($focused)
                         Text("units").font(.title2).foregroundStyle(.secondary)
                     }
                 }
