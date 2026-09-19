@@ -38,6 +38,22 @@ struct LogOptionsSheet: View {
         NavigationStack {
             Form {
                 Section {
+                    ChipRow(options: base.drink.category.sizes(including: ServeSize(base.vessel, base.volumeMl)), selection: $size) { $0.label }
+                    Stepper("How many: \(count)", value: $count, in: 1...12)
+                    if day == ledger.today {
+                        ChipRow(options: [0, 15, 30, 60, 120, 180], selection: minutesAgo) {
+                            $0 == 0 ? "Now" : $0 < 60 ? "\(Int($0))m ago" : "\(Int($0 / 60))h ago"
+                        }
+                    }
+                    DatePicker(count > 1 ? "First one at" : "At", selection: resolvedTime, displayedComponents: .hourAndMinute)
+                } footer: {
+                    let times = spreadTimes
+                    if count > 1, let first = times.first, let last = times.last {
+                        Text("Spread from \(first.formatted(date: .omitted, time: .shortened)) to \(last.formatted(date: .omitted, time: .shortened)).")
+                    }
+                }
+
+                Section {
                     ForEach(choices) { option in
                         ChoiceRow(choice: option, ml: size.ml, isSelected: option.id == choice.id, isPinned: favourite(for: option) != nil) {
                             selected = option.id
@@ -52,22 +68,6 @@ struct LogOptionsSheet: View {
                     }
                 } header: {
                     Text("Which one?")
-                }
-
-                Section {
-                    ChipRow(options: base.drink.category.sizes(including: ServeSize(base.vessel, base.volumeMl)), selection: $size) { $0.label }
-                    Stepper("How many: \(count)", value: $count, in: 1...12)
-                    if day == ledger.today {
-                        ChipRow(options: [0, 15, 30, 60, 120, 180], selection: minutesAgo) {
-                            $0 == 0 ? "Now" : $0 < 60 ? "\(Int($0))m ago" : "\(Int($0 / 60))h ago"
-                        }
-                    }
-                    DatePicker(count > 1 ? "First one at" : "At", selection: resolvedTime, displayedComponents: .hourAndMinute)
-                } footer: {
-                    let times = spreadTimes
-                    if count > 1, let first = times.first, let last = times.last {
-                        Text("Spread from \(first.formatted(date: .omitted, time: .shortened)) to \(last.formatted(date: .omitted, time: .shortened)).")
-                    }
                 }
             }
             .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Find a drink")

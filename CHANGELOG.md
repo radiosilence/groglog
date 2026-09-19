@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The long-press sheet puts size, how many and when first: with 200-odd brands below, they were a long scroll away.
 - Number pads get a Done button. Units, strength, goal amounts and price had no way to put the keyboard away.
 - The day rollover holds on the nights the clocks change: for an hour each changeover, a drink could land on the wrong side of "day ends at".
 - Hiding a drink takes it off the Log grid and out of search, not just the long-press sheet. It still shows on a day it was had.
