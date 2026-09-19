@@ -35,8 +35,9 @@ struct ReportsScreen: View {
 }
 
 /// The last four weeks as two trend lines — what you drank and your budget, each a 7-day rolling average so the
-/// The last four weeks day by day against the plan as one curve — run back through the past to show where it would
-/// have had you, and on through the fortnight ahead.
+/// The last four weeks day by day against the budget. A fixed schedule is one line, solid behind today and dashed
+/// ahead. A dynamic budget is worked out afresh each day, so the past shows each day's own budget as a tick — the
+/// orange line over or under it is how that day went — and the plan runs dashed from today.
 private struct MonthlyProgressCard: View {
     let ledger: Ledger
     let goal: Goal
@@ -49,9 +50,9 @@ private struct MonthlyProgressCard: View {
         // Days drunk or dry; today only once it has drinks, so an empty evening isn't drawn as a dry day.
         let drankDays = past.filter { ledger.isLogged($0) && !($0 == today && ledger.status(on: today) == .today) }
         let drank = drankDays.map { ($0.date(in: calendar), ledger.totals(on: $0).units) }
-        let planned = { (days: ClosedRange<DayKey>) in days.compactMap { day in ledger.plan(on: day, goal: goal).map { (day.date(in: calendar), $0) } } }
-        let behind = goal.isEnabled ? planned(past) : []
-        let ahead = goal.isEnabled ? planned(today...(today + 14)) : []
+        let budgets = { (days: ClosedRange<DayKey>) in days.compactMap { day in ledger.dailyBudget(on: day, goal: goal).map { (day, $0) } } }
+        let behind = goal.isEnabled ? budgets(past).filter { $0.0 < today || !goal.isDynamic } : []
+        let ahead = goal.isEnabled ? budgets(today...(today + 14)).map { ($0.0.date(in: calendar), $0.1) } : []
         let top = max(10, drank.map(\.1).max() ?? 0, ahead.map(\.1).max() ?? 0) * 1.15
 
         Card(title: "Monthly progress") {
@@ -77,10 +78,17 @@ private struct MonthlyProgressCard: View {
                         .interpolationMethod(.monotone)
                 }
                 ForEach(behind, id: \.0) { day, units in
-                    LineMark(x: .value("Day", day, unit: .day), y: .value("Units", units), series: .value("Line", "Plan"))
-                        .foregroundStyle(Color.dry)
-                        .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                        .interpolationMethod(.monotone)
+                    if goal.isDynamic {
+                        let noon = day.date(in: calendar).addingTimeInterval(12 * 3600)
+                        RuleMark(xStart: .value("From", noon.addingTimeInterval(-8 * 3600)), xEnd: .value("To", noon.addingTimeInterval(8 * 3600)), y: .value("Budget", units))
+                            .foregroundStyle(Color.dry)
+                            .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
+                    } else {
+                        LineMark(x: .value("Day", day.date(in: calendar), unit: .day), y: .value("Units", units), series: .value("Line", "Budget"))
+                            .foregroundStyle(Color.dry)
+                            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                            .interpolationMethod(.monotone)
+                    }
                 }
                 ForEach(ahead, id: \.0) { day, units in
                     LineMark(x: .value("Day", day, unit: .day), y: .value("Units", units), series: .value("Line", "Ahead"))
@@ -105,8 +113,8 @@ private struct MonthlyProgressCard: View {
             HStack(spacing: 16) {
                 LegendKey(label: "Drank", color: .grog)
                 if goal.isEnabled {
-                    LegendKey(label: "Plan", color: .dry)
-                    LegendKey(label: "To come", color: .dry, dashed: true)
+                    LegendKey(label: goal.isDynamic ? "Day's budget" : "Budget", color: .dry)
+                    LegendKey(label: "Plan", color: .dry, dashed: true)
                 }
             }
             if !goal.isEnabled {
