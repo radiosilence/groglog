@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Logging a drink plays a pour: the tile squishes, the glass fills (head and all), "+units" floats up and the count pops.
 - Storage moved from SwiftData to SQLite (GRDB). Every change is a single transaction and screens update the moment it commits — no more lag after a burst of logging. Three years at 20 drinks a day imports in about 1.5 s; a tap takes about 1 ms.
 - Restoring a backup onto a fresh install matches drinks by name and type, so the built-in generics aren't doubled.
 - Stays fast with years of history: screens read per-day totals and fetch individual drinks only for the days shown; every change recomputes just the days it touches. Drinking days are fixed when logged, so timezone changes don't move them.

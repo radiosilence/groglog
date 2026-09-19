@@ -5,6 +5,8 @@ struct DrinkGlyph: View {
     let category: DrinkCategory
     let vessel: Vessel
     var volumeMl: Double?
+    /// How far poured, 0…1 — animated when a drink is logged.
+    var fill = 1.0
 
     var body: some View {
         if category == .units {
@@ -19,7 +21,7 @@ struct DrinkGlyph: View {
             let scale = min(size.width, size.height) / 100
             context.translateBy(x: (size.width - 100 * scale) / 2, y: (size.height - 100 * scale) / 2)
             context.scaleBy(x: scale, y: scale)
-            Art(vessel: vessel, volumeMl: volumeMl ?? vessel.volumes[0]).draw(in: &context, category: category)
+            Art(vessel: vessel, volumeMl: volumeMl ?? vessel.volumes[0]).draw(in: &context, category: category, fill: fill)
         }
         .aspectRatio(1, contentMode: .fit)
         .accessibilityHidden(true)
@@ -153,11 +155,12 @@ private struct Art {
         labelMark = labelMark?.applying(transform)
     }
 
-    func draw(in context: inout GraphicsContext, category: DrinkCategory) {
+    func draw(in context: inout GraphicsContext, category: DrinkCategory, fill: Double) {
         let ink = Color.primary
         let liquidArea = bowl ?? glass
         let bounds = liquidArea.boundingRect
-        let surface = bounds.maxY - bounds.height * level
+        let full = bounds.maxY - bounds.height * level
+        let surface = bounds.maxY - bounds.height * level * max(0, min(1, fill))
         let hasHead = category.hasHead && [.pint, .half].contains(vessel)
 
         context.fill(glass, with: .color(ink.opacity(0.06)))
@@ -174,16 +177,17 @@ private struct Art {
         }
 
         var foam: Path?
-        if hasHead {
-            let rim = bounds.minY
-            let head = Path(CGRect(x: 0, y: rim, width: 100, height: surface - rim + 1)).intersection(glass)
+        if hasHead, fill > 0.05 {
+            // The head rides on the liquid as it pours, and crowns over the rim once full.
+            let top = surface - (full - bounds.minY)
+            let head = Path(CGRect(x: 0, y: top, width: 100, height: surface - top + 1)).intersection(glass)
             var bubbles = Path()
             let count = max(2, Int((bounds.width - 10) / 8.5) + 1)
             for index in 0..<count {
                 let x = bounds.minX + 5 + (bounds.width - 10) * CGFloat(index) / CGFloat(count - 1)
-                bubbles.addEllipse(in: CGRect(x: x - 5.5, y: rim - 4.5, width: 11, height: 10))
+                bubbles.addEllipse(in: CGRect(x: x - 5.5, y: top - 4.5, width: 11, height: 10))
             }
-            foam = head.union(bubbles)
+            foam = head.union(fill >= 1 ? bubbles : bubbles.intersection(glass))
             context.fill(foam!, with: .color(.white))
         }
 

@@ -19,6 +19,8 @@ struct DrinkPicker: View {
     /// Recency as of when the screen appeared, so tapping a tile doesn't shuffle the grid under your thumb.
     /// Deliberate picks (the long-press sheet, a search result) jump to the front straight away.
     @State private var recency: [String: Date] = [:]
+    /// Bumped per tile each time it's logged, to play the pour.
+    @State private var pulses: [String: Int] = [:]
 
     private let columns = [GridItem(.adaptive(minimum: 104), spacing: 12)]
 
@@ -34,7 +36,7 @@ struct DrinkPicker: View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(tiles) { serve in
-                    DrinkTile(serve: serve, count: counts[serve.id] ?? 0)
+                    DrinkTile(serve: serve, count: counts[serve.id] ?? 0, pulse: pulses[serve.id] ?? 0)
                         .onTapGesture { serve.drink.category == .units ? countingUnits = true : log(serve) }
                         .onLongPressGesture(minimumDuration: 0.35) { serve.drink.category == .units ? countingUnits = true : (options = serve) }
                 }
@@ -71,7 +73,10 @@ struct DrinkPicker: View {
             }
         }
         .sheet(item: $options) { serve in
-            LogOptionsSheet(base: serve, day: day, ledger: ledger, after: pours.last?.timestamp) { recency[$0] = .now }
+            LogOptionsSheet(base: serve, day: day, ledger: ledger, after: pours.last?.timestamp) { id in
+                recency[id] = .now
+                pulses[id, default: 0] += 1
+            }
                 .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $countingUnits) {
@@ -127,6 +132,7 @@ struct DrinkPicker: View {
 
     private func log(_ serve: Serve) {
         database.logbook(prefs).log(serve, at: [ledger.clock.suggestedTime(for: day, after: pours.last?.timestamp)])
+        pulses[serve.id, default: 0] += 1
         logged += 1
     }
 
@@ -145,23 +151,58 @@ private struct DrinkTile: View {
     let volumeMl: Double
     let abv: Double
     let count: Int
+    var pulse = 0
 
-    init(name: String, category: DrinkCategory, vessel: Vessel, volumeMl: Double, abv: Double, count: Int) {
+    init(name: String, category: DrinkCategory, vessel: Vessel, volumeMl: Double, abv: Double, count: Int, pulse: Int = 0) {
         self.name = name
         self.category = category
         self.vessel = vessel
         self.volumeMl = volumeMl
         self.abv = abv
         self.count = count
+        self.pulse = pulse
     }
 
-    init(serve: Serve, count: Int) {
-        self.init(name: serve.drink.name, category: serve.drink.category, vessel: serve.vessel, volumeMl: serve.volumeMl, abv: serve.drink.abv, count: count)
+    init(serve: Serve, count: Int, pulse: Int) {
+        self.init(name: serve.drink.name, category: serve.drink.category, vessel: serve.vessel, volumeMl: serve.volumeMl, abv: serve.drink.abv, count: count, pulse: pulse)
     }
+
+    private var units: Double { Units.of(ml: volumeMl, abv: abv) }
 
     var body: some View {
+        KeyframeAnimator(initialValue: Pour(), trigger: pulse) { pour in
+            card(pour)
+        } keyframes: { _ in
+            KeyframeTrack(\.scale) {
+                SpringKeyframe(0.9, duration: 0.08)
+                SpringKeyframe(1.05, duration: 0.17)
+                SpringKeyframe(1, duration: 0.3)
+            }
+            KeyframeTrack(\.fill) {
+                LinearKeyframe(0, duration: 0)
+                CubicKeyframe(1, duration: 0.55)
+            }
+            KeyframeTrack(\.tilt) {
+                CubicKeyframe(-10, duration: 0.14)
+                SpringKeyframe(0, duration: 0.4)
+            }
+            KeyframeTrack(\.badge) {
+                LinearKeyframe(1, duration: 0.2)
+                SpringKeyframe(1.35, duration: 0.12)
+                SpringKeyframe(1, duration: 0.3)
+            }
+            KeyframeTrack(\.rise) {
+                LinearKeyframe(0, duration: 0)
+                CubicKeyframe(1, duration: 0.85)
+            }
+        }
+        .contentShape(.rect(cornerRadius: 20))
+    }
+
+    private func card(_ pour: Pour) -> some View {
         VStack(spacing: 4) {
-            DrinkGlyph(category: category, vessel: vessel, volumeMl: volumeMl)
+            DrinkGlyph(category: category, vessel: vessel, volumeMl: volumeMl, fill: pour.fill)
+                .rotationEffect(.degrees(pour.tilt), anchor: .bottom)
                 .frame(height: 58)
                 .padding(.bottom, 4)
             Text(name)
@@ -173,7 +214,7 @@ private struct DrinkTile: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
-            Text(category == .units ? "type it in" : "\(Units.of(ml: volumeMl, abv: abv).unitsText) u")
+            Text(category == .units ? "type it in" : "\(units.unitsText) u")
                 .font(.caption.weight(.bold).monospacedDigit())
                 .foregroundStyle(Color.grog)
         }
@@ -186,15 +227,36 @@ private struct DrinkTile: View {
                 Text("×\(count)")
                     .font(.caption.weight(.bold).monospacedDigit())
                     .foregroundStyle(.white)
+                    .contentTransition(.numericText(value: Double(count)))
                     .padding(.horizontal, 7)
                     .padding(.vertical, 3)
                     .background(Color.grog, in: .capsule)
+                    .scaleEffect(pour.badge)
                     .padding(6)
                     .transition(.scale.combined(with: .opacity))
             }
         }
+        .overlay(alignment: .top) {
+            if pour.rise < 1 {
+                Text("+\(units.unitsText) u")
+                    .font(.headline.weight(.heavy).monospacedDigit())
+                    .foregroundStyle(Color.grog)
+                    .offset(y: -44 * pour.rise)
+                    .opacity(1 - pour.rise)
+                    .allowsHitTesting(false)
+            }
+        }
+        .scaleEffect(pour.scale)
         .animation(.snappy, value: count)
-        .contentShape(.rect(cornerRadius: 20))
+    }
+
+    /// One logged drink's worth of motion.
+    private struct Pour {
+        var scale = 1.0
+        var fill = 1.0
+        var tilt = 0.0
+        var rise = 1.0
+        var badge = 1.0
     }
 }
 
