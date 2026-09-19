@@ -1,0 +1,70 @@
+import SwiftData
+import SwiftUI
+
+extension Color {
+    static let grog = Color(red: 0.97, green: 0.64, blue: 0.20)
+    static let dry = Color(red: 0.20, green: 0.74, blue: 0.60)
+    static let over = Color(red: 0.88, green: 0.24, blue: 0.30)
+
+    /// Amber within budget, sliding to red the further over a day goes.
+    static func heat(units: Double, budget: Double?) -> Color {
+        let limit = budget ?? Units.weeklyGuideline / 7
+        guard units > limit else { return .grog }
+        return Color.grog.mix(with: .over, by: min(1, (units - limit) / (limit * 2)))
+    }
+}
+
+extension Double {
+    var unitsText: String { formatted(.number.precision(.fractionLength(1))) }
+    var kcalText: String { Int(rounded()).formatted() }
+    func money(_ currency: String) -> String { formatted(.currency(code: currency)) }
+    var volumeText: String { "\(Int(self)) ml" }
+    var abvText: String { "\(formatted(.number.precision(.fractionLength(0...1))))%" }
+}
+
+struct Card<Content: View>: View {
+    var title: String?
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let title {
+                Text(title).font(.headline)
+            }
+            content
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 24))
+    }
+}
+
+/// Builds a `Ledger` from the store, so screens deal in drinking days rather than raw queries.
+struct LedgerReader<Content: View>: View {
+    @Query(sort: \Pour.timestamp) private var pours: [Pour]
+    @Query private var dryDays: [AlcoholFreeDay]
+    @Environment(Prefs.self) private var prefs
+    @ViewBuilder var content: (Ledger) -> Content
+
+    var body: some View {
+        content(Ledger(pours: pours, dryDays: dryDays, clock: prefs.clock))
+    }
+}
+
+/// A series swatch for chart legends.
+struct LegendKey: View {
+    let label: String
+    let color: Color
+    var dashed = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Capsule()
+                .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: dashed ? [3, 4] : []))
+                .frame(width: 18, height: 1)
+            Text(label)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+}
