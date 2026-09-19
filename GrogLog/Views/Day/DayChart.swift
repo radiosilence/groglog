@@ -1,5 +1,5 @@
 import Charts
-import SwiftData
+import GRDBQuery
 import SwiftUI
 
 /// Running units through the day, against yesterday and the month's average day. Fetches just the drinks in that
@@ -9,14 +9,14 @@ struct DayChart: View {
     let ledger: Ledger
     let budget: Double?
     let now: Date
-    @Query private var pours: [Pour]
+    @Query<EntriesRequest> private var pours: [Entry]
 
     init(day: DayKey, ledger: Ledger, budget: Double?, now: Date) {
         self.day = day
         self.ledger = ledger
         self.budget = budget
         self.now = now
-        _pours = Query(Pour.on(ledger.monthBefore(day).lowerBound...day))
+        _pours = Query(constant: EntriesRequest(days: ledger.monthBefore(day).lowerBound...day))
     }
 
     var body: some View {

@@ -1,114 +1,210 @@
 import Foundation
-import SwiftData
+import GRDB
+import GRDBQuery
+import os
 
-/// Every change to what's been drunk goes through here. After each change the affected days' totals are recomputed
-/// from their entries — only those days, however long the history — so `Day` rows are always derived, never
-/// incremented, and can't drift.
-struct Logbook {
-    let context: ModelContext
+/// Every change to the log goes through here, each as one transaction. After a change the affected days' totals are
+/// recomputed from their entries — only those days, however long the history — so `Day` rows are always derived,
+/// never incremented, and can't drift. Observed queries refresh as each transaction commits.
+nonisolated struct Logbook: Sendable {
+    let writer: any DatabaseWriter
     let clock: DayClock
 
+    // MARK: Entries
+
     func log(_ serve: Serve, at times: [Date]) {
-        for time in times {
-            context.insert(Pour(drink: serve.drink, at: time, day: clock.day(for: time), vessel: serve.vessel, volumeMl: serve.volumeMl, price: serve.price))
+        write { db in
+            for time in times {
+                try Pour(drinkId: serve.drink.id, timestamp: time, day: clock.day(for: time).number, vessel: serve.vessel, volumeMl: serve.volumeMl, price: serve.price).insert(db)
+            }
+            if let latest = times.max() {
+                try Favourite
+                    .filter(Column("drinkId") == serve.drink.id && Column("vessel") == serve.vessel.rawValue && Column("volumeMl") == serve.volumeMl)
+                    .updateAll(db, Column("lastUsed").set(to: latest))
+            }
+            try retotal(Set(times.map { clock.day(for: $0) }), db)
         }
-        if let latest = times.max() {
-            favourite(for: serve)?.lastUsed = latest
-        }
-        refresh(Set(times.map(clock.day(for:))))
     }
 
     func logUnits(_ units: Double, at time: Date) {
-        log(Serve(context.unitsDrink(), .shot, units * 10, price: 0), at: [time])
+        write { db in
+            let drink = try unitsDrink(db)
+            try Pour(drinkId: drink.id, timestamp: time, day: clock.day(for: time).number, vessel: .shot, volumeMl: units * 10, price: 0).insert(db)
+            try retotal([clock.day(for: time)], db)
+        }
     }
 
     func delete(_ pour: Pour) {
-        let day = pour.dayKey
-        context.delete(pour)
-        refresh([day])
+        write { db in
+            try pour.delete(db)
+            try retotal([pour.dayKey], db)
+        }
     }
 
     func update(_ pour: Pour, time: Date, vessel: Vessel, volumeMl: Double, price: Double) {
-        let before = pour.dayKey
-        pour.timestamp = time
-        pour.day = clock.day(for: time).number
-        pour.vesselRaw = vessel.rawValue
-        pour.volumeMl = volumeMl
-        pour.price = price
-        refresh([before, pour.dayKey])
+        write { db in
+            var updated = pour
+            updated.timestamp = time
+            updated.day = clock.day(for: time).number
+            updated.vessel = vessel
+            updated.volumeMl = volumeMl
+            updated.price = price
+            try updated.update(db)
+            try retotal([pour.dayKey, updated.dayKey], db)
+        }
     }
 
     func setAlcoholFree(_ dry: Bool, on day: DayKey) {
-        guard let row = row(for: day, creating: dry) else { return }
-        row.isAlcoholFree = dry
-        tidy(row)
-    }
-
-    /// A drink's strength or type changed, so every day it was had on needs re-totting.
-    func drinkChanged(_ drink: Drink) {
-        refresh(Set((drink.pours ?? []).map(\.dayKey)))
-    }
-
-    /// Recomputes days from their entries. Logging a drink clears a dry mark; a day left with neither goes.
-    func refresh(_ days: Set<DayKey>) {
-        for day in days {
-            let pours = (try? context.fetch(Pour.on(day...day))) ?? []
-            guard let row = row(for: day, creating: !pours.isEmpty) else { continue }
-            row.set(DayTotals(pours))
-            if !pours.isEmpty { row.isAlcoholFree = false }
-            tidy(row)
+        write { db in
+            var row = try Day.fetchOne(db, key: day.number) ?? Day(number: day.number)
+            row.isAlcoholFree = dry
+            try save(row, db)
         }
     }
+
+    // MARK: Drinks
+
+    /// Saves a drink. If its strength or type changed, every day it was had on is re-totted.
+    func save(_ drink: Drink) {
+        write { db in
+            let before = try Drink.fetchOne(db, key: drink.id)
+            try drink.save(db)
+            if let before, before.abv != drink.abv || before.category != drink.category {
+                let days = try Pour.select(Column("day"), as: Int.self).filter(Column("drinkId") == drink.id).distinct().fetchAll(db)
+                try retotal(Set(days.map(DayKey.init(number:))), db)
+            }
+        }
+    }
+
+    /// Adds a new drink, pinned to the Log grid at its usual size.
+    func add(_ drink: Drink) {
+        write { db in
+            try drink.insert(db)
+            try Favourite(drinkId: drink.id, vessel: drink.vessel, volumeMl: drink.volumeMl, price: drink.price).insert(db)
+        }
+    }
+
+    /// Only drinks never logged can go (the schema refuses otherwise); the rest can be hidden.
+    func delete(_ drink: Drink) {
+        write { db in _ = try drink.delete(db) }
+    }
+
+    /// The drink with this name and type, or a new one first had at this size.
+    func drink(named name: String, category: DrinkCategory, abv: Double, vessel: Vessel, volumeMl: Double) -> Drink? {
+        write { db in try findOrCreate(name: name, category: category, abv: abv, vessel: vessel, volumeMl: volumeMl, db) }
+    }
+
+    func pin(_ serve: Serve) {
+        write { db in try Favourite(drinkId: serve.drink.id, vessel: serve.vessel, volumeMl: serve.volumeMl, price: serve.price).insert(db) }
+    }
+
+    func unpin(_ favourite: Favourite) {
+        write { db in _ = try favourite.delete(db) }
+    }
+
+    // MARK: Rebuilding
 
     /// Recomputes every day from scratch — after an import, or when the hour days end at changes (which moves
-    /// entries between days). The same arithmetic as `refresh`, over everything.
+    /// entries between days). The same arithmetic as for a single change, over everything, in one transaction.
     func rebuild(reassigningDays: Bool = false) {
-        let pours = (try? context.fetch(FetchDescriptor<Pour>())) ?? []
-        if reassigningDays {
-            for pour in pours { pour.day = clock.day(for: pour.timestamp).number }
+        write { db in
+            if reassigningDays {
+                for var pour in try Pour.fetchAll(db) {
+                    let day = clock.day(for: pour.timestamp).number
+                    if day != pour.day {
+                        pour.day = day
+                        try pour.update(db)
+                    }
+                }
+            }
+            let dry = try Day.select(Column("number"), as: Int.self).filter(Column("isAlcoholFree")).fetchAll(db)
+            try Day.deleteAll(db)
+            for (number, entries) in Dictionary(grouping: try entries(in: nil, db), by: \.day) {
+                try Day(number: number, totals: DayTotals(entries)).insert(db)
+            }
+            for number in dry where try !Day.exists(db, key: number) {
+                try Day(number: number, isAlcoholFree: true).insert(db)
+            }
         }
-        let byDay = Dictionary(grouping: pours, by: \.day)
-        var rows = Dictionary(((try? context.fetch(FetchDescriptor<Day>())) ?? []).map { ($0.number, $0) }, uniquingKeysWith: { first, _ in first })
-        for (number, pours) in byDay {
-            let row = rows[number] ?? {
-                let row = Day(DayKey(number: number))
-                context.insert(row)
-                rows[number] = row
-                return row
-            }()
-            row.set(DayTotals(pours))
-            row.isAlcoholFree = false
-        }
-        for row in rows.values where byDay[row.number] == nil {
-            row.set(DayTotals())
-            tidy(row)
-        }
-        try? context.save()
     }
 
-    private func row(for day: DayKey, creating: Bool) -> Day? {
-        let number = day.number
-        if let row = try? context.fetch(FetchDescriptor(predicate: #Predicate<Day> { $0.number == number })).first { return row }
-        guard creating else { return nil }
-        let row = Day(day)
-        context.insert(row)
-        return row
+    /// Runs a batch of writes — an import — as one transaction, re-totting the days it touched at the end.
+    func bulk(_ body: (Database) throws -> Set<DayKey>) throws {
+        try writer.write { db in
+            try retotal(try body(db), db)
+        }
     }
 
-    private func tidy(_ row: Day) {
-        if row.count == 0 && !row.isAlcoholFree { context.delete(row) }
+    // MARK: Internals
+
+    /// Recomputes days from their entries. Logging a drink clears a dry mark; a day left with neither goes.
+    func retotal(_ days: Set<DayKey>, _ db: Database) throws {
+        for day in days {
+            var row = try Day.fetchOne(db, key: day.number) ?? Day(number: day.number)
+            let entries = try entries(in: day...day, db)
+            row.set(DayTotals(entries))
+            if !entries.isEmpty { row.isAlcoholFree = false }
+            try save(row, db)
+        }
     }
 
-    private func favourite(for serve: Serve) -> Favourite? {
-        serve.favourite ?? serve.drink.favourites?.first { $0.vessel == serve.vessel && $0.volumeMl == serve.volumeMl }
+    func findOrCreate(name: String, category: DrinkCategory, abv: Double, vessel: Vessel, volumeMl: Double, _ db: Database) throws -> Drink {
+        if let drink = try Drink.filter(Column("name") == name && Column("category") == category.rawValue).fetchOne(db) { return drink }
+        let drink = Drink(name: name, category: category, abv: abv, vessel: vessel, volumeMl: volumeMl)
+        try drink.insert(db)
+        return drink
+    }
+
+    func unitsDrink(_ db: Database) throws -> Drink {
+        if let drink = try Drink.filter(Column("category") == DrinkCategory.units.rawValue).fetchOne(db) { return drink }
+        let drink = Drink(name: "Units", category: .units, abv: 100, vessel: .shot, volumeMl: 10, isGeneric: true, sortOrder: 99)
+        try drink.insert(db)
+        return drink
+    }
+
+    private func entries(in days: ClosedRange<DayKey>?, _ db: Database) throws -> [Entry] {
+        var request = Pour.including(required: Pour.drink)
+        if let days { request = request.filter((days.lowerBound.number...days.upperBound.number).contains(Column("day"))) }
+        return try request.asRequest(of: Entry.self).fetchAll(db)
+    }
+
+    private func save(_ row: Day, _ db: Database) throws {
+        if row.count == 0 && !row.isAlcoholFree {
+            _ = try row.delete(db)
+        } else {
+            try row.save(db)
+        }
+    }
+
+    @discardableResult
+    private func write<T>(_ body: (Database) throws -> T) -> T? {
+        do {
+            return try writer.write(body)
+        } catch {
+            Logger(subsystem: "cc.blit.groglog", category: "logbook").fault("Write failed: \(error)")
+            assertionFailure("Write failed: \(error)")
+            return nil
+        }
     }
 }
 
-private extension Day {
-    func set(_ totals: DayTotals) {
+nonisolated extension Day {
+    init(number: Int, totals: DayTotals) {
+        self.init(number: number)
+        set(totals)
+    }
+
+    mutating func set(_ totals: DayTotals) {
         units = totals.units
         kcal = totals.kcal
         cost = totals.cost
         count = totals.count
+    }
+}
+
+extension DatabaseContext {
+    /// Writes for views, which find the database in the environment.
+    func logbook(_ prefs: Prefs) -> Logbook {
+        Logbook(writer: try! writer, clock: prefs.clock)
     }
 }

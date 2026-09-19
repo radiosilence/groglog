@@ -1,4 +1,4 @@
-import SwiftData
+import GRDBQuery
 import SwiftUI
 
 extension Color {
@@ -14,7 +14,7 @@ extension Color {
     }
 }
 
-extension Double {
+nonisolated extension Double {
     var unitsText: String { formatted(.number.precision(.fractionLength(1))) }
     var kcalText: String { Int(rounded()).formatted() }
     func money(_ currency: String) -> String { formatted(.currency(code: currency)) }
@@ -41,17 +41,13 @@ struct Card<Content: View>: View {
 
 /// Builds a `Ledger` from the per-day totals — never the individual drinks — so it stays cheap however long the history.
 struct LedgerReader<Content: View>: View {
-    @Query private var days: [Day]
+    @Query(DaysRequest()) private var days: [Day]
     @Environment(Prefs.self) private var prefs
     @ViewBuilder var content: (Ledger) -> Content
 
     var body: some View {
         content(Ledger(days: days, clock: prefs.clock))
     }
-}
-
-extension ModelContext {
-    func logbook(_ prefs: Prefs) -> Logbook { Logbook(context: self, clock: prefs.clock) }
 }
 
 /// A series swatch for chart legends.

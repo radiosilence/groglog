@@ -1,18 +1,20 @@
-import SwiftData
+import GRDBQuery
 import SwiftUI
 
 /// Create or edit a drink: what it is (name, type, strength), plus the size and price it's usually had at.
 /// Sizes come from the type, so a beer is offered pints and cans, never a wine glass. Edits a draft saved on Save.
 struct DrinkEditor: View {
     let drink: Drink?
-    @Environment(\.modelContext) private var context
+    @Environment(\.databaseContext) private var database
     @Environment(\.dismiss) private var dismiss
     @Environment(Prefs.self) private var prefs
-    @State private var draft: DrinkDraft
+    @State private var draft: Drink
+    @Query<PourCountRequest> private var timesLogged: Int
 
     init(drink: Drink?) {
         self.drink = drink
-        _draft = State(initialValue: drink.map(DrinkDraft.init) ?? DrinkDraft())
+        _draft = State(initialValue: drink ?? Drink(name: "", category: .beer, abv: DrinkCategory.beer.defaultABV, vessel: .pint, volumeMl: 568))
+        _timesLogged = Query(constant: PourCountRequest(drinkId: drink?.id ?? UUID()))
     }
 
     var body: some View {
@@ -22,7 +24,7 @@ struct DrinkEditor: View {
                     VStack(spacing: 8) {
                         DrinkGlyph(category: draft.category, vessel: draft.vessel, volumeMl: draft.volumeMl)
                             .frame(height: 96)
-                        Text("\(draft.units.unitsText) u · \(draft.kcal.kcalText) kcal")
+                        Text("\(Units.of(ml: draft.volumeMl, abv: draft.abv).unitsText) u · \(Units.kcal(ml: draft.volumeMl, abv: draft.abv, category: draft.category).kcalText) kcal")
                             .font(.headline.monospacedDigit())
                             .foregroundStyle(Color.grog)
                             .contentTransition(.numericText())
@@ -54,13 +56,16 @@ struct DrinkEditor: View {
                 if let drink, !drink.isGeneric {
                     Section {
                         Button("Save as new drink", systemImage: "plus.square.on.square") {
-                            insertNew()
+                            var new = draft
+                            new.id = UUID()
+                            new.isGeneric = false
+                            database.logbook(prefs).add(new)
                             dismiss()
                         }
                         Toggle("Show in pickers", isOn: Binding(get: { !draft.isHidden }, set: { draft.isHidden = !$0 }))
-                        if drink.pours?.isEmpty ?? true {
+                        if timesLogged == 0 {
                             Button("Delete drink", role: .destructive) {
-                                context.delete(drink)
+                                database.logbook(prefs).delete(drink)
                                 dismiss()
                             }
                         }
@@ -69,7 +74,7 @@ struct DrinkEditor: View {
                     }
                 }
             }
-            .animation(.snappy, value: draft.units)
+            .animation(.snappy, value: draft.abv)
             .navigationTitle(drink == nil ? "New drink" : draft.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -78,12 +83,11 @@ struct DrinkEditor: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(drink == nil ? "Add" : "Save", role: .confirm) {
-                        if let drink {
-                            let retotal = drink.abv != draft.abv || drink.category != draft.category
-                            draft.apply(to: drink)
-                            if retotal { context.logbook(prefs).drinkChanged(drink) }
+                        draft.name = draft.name.trimmingCharacters(in: .whitespaces)
+                        if drink == nil {
+                            database.logbook(prefs).add(draft)
                         } else {
-                            insertNew()
+                            database.logbook(prefs).save(draft)
                         }
                         dismiss()
                     }
@@ -91,14 +95,6 @@ struct DrinkEditor: View {
                 }
             }
         }
-    }
-
-    /// A new drink starts on the Log grid at its usual size.
-    private func insertNew() {
-        let new = Drink(name: draft.name, category: draft.category, abv: draft.abv, vessel: draft.vessel, volumeMl: draft.volumeMl, price: draft.price)
-        draft.apply(to: new)
-        context.insert(new)
-        context.insert(Favourite(drink: new, vessel: new.vessel, volumeMl: new.volumeMl, price: new.price))
     }
 
     private var sizes: [Size] {
@@ -130,43 +126,10 @@ private struct Size: Hashable {
     let ml: Double
 }
 
-private struct DrinkDraft {
-    var name = ""
-    var category = DrinkCategory.beer
-    var abv = DrinkCategory.beer.defaultABV
-    var vessel = Vessel.pint
-    var volumeMl = 568.0
-    var price = 0.0
-    var isHidden = false
-
-    init() {}
-
-    init(_ drink: Drink) {
-        name = drink.name
-        category = drink.category
-        abv = drink.abv
-        vessel = drink.vessel
-        volumeMl = drink.volumeMl
-        price = drink.price
-        isHidden = drink.isHidden
-    }
-
-    var units: Double { Units.of(ml: volumeMl, abv: abv) }
-    var kcal: Double { Units.kcal(ml: volumeMl, abv: abv, category: category) }
-
-    func apply(to drink: Drink) {
-        drink.name = name.trimmingCharacters(in: .whitespaces)
-        drink.category = category
-        drink.abv = abv
-        drink.vessel = vessel
-        drink.volumeMl = volumeMl
-        drink.price = price
-        drink.isHidden = isHidden
-    }
-}
-
 struct DrinksScreen: View {
-    @Query(sort: \Drink.name) private var drinks: [Drink]
+    @Query(DrinksRequest()) private var drinks: [Drink]
+    @Environment(\.databaseContext) private var database
+    @Environment(Prefs.self) private var prefs
     @State private var editing: Drink?
     @State private var creating = false
 
@@ -205,7 +168,11 @@ struct DrinksScreen: View {
                 }
                 .tint(.primary)
                 .swipeActions {
-                    Button(drink.isHidden ? "Show" : "Hide", systemImage: drink.isHidden ? "eye" : "eye.slash") { drink.isHidden.toggle() }
+                    Button(drink.isHidden ? "Show" : "Hide", systemImage: drink.isHidden ? "eye" : "eye.slash") {
+                        var toggled = drink
+                        toggled.isHidden.toggle()
+                        database.logbook(prefs).save(toggled)
+                    }
                 }
             }
         }

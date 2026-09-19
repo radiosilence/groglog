@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Storage moved from SwiftData to SQLite (GRDB). Every change is a single transaction and screens update the moment it commits — no more lag after a burst of logging. Three years at 20 drinks a day imports in about 1.5 s; a tap takes about 1 ms.
+- Restoring a backup onto a fresh install matches drinks by name and type, so the built-in generics aren't doubled.
 - Stays fast with years of history: screens read per-day totals and fetch individual drinks only for the days shown; every change recomputes just the days it touches. Drinking days are fixed when logged, so timezone changes don't move them.
 - Debug builds get a Demo mode that swaps in sample data without touching your log.
 - Drinks are now separate from sizes: one Staropramen covers the 440 can and the 660 bottle. Log tiles and entries are a drink + size + price; sizes are limited to what suits the type. Existing data was folded in place (brands saved at several sizes became one drink; the per-size generics became Beer, Cider, … at Drinkaware's standard strengths).

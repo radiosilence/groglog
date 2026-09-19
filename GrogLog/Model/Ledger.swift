@@ -1,6 +1,6 @@
 import Foundation
 
-enum DayStatus {
+nonisolated enum DayStatus {
     case drank, alcoholFree, today, unlogged, future, untracked
 }
 
@@ -12,11 +12,11 @@ nonisolated struct DayTotals {
 
     init() {}
 
-    init(_ pours: some Sequence<Pour>) {
-        for pour in pours {
-            units += pour.units
-            kcal += pour.kcal
-            cost += pour.price
+    init(_ entries: some Sequence<Entry>) {
+        for entry in entries {
+            units += entry.units
+            kcal += entry.kcal
+            cost += entry.price
             count += 1
         }
     }
@@ -31,13 +31,13 @@ nonisolated struct DayTotals {
     }
 }
 
-struct CurvePoint: Identifiable {
+nonisolated struct CurvePoint: Identifiable {
     var hour: Double
     var units: Double
     var id: Double { hour }
 }
 
-struct WeekStat: Identifiable {
+nonisolated struct WeekStat: Identifiable {
     var start: DayKey
     var totals: DayTotals
     var dryDays: Int
@@ -49,7 +49,7 @@ struct WeekStat: Identifiable {
 /// Read-only view over every drinking day, built from `Day` rows (a few hundred a year) so it's cheap to rebuild on
 /// each change. Anything needing individual drinks — the running-total curves — takes them from the caller, fetched
 /// for just the days on screen.
-struct Ledger {
+nonisolated struct Ledger {
     let clock: DayClock
     let today: DayKey
     let firstDay: DayKey?
@@ -190,7 +190,7 @@ struct Ledger {
     // MARK: Curves
 
     /// Running total of units through a day, as a step series from `from` to `through` hours after the day starts.
-    func cumulative(_ pours: [Pour], on day: DayKey, from: Double = 0, through: Double = 24) -> [CurvePoint] {
+    func cumulative(_ pours: [Entry], on day: DayKey, from: Double = 0, through: Double = 24) -> [CurvePoint] {
         let timed = pours.filter { $0.day == day.number }.map { (hour: clock.hours($0.timestamp, into: day), units: $0.units) }
         var total = timed.filter { $0.hour <= from }.reduce(0) { $0 + $1.units }
         var points = [CurvePoint(hour: from, units: total)]
@@ -203,7 +203,7 @@ struct Ledger {
     }
 
     /// Mean running total across the logged days in `range`. Unlogged days are left out rather than counted as zero.
-    func averageCumulative(_ pours: [Pour], over range: ClosedRange<DayKey>, from: Double = 0) -> [CurvePoint] {
+    func averageCumulative(_ pours: [Entry], over range: ClosedRange<DayKey>, from: Double = 0) -> [CurvePoint] {
         let logged = range.filter(isLogged)
         guard !logged.isEmpty else { return [] }
         let timed = pours

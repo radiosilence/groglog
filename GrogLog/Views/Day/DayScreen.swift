@@ -1,4 +1,4 @@
-import SwiftData
+import GRDBQuery
 import SwiftUI
 
 /// A day with prev/next navigation.
@@ -23,21 +23,21 @@ struct DayPager: View {
 struct DayScreen: View {
     let day: DayKey
     let ledger: Ledger
-    @Query private var pours: [Pour]
+    @Query<EntriesRequest> private var entries: [Entry]
     @Environment(Prefs.self) private var prefs
-    @Environment(\.modelContext) private var context
+    @Environment(\.databaseContext) private var database
     @State private var adding = false
-    @State private var editing: Pour?
+    @State private var editing: Entry?
     @State private var settingGoal = false
 
     init(day: DayKey, ledger: Ledger) {
         self.day = day
         self.ledger = ledger
-        _pours = Query(Pour.on(day...day))
+        _entries = Query(constant: EntriesRequest(days: day...day))
     }
 
     var body: some View {
-        let logbook = context.logbook(prefs)
+        let logbook = database.logbook(prefs)
         let status = ledger.status(on: day)
         let budget = ledger.dailyBudget(on: day, goal: prefs.goal)
 
@@ -70,13 +70,13 @@ struct DayScreen: View {
             switch status {
             case .drank:
                 Section("Drinks") {
-                    ForEach(pours.reversed()) { pour in
-                        Button { editing = pour } label: { PourRow(pour: pour) }
+                    ForEach(entries.reversed()) { entry in
+                        Button { editing = entry } label: { PourRow(entry: entry) }
                             .tint(.primary)
                     }
                     .onDelete { offsets in
-                        let reversed = Array(pours.reversed())
-                        offsets.forEach { logbook.delete(reversed[$0]) }
+                        let reversed = Array(entries.reversed())
+                        offsets.forEach { logbook.delete(reversed[$0].pour) }
                     }
                 }
             case .alcoholFree:
@@ -126,8 +126,8 @@ struct DayScreen: View {
             AddDrinkSheet(day: day)
         }
         .sheet(isPresented: $settingGoal) { GoalSheet() }
-        .sheet(item: $editing) { pour in
-            PourEditor(pour: pour, day: day)
+        .sheet(item: $editing) { entry in
+            PourEditor(entry: entry, day: day)
         }
     }
 
@@ -206,22 +206,22 @@ struct BudgetBar: View {
 }
 
 struct PourRow: View {
-    let pour: Pour
+    let entry: Entry
 
     var body: some View {
         HStack(spacing: 12) {
-            DrinkGlyph(category: pour.category, vessel: pour.vessel, volumeMl: pour.volumeMl)
+            DrinkGlyph(category: entry.category, vessel: entry.vessel, volumeMl: entry.volumeMl)
                 .frame(width: 40, height: 40)
             VStack(alignment: .leading, spacing: 2) {
-                Text(pour.name).font(.body.weight(.medium))
-                Text(pour.category.serving(pour.vessel, ml: pour.volumeMl, abv: pour.abv))
+                Text(entry.name).font(.body.weight(.medium))
+                Text(entry.category.serving(entry.vessel, ml: entry.volumeMl, abv: entry.abv))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
-                Text("\(pour.units.unitsText) u").font(.body.weight(.semibold).monospacedDigit())
-                Text(pour.timestamp, format: .dateTime.hour().minute())
+                Text("\(entry.units.unitsText) u").font(.body.weight(.semibold).monospacedDigit())
+                Text(entry.timestamp, format: .dateTime.hour().minute())
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }

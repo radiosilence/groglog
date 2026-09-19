@@ -1,10 +1,10 @@
-import SwiftData
+import GRDBQuery
 import SwiftUI
 
 /// Log a bare number of units — for when you know the total but not the drinks.
 struct UnitsSheet: View {
     let day: DayKey
-    @Environment(\.modelContext) private var context
+    @Environment(\.databaseContext) private var database
     @Environment(\.dismiss) private var dismiss
     @Environment(Prefs.self) private var prefs
     @State private var units: Double?
@@ -44,7 +44,7 @@ struct UnitsSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Log", role: .confirm) {
                         guard let units, units > 0 else { return }
-                        context.logbook(prefs).logUnits(units, at: time)
+                        database.logbook(prefs).logUnits(units, at: time)
                         dismiss()
                     }
                     .disabled((units ?? 0) <= 0)

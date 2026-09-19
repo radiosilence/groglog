@@ -1,12 +1,12 @@
 import CoreTransferable
 import Foundation
-import SwiftData
+import GRDB
 import UniformTypeIdentifiers
 
 /// Everything, as one self-describing document. Days are listed explicitly — including unlogged ones —
 /// so a reader (human or LLM) never has to guess whether a gap means "dry" or "forgot".
 /// Import is lenient: only `days[].date` and `days[].status` are required, so other apps' data can be hand-converted (see docs/IMPORT.md).
-struct Backup: Codable {
+nonisolated struct Backup: Codable, Sendable {
     var format: String? = "groglog/1"
     var exportedAt: Date? = .now
     var notes: String? = "UK units: 1 unit = 10 ml pure alcohol. Days run from dayStartsAtHour to the same hour next morning. status is drank, alcohol_free (explicitly marked), not_logged (unknown — do not assume dry) or in_progress (today)."
@@ -66,25 +66,37 @@ struct Backup: Codable {
     }
 }
 
-enum Exporter {
-    static func backup(context: ModelContext, prefs: Prefs) throws -> Backup {
-        let drinks = try context.fetch(FetchDescriptor<Drink>(sortBy: [SortDescriptor(\.name)]))
-        let favourites = try context.fetch(FetchDescriptor<Favourite>(sortBy: [SortDescriptor(\.order)]))
-        let ledger = Ledger(days: try context.fetch(FetchDescriptor<Day>()), clock: prefs.clock)
-        let pours = Dictionary(grouping: try context.fetch(FetchDescriptor<Pour>(sortBy: [SortDescriptor(\.timestamp)])), by: \.day)
+nonisolated enum Exporter {
+    /// What an export needs from settings, captured so the export can run off the main actor.
+    struct Settings: Sendable {
+        var rolloverHour: Int
+        var currency: String
+        var goal: Goal
+
+        @MainActor init(_ prefs: Prefs) {
+            rolloverHour = prefs.rolloverHour
+            currency = prefs.currency
+            goal = prefs.goal
+        }
+    }
+
+    static func backup(_ db: Database, settings: Settings) throws -> Backup {
+        let clock = DayClock(rolloverHour: settings.rolloverHour)
+        let ledger = Ledger(days: try Day.fetchAll(db), clock: clock)
+        let entries = try Pour.including(required: Pour.drink).order(Column("timestamp")).asRequest(of: Entry.self).fetchAll(db)
+        let byDay = Dictionary(grouping: entries, by: \.day)
+        let favourites = try Favourite.order(Column("sortOrder")).fetchAll(db)
         let days = ledger.firstDay.map { Array($0...ledger.today) } ?? []
 
         return Backup(
-            dayStartsAtHour: prefs.rolloverHour,
-            currency: prefs.currency,
-            goal: prefs.goal,
-            projectedUnderOneUnit: ledger.projection(goal: prefs.goal).underOneUnit?.description,
-            drinks: drinks.map {
+            dayStartsAtHour: settings.rolloverHour,
+            currency: settings.currency,
+            goal: settings.goal,
+            projectedUnderOneUnit: ledger.projection(goal: settings.goal).underOneUnit?.description,
+            drinks: try Drink.order(Column("name")).fetchAll(db).map {
                 .init(id: $0.id, name: $0.name, category: $0.category, abv: $0.abv, vessel: $0.vessel, volumeMl: $0.volumeMl, price: $0.price, isGeneric: $0.isGeneric, isHidden: $0.isHidden)
             },
-            favourites: favourites.compactMap { favourite in
-                favourite.drink.map { .init(drinkID: $0.id, vessel: favourite.vessel, volumeMl: favourite.volumeMl, price: favourite.price, order: favourite.order) }
-            },
+            favourites: favourites.map { .init(drinkID: $0.drinkId, vessel: $0.vessel, volumeMl: $0.volumeMl, price: $0.price, order: $0.sortOrder) },
             days: days.reversed().map { day in
                 let totals = ledger.totals(on: day)
                 let status = switch ledger.status(on: day) {
@@ -99,9 +111,9 @@ enum Exporter {
                     units: totals.units.rounded2,
                     kcal: totals.kcal.rounded(),
                     cost: totals.cost.rounded2,
-                    budget: ledger.dailyBudget(on: day, goal: prefs.goal)?.rounded2,
-                    pours: (pours[day.number] ?? []).map {
-                        .init(id: $0.id, time: $0.timestamp, name: $0.name, category: $0.category, vessel: $0.vessel, volumeMl: $0.volumeMl, abv: $0.abv, units: $0.units.rounded2, kcal: $0.kcal.rounded(), price: $0.price, drinkID: $0.drink?.id)
+                    budget: ledger.dailyBudget(on: day, goal: settings.goal)?.rounded2,
+                    pours: (byDay[day.number] ?? []).map {
+                        .init(id: $0.id, time: $0.timestamp, name: $0.name, category: $0.category, vessel: $0.vessel, volumeMl: $0.volumeMl, abv: $0.abv, units: $0.units.rounded2, kcal: $0.kcal.rounded(), price: $0.price, drinkID: $0.drink.id)
                     }
                 )
             }
@@ -153,89 +165,96 @@ enum Exporter {
         return lines.joined(separator: "\n")
     }
 
-    /// Merges a backup in. Nothing already here is touched: drinks and pours are matched by id,
-    /// and a day that already has drinks logged keeps them. Settings are restored when present.
-    /// Merges a backup in. Nothing already here is touched: drinks and entries are matched by id, and a day that
-    /// already has drinks logged keeps them. Settings are restored when present. Totals are recomputed for the days touched.
-    @discardableResult
-    static func restore(_ data: Data, into context: ModelContext, prefs: Prefs) throws -> Int {
+    /// Merges a backup in, as one transaction. Nothing already here is touched: drinks and entries are matched by id,
+    /// and a day that already has drinks logged keeps them. Settings are restored when present, first, so entries land
+    /// on the right days. Totals are recomputed for just the days touched.
+    @MainActor @discardableResult
+    static func restore(_ data: Data, writer: any DatabaseWriter, prefs: Prefs) throws -> Int {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let backup = try decoder.decode(Backup.self, from: data)
         if let hour = backup.dayStartsAtHour { prefs.rolloverHour = hour }
         if let currency = backup.currency { prefs.currency = currency }
         if let goal = backup.goal { prefs.goal = goal }
-        let clock = prefs.clock
-
-        var drinks = try context.fetch(FetchDescriptor<Drink>())
-        let drinkIDs = Set(drinks.map(\.id))
-        let existing = try context.fetch(FetchDescriptor<Pour>())
-        let pourIDs = Set(existing.map(\.id))
-        let daysWithPours = Set(existing.map(\.day))
-
-        for record in backup.drinks ?? [] where !drinkIDs.contains(record.id) {
-            let drink = Drink(name: record.name, category: record.category, abv: record.abv, vessel: record.vessel, volumeMl: record.volumeMl, price: record.price, isGeneric: record.isGeneric)
-            drink.id = record.id
-            drink.isHidden = record.isHidden
-            context.insert(drink)
-            drinks.append(drink)
-        }
-        let pinned = try context.fetch(FetchDescriptor<Favourite>())
-        for record in backup.favourites ?? [] {
-            guard let drink = drinks.first(where: { $0.id == record.drinkID }),
-                  !pinned.contains(where: { $0.drink == drink && $0.vessel == record.vessel && $0.volumeMl == record.volumeMl })
-            else { continue }
-            context.insert(Favourite(drink: drink, vessel: record.vessel, volumeMl: record.volumeMl, price: record.price, order: record.order))
-        }
-
+        let logbook = Logbook(writer: writer, clock: prefs.clock)
         var added = 0
-        var touched: Set<DayKey> = []
-        var dry: [DayKey] = []
-        for record in backup.days {
-            guard let day = DayKey(record.date), !daysWithPours.contains(day.number) else { continue }
-            if record.status == "alcohol_free" { dry.append(day) }
 
-            let evening = clock.suggestedTime(for: day, after: nil)
-            let pours = record.pours ?? []
-            if pours.isEmpty, let units = record.units, units > 0 {
-                context.insert(Pour(drink: context.unitsDrink(), at: evening, day: day, volumeMl: units * 10, price: record.cost ?? 0, kcalOverride: record.kcal))
-                added += 1
-                touched.insert(day)
-            }
-            for (index, pour) in pours.enumerated() where !pourIDs.contains(pour.id ?? UUID()) {
-                let time = pour.time ?? evening.addingTimeInterval(Double(index) * 30 * 60)
-                let id = pour.id ?? UUID()
-                if let volume = pour.volumeMl {
-                    let category = pour.category ?? .beer
-                    let abv = pour.abv ?? category.defaultABV
-                    let vessel = pour.vessel ?? category.defaultVessel
-                    let drink = drinks.first { $0.id == pour.drinkID }
-                        ?? context.drink(named: pour.name, category: category, abv: abv, vessel: vessel, volumeMl: volume)
-                    context.insert(Pour(drink: drink, at: time, day: day, vessel: vessel, volumeMl: volume, price: pour.price ?? 0, id: id))
+        try logbook.bulk { db in
+            // Backup drinks match existing ones by id, or by name and type (a fresh install's own generics),
+            // so restoring onto a new phone doesn't double every drink.
+            var drinkIDs: [UUID: UUID] = [:]
+            for record in backup.drinks ?? [] {
+                if let existing = try Drink.fetchOne(db, key: record.id)
+                    ?? Drink.filter(Column("name") == record.name && Column("category") == record.category.rawValue).fetchOne(db) {
+                    drinkIDs[record.id] = existing.id
                 } else {
-                    context.insert(Pour(drink: context.unitsDrink(), at: time, day: day, volumeMl: (pour.units ?? 0) * 10, price: pour.price ?? 0, kcalOverride: pour.kcal, id: id))
+                    try Drink(id: record.id, name: record.name, category: record.category, abv: record.abv, vessel: record.vessel, volumeMl: record.volumeMl, price: record.price, isGeneric: record.isGeneric, isHidden: record.isHidden).insert(db)
+                    drinkIDs[record.id] = record.id
                 }
-                added += 1
-                touched.insert(day)
             }
-        }
+            for record in backup.favourites ?? [] {
+                guard let drinkID = drinkIDs[record.drinkID] else { continue }
+                let pinned = try Favourite.filter(Column("drinkId") == drinkID && Column("vessel") == record.vessel.rawValue && Column("volumeMl") == record.volumeMl).fetchCount(db)
+                if pinned == 0 {
+                    try Favourite(drinkId: drinkID, vessel: record.vessel, volumeMl: record.volumeMl, price: record.price, sortOrder: record.order).insert(db)
+                }
+            }
 
-        let logbook = Logbook(context: context, clock: clock)
-        logbook.refresh(touched)
-        for day in dry where !touched.contains(day) { logbook.setAlcoholFree(true, on: day) }
-        try context.save()
+            let existingPours = Set(try Pour.select(Column("id"), as: UUID.self).fetchAll(db))
+            let daysWithPours = Set(try Pour.select(Column("day"), as: Int.self).distinct().fetchAll(db))
+            var touched: Set<DayKey> = []
+            for record in backup.days {
+                guard let day = DayKey(record.date), !daysWithPours.contains(day.number) else { continue }
+                if record.status == "alcohol_free" {
+                    try Day(number: day.number, isAlcoholFree: true).save(db)
+                }
+                let evening = logbook.clock.suggestedTime(for: day, after: nil)
+                let pours = record.pours ?? []
+                if pours.isEmpty, let units = record.units, units > 0 {
+                    let drink = try logbook.unitsDrink(db)
+                    try Pour(drinkId: drink.id, timestamp: evening, day: day.number, vessel: .shot, volumeMl: units * 10, price: record.cost ?? 0, kcalOverride: record.kcal).insert(db)
+                    added += 1
+                    touched.insert(day)
+                }
+                for (index, pour) in pours.enumerated() where !existingPours.contains(pour.id ?? UUID()) {
+                    let time = pour.time ?? evening.addingTimeInterval(Double(index) * 30 * 60)
+                    let id = pour.id ?? UUID()
+                    if let volume = pour.volumeMl {
+                        let category = pour.category ?? .beer
+                        let vessel = pour.vessel ?? category.defaultVessel
+                        let drink = try pour.drinkID.flatMap { drinkIDs[$0] }.flatMap { try Drink.fetchOne(db, key: $0) }
+                            ?? logbook.findOrCreate(name: pour.name, category: category, abv: pour.abv ?? category.defaultABV, vessel: vessel, volumeMl: volume, db)
+                        let kcal = drink.category == .units ? pour.kcal : nil
+                        try Pour(id: id, drinkId: drink.id, timestamp: time, day: day.number, vessel: vessel, volumeMl: volume, price: pour.price ?? 0, kcalOverride: kcal).insert(db)
+                    } else {
+                        let drink = try logbook.unitsDrink(db)
+                        try Pour(id: id, drinkId: drink.id, timestamp: time, day: day.number, vessel: .shot, volumeMl: (pour.units ?? 0) * 10, price: pour.price ?? 0, kcalOverride: pour.kcal).insert(db)
+                    }
+                    added += 1
+                    touched.insert(day)
+                }
+            }
+            return touched
+        }
         return added
     }
 }
 
-/// A lazily-built export file for `ShareLink`: nothing is generated until the share sheet asks for it.
+/// A lazily-built export file for `ShareLink`: nothing is read until the share sheet asks for it, and then off the main actor.
 nonisolated struct ExportFile: Transferable {
     enum Kind: Sendable {
         case json, markdown
     }
 
     let kind: Kind
-    let container: ModelContainer
+    let reader: any DatabaseReader
+    let settings: Exporter.Settings
+
+    @MainActor init(kind: Kind, reader: any DatabaseReader, prefs: Prefs) {
+        self.kind = kind
+        self.reader = reader
+        settings = Exporter.Settings(prefs)
+    }
 
     static var transferRepresentation: some TransferRepresentation {
         FileRepresentation(exportedContentType: .json) { file in
@@ -249,21 +268,18 @@ nonisolated struct ExportFile: Transferable {
     }
 
     private func write() async throws -> SentTransferredFile {
-        let kind = kind
-        let container = container
-        let (data, name) = try await MainActor.run {
-            let backup = try Exporter.backup(context: container.mainContext, prefs: Prefs())
-            let stamp = DayClock(rolloverHour: 0).today.description
-            return kind == .json
-                ? (try Exporter.json(backup), "groglog-\(stamp).json")
-                : (Data(Exporter.markdown(backup).utf8), "groglog-\(stamp).md")
-        }
+        let settings = settings
+        let backup = try await reader.read { try Exporter.backup($0, settings: settings) }
+        let stamp = DayClock(rolloverHour: settings.rolloverHour).today.description
+        let (data, name) = kind == .json
+            ? (try Exporter.json(backup), "groglog-\(stamp).json")
+            : (Data(Exporter.markdown(backup).utf8), "groglog-\(stamp).md")
         let url = URL.temporaryDirectory.appending(path: name)
         try data.write(to: url)
         return SentTransferredFile(url)
     }
 }
 
-private extension Double {
+nonisolated private extension Double {
     var rounded2: Double { (self * 100).rounded() / 100 }
 }

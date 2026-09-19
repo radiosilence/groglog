@@ -6,7 +6,7 @@ import Foundation
 /// With `isDynamic` (the default) there's no schedule to fall behind: each day's budget is the cut applied to your
 /// average over the previous period, so a bad day never turns into a dangerous sudden drop to "catch up".
 /// Otherwise it's a fixed schedule from `baselineWeekly` on `start`. The maths lives in `Ledger`, which has the history.
-struct Goal: Codable, Equatable {
+nonisolated struct Goal: Codable, Equatable, Sendable {
     var isEnabled = false
     var isDynamic = true
     var baselineWeekly = 28.0

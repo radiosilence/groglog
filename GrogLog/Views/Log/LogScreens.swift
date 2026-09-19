@@ -1,4 +1,4 @@
-import SwiftData
+import GRDBQuery
 import SwiftUI
 
 /// The Log tab: today's drink picker, front and centre.
@@ -38,9 +38,9 @@ struct AddDrinkSheet: View {
 /// One logged drink: when, how much, what it cost. Name and strength belong to the drink, edited from here via its own editor.
 /// Works on a draft saved on Done.
 struct PourEditor: View {
-    let pour: Pour
+    let entry: Entry
     let day: DayKey
-    @Environment(\.modelContext) private var context
+    @Environment(\.databaseContext) private var database
     @Environment(\.dismiss) private var dismiss
     @Environment(Prefs.self) private var prefs
     @State private var time: Date
@@ -49,32 +49,32 @@ struct PourEditor: View {
     @State private var price: Double
     @State private var editingDrink = false
 
-    init(pour: Pour, day: DayKey) {
-        self.pour = pour
+    init(entry: Entry, day: DayKey) {
+        self.entry = entry
         self.day = day
-        _time = State(initialValue: pour.timestamp)
-        _vessel = State(initialValue: pour.vessel)
-        _volume = State(initialValue: pour.volumeMl)
-        _price = State(initialValue: pour.price)
+        _time = State(initialValue: entry.timestamp)
+        _vessel = State(initialValue: entry.vessel)
+        _volume = State(initialValue: entry.volumeMl)
+        _price = State(initialValue: entry.price)
     }
 
     var body: some View {
-        let isUnits = pour.category == .units
+        let isUnits = entry.category == .units
         NavigationStack {
             Form {
                 Section {
                     HStack(spacing: 14) {
-                        DrinkGlyph(category: pour.category, vessel: vessel, volumeMl: volume)
+                        DrinkGlyph(category: entry.category, vessel: vessel, volumeMl: volume)
                             .frame(width: 56, height: 56)
                         VStack(alignment: .leading) {
-                            Text(pour.name).font(.headline)
-                            Text("\(Units.of(ml: volume, abv: pour.abv).unitsText) u")
+                            Text(entry.name).font(.headline)
+                            Text("\(Units.of(ml: volume, abv: entry.abv).unitsText) u")
                                 .font(.subheadline.monospacedDigit())
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    if let drink = pour.drink, !isUnits {
-                        Button("Edit \(drink.name)", systemImage: "pencil") { editingDrink = true }
+                    if !isUnits {
+                        Button("Edit \(entry.name)", systemImage: "pencil") { editingDrink = true }
                     }
                 }
                 Section {
@@ -82,7 +82,7 @@ struct PourEditor: View {
                     if isUnits {
                         NumberRow(label: "Units", value: Binding(get: { volume / 10 }, set: { volume = $0 * 10 }), suffix: "u")
                     } else {
-                        let sizes = pour.category.serves.map { Size(vessel: $0.vessel, ml: $0.ml) }
+                        let sizes = entry.category.serves.map { Size(vessel: $0.vessel, ml: $0.ml) }
                         ChipRow(options: sizes.contains(Size(vessel: vessel, ml: volume)) ? sizes : sizes + [Size(vessel: vessel, ml: volume)],
                                 selection: Binding(get: { Size(vessel: vessel, ml: volume) }, set: { vessel = $0.vessel; volume = $0.ml })) {
                             $0.vessel.label(ml: $0.ml)
@@ -93,7 +93,7 @@ struct PourEditor: View {
                 }
                 Section {
                     Button("Delete", role: .destructive) {
-                        context.logbook(prefs).delete(pour)
+                        database.logbook(prefs).delete(entry.pour)
                         dismiss()
                     }
                 }
@@ -106,14 +106,12 @@ struct PourEditor: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done", role: .confirm) {
-                        context.logbook(prefs).update(pour, time: time, vessel: vessel, volumeMl: volume, price: price)
+                        database.logbook(prefs).update(entry.pour, time: time, vessel: vessel, volumeMl: volume, price: price)
                         dismiss()
                     }
                 }
             }
-            .sheet(isPresented: $editingDrink) {
-                if let drink = pour.drink { DrinkEditor(drink: drink) }
-            }
+            .sheet(isPresented: $editingDrink) { DrinkEditor(drink: entry.drink) }
         }
     }
 }

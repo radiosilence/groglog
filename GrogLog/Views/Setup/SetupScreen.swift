@@ -1,10 +1,10 @@
-import SwiftData
+import GRDBQuery
 import SwiftUI
 
 struct SetupScreen: View {
     let ledger: Ledger
     @Environment(Prefs.self) private var prefs
-    @Environment(\.modelContext) private var context
+    @Environment(\.databaseContext) private var database
     @State private var importing = false
     @AppStorage("demoMode") private var demoMode = false
     @State private var importResult: String?
@@ -26,13 +26,13 @@ struct SetupScreen: View {
             } footer: {
                 Text("Drinks after midnight count towards the night before, until the day ends.")
             }
-            .onChange(of: prefs.rolloverHour) { context.logbook(prefs).rebuild(reassigningDays: true) }
+            .onChange(of: prefs.rolloverHour) { database.logbook(prefs).rebuild(reassigningDays: true) }
 
             Section {
-                ShareLink(item: ExportFile(kind: .markdown, container: context.container), preview: SharePreview("GrogLog log")) {
+                ShareLink(item: ExportFile(kind: .markdown, reader: try! database.reader, prefs: prefs), preview: SharePreview("GrogLog log")) {
                     Label("Export for an LLM (Markdown)", systemImage: "text.bubble")
                 }
-                ShareLink(item: ExportFile(kind: .json, container: context.container), preview: SharePreview("GrogLog backup")) {
+                ShareLink(item: ExportFile(kind: .json, reader: try! database.reader, prefs: prefs), preview: SharePreview("GrogLog backup")) {
                     Label("Export backup (JSON)", systemImage: "curlybraces")
                 }
                 Button("Import backup", systemImage: "square.and.arrow.down") { importing = true }
@@ -45,7 +45,7 @@ struct SetupScreen: View {
             #if DEBUG
             Section {
                 Toggle("Demo mode", isOn: $demoMode)
-                Button("Rebuild daily totals") { context.logbook(prefs).rebuild() }
+                Button("Rebuild daily totals") { database.logbook(prefs).rebuild() }
             } header: {
                 Text("Developer")
             } footer: {
@@ -59,7 +59,7 @@ struct SetupScreen: View {
                 let url = try result.get()
                 let scoped = url.startAccessingSecurityScopedResource()
                 defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                let added = try Exporter.restore(Data(contentsOf: url), into: context, prefs: prefs)
+                let added = try Exporter.restore(Data(contentsOf: url), writer: try database.writer, prefs: prefs)
                 importResult = "Imported \(added) drinks."
             } catch {
                 importResult = "Import failed: \(error.localizedDescription)"

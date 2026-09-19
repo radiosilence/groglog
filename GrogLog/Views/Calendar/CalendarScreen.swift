@@ -1,4 +1,4 @@
-import SwiftData
+import GRDBQuery
 import SwiftUI
 
 struct CalendarScreen: View {
@@ -97,7 +97,7 @@ private struct DayCell: View {
     let day: DayKey
     let ledger: Ledger
     let budget: Double?
-    @Environment(\.modelContext) private var context
+    @Environment(\.databaseContext) private var database
     @Environment(Prefs.self) private var prefs
 
     var body: some View {
@@ -153,9 +153,9 @@ private struct DayCell: View {
                 .buttonStyle(.plain)
                 .contextMenu {
                     if status == .alcoholFree {
-                        Button("Not alcohol-free", systemImage: "xmark") { context.logbook(prefs).setAlcoholFree(false, on: day) }
+                        Button("Not alcohol-free", systemImage: "xmark") { database.logbook(prefs).setAlcoholFree(false, on: day) }
                     } else if status != .drank {
-                        Button("Alcohol-free", systemImage: "leaf") { context.logbook(prefs).setAlcoholFree(true, on: day) }
+                        Button("Alcohol-free", systemImage: "leaf") { database.logbook(prefs).setAlcoholFree(true, on: day) }
                     }
                 }
         }

@@ -1,4 +1,4 @@
-import SwiftData
+import GRDBQuery
 import SwiftUI
 
 /// Long-press on a tile: which drink exactly — yours, or a UK brand of the same type — with a star to keep it on the
@@ -9,9 +9,9 @@ struct LogOptionsSheet: View {
     let ledger: Ledger
     /// Told the serve key of what was logged, so the picker can bring it to the front.
     let onLog: (String) -> Void
-    @Query private var drinks: [Drink]
-    @Query private var favourites: [Favourite]
-    @Environment(\.modelContext) private var context
+    @Query(DrinksRequest()) private var drinks: [Drink]
+    @Query(FavouritesRequest()) private var favourites: [FavouriteItem]
+    @Environment(\.databaseContext) private var database
     @Environment(\.dismiss) private var dismiss
     @Environment(Prefs.self) private var prefs
     @State private var selected: String
@@ -79,10 +79,9 @@ struct LogOptionsSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Log \(count > 1 ? "\(count) " : "")· \((Units.of(ml: size.ml, abv: choice.abv) * Double(count)).unitsText) u", role: .confirm) {
-                        let drink = resolve(choice)
-                        var serve = Serve(drink, size.vessel, size.ml, price: favourite(for: choice)?.price)
-                        serve.favourite = favourite(for: choice)
-                        context.logbook(prefs).log(serve, at: spreadTimes)
+                        guard let drink = resolve(choice) else { return }
+                        let serve = Serve(drink, size.vessel, size.ml, price: favourite(for: choice)?.price)
+                        database.logbook(prefs).log(serve, at: spreadTimes)
                         onLog(serve.id)
                         dismiss()
                     }
@@ -100,7 +99,7 @@ struct LogOptionsSheet: View {
         let matches = { (name: String) in query.isEmpty || name.localizedStandardContains(query) }
         let kind = base.drink.category
         let yours = drinks
-            .filter { $0 != base.drink && $0.category == kind && !$0.isHidden && matches($0.name) }
+            .filter { $0.id != base.drink.id && $0.category == kind && !$0.isHidden && matches($0.name) }
             .sorted { $0.isGeneric != $1.isGeneric ? $0.isGeneric : $0.name < $1.name }
         let catalog = Catalog.brands.filter { brand in
             brand.category == kind && matches(brand.name) && !drinks.contains { $0.name == brand.name && $0.category == brand.category }
@@ -110,22 +109,23 @@ struct LogOptionsSheet: View {
 
     private func favourite(for choice: Choice) -> Favourite? {
         guard let drink = choice.drink else { return nil }
-        return favourites.first { $0.drink == drink && $0.vessel == size.vessel && $0.volumeMl == size.ml }
+        return favourites.first { $0.drink.id == drink.id && $0.favourite.vessel == size.vessel && $0.favourite.volumeMl == size.ml }?.favourite
     }
 
     private func togglePin(_ choice: Choice) {
+        let logbook = database.logbook(prefs)
         if let pinned = favourite(for: choice) {
-            context.delete(pinned)
-        } else {
-            context.insert(Favourite(drink: resolve(choice), vessel: size.vessel, volumeMl: size.ml))
+            logbook.unpin(pinned)
+        } else if let drink = resolve(choice) {
+            logbook.pin(Serve(drink, size.vessel, size.ml))
         }
     }
 
     /// Catalogue picks become your own drinks, first had at this size.
-    private func resolve(_ choice: Choice) -> Drink {
+    private func resolve(_ choice: Choice) -> Drink? {
         if let drink = choice.drink { return drink }
-        let drink = context.drink(named: choice.name, category: choice.category, abv: choice.abv, vessel: size.vessel, volumeMl: size.ml)
-        selected = drink.id.uuidString
+        let drink = database.logbook(prefs).drink(named: choice.name, category: choice.category, abv: choice.abv, vessel: size.vessel, volumeMl: size.ml)
+        if let drink { selected = drink.id.uuidString }
         return drink
     }
 
