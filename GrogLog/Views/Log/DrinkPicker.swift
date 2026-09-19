@@ -1,7 +1,7 @@
 import SwiftData
 import SwiftUI
 
-/// The logging surface: generics and favourite brands, most recently drunk first.
+/// The logging surface: generics, favourites and anything already logged that day, most recently drunk first.
 /// Tap logs one now; long-press to pick a specific brand, size, time or count.
 struct DrinkPicker: View {
     let day: Date
@@ -14,6 +14,7 @@ struct DrinkPicker: View {
     @State private var creating = false
     @State private var logged = 0
     /// Recency as of when the screen appeared, so tapping a drink doesn't shuffle the grid under your thumb.
+    /// Deliberate picks (the long-press sheet, a search result) jump to the front straight away.
     @State private var recency: [UUID: Date] = [:]
 
     private let columns = [GridItem(.adaptive(minimum: 104), spacing: 12)]
@@ -41,7 +42,11 @@ struct DrinkPicker: View {
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(catalog) { item in
                         DrinkTile(category: item.category, vessel: item.vessel, volumeMl: item.volumeMl, name: item.name, abv: item.abv, count: 0)
-                            .onTapGesture { log(adopt(item)) }
+                            .onTapGesture {
+                                let drink = adopt(item)
+                                log(drink)
+                                recency[drink.id] = .now
+                            }
                     }
                 }
                 .padding(.horizontal)
@@ -58,7 +63,7 @@ struct DrinkPicker: View {
             }
         }
         .sheet(item: $options) { drink in
-            LogOptionsSheet(base: drink, day: day, ledger: ledger)
+            LogOptionsSheet(base: drink, day: day, ledger: ledger) { recency[$0.id] = .now }
                 .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $countingUnits) {
@@ -72,11 +77,16 @@ struct DrinkPicker: View {
         .onAppear { recency = ledger.lastPoured }
     }
 
-    /// Generics and favourites — or, when searching, every drink that matches. Recently drunk first.
+    /// Generics, favourites and whatever's been logged that day — or, when searching, every drink that matches. Recently drunk first.
     private var matchingDrinks: [Drink] {
         let query = search.trimmingCharacters(in: .whitespaces)
+        let loggedToday = Set(ledger.pours(on: day).compactMap { $0.drink?.id })
         return drinks
-            .filter { query.isEmpty ? $0.isGeneric || $0.isFavourite : $0.name.localizedStandardContains(query) || $0.category.label.localizedStandardContains(query) }
+            .filter { drink in
+                query.isEmpty
+                    ? drink.isGeneric || drink.isFavourite || loggedToday.contains(drink.id)
+                    : drink.name.localizedStandardContains(query) || drink.category.label.localizedStandardContains(query)
+            }
             .sorted { a, b in
                 switch (recency[a.id], recency[b.id]) {
                 case let (x?, y?): x > y

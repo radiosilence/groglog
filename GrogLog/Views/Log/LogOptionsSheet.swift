@@ -7,6 +7,8 @@ struct LogOptionsSheet: View {
     let base: Drink
     let day: Date
     let ledger: Ledger
+    /// Told which drink was logged, so the picker can bring it to the front.
+    let onLog: (Drink) -> Void
     @Query private var drinks: [Drink]
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -17,10 +19,11 @@ struct LogOptionsSheet: View {
     @State private var search = ""
     @State private var editing: Drink?
 
-    init(base: Drink, day: Date, ledger: Ledger) {
+    init(base: Drink, day: Date, ledger: Ledger, onLog: @escaping (Drink) -> Void) {
         self.base = base
         self.day = day
         self.ledger = ledger
+        self.onLog = onLog
         _selected = State(initialValue: base.id.uuidString)
         _volume = State(initialValue: base.volumeMl)
         _time = State(initialValue: ledger.clock.suggestedTime(for: day, after: ledger.pours(on: day).last?.timestamp))
@@ -83,6 +86,7 @@ struct LogOptionsSheet: View {
                             context.insert(Pour(drink: drink, at: at, volumeMl: volume))
                         }
                         context.setAlcoholFree(false, on: day)
+                        onLog(drink)
                         dismiss()
                     }
                     .fontWeight(.semibold)
