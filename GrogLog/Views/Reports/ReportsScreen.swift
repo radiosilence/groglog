@@ -68,6 +68,10 @@ private struct MonthlyProgressCard: View {
                 .foregroundStyle(.secondary)
             }
             Chart {
+                // Today's band: where the day so far sits against its budget.
+                let noon = today.date(in: calendar).addingTimeInterval(12 * 3600)
+                RectangleMark(xStart: .value("From", noon.addingTimeInterval(-12 * 3600)), xEnd: .value("To", noon.addingTimeInterval(12 * 3600)))
+                    .foregroundStyle(.primary.opacity(0.09))
                 ForEach(drank, id: \.0) { day, units in
                     AreaMark(x: .value("Day", day, unit: .day), y: .value("Units", units), series: .value("Line", "Drank"))
                         .foregroundStyle(LinearGradient(colors: [Color.grog.opacity(0.3), Color.grog.opacity(0.02)], startPoint: .top, endPoint: .bottom))
@@ -96,12 +100,6 @@ private struct MonthlyProgressCard: View {
                         .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, dash: [4, 4]))
                         .interpolationMethod(.monotone)
                 }
-                RuleMark(x: .value("Today", today.date(in: calendar), unit: .day))
-                    .foregroundStyle(.secondary.opacity(0.35))
-                    .lineStyle(StrokeStyle(lineWidth: 1))
-                    .annotation(position: .top, alignment: .center) {
-                        Text("today").font(.caption2).foregroundStyle(.secondary)
-                    }
             }
             .chartYScale(domain: 0...top)
             .clipped()
@@ -161,6 +159,8 @@ private struct MonthCard: View {
             }
 
             Chart {
+                RectangleMark(xStart: .value("From", Double(dayOfMonth) - 0.5), xEnd: .value("To", Double(dayOfMonth) + 0.5))
+                    .foregroundStyle(.primary.opacity(0.09))
                 ForEach(hasLastMonth ? previous : []) {
                     LineMark(x: .value("Day", $0.hour), y: .value("Units", $0.units), series: .value("Month", "Last"))
                         .foregroundStyle(Color.gray.opacity(0.6))
@@ -213,6 +213,10 @@ private struct WeeksCard: View {
             .pickerStyle(.segmented)
 
             Chart {
+                if let thisWeek = stats.last?.start.date(in: calendar) {
+                    RectangleMark(xStart: .value("From", thisWeek.addingTimeInterval(-12 * 3600)), xEnd: .value("To", thisWeek.addingTimeInterval(6.5 * 24 * 3600)))
+                        .foregroundStyle(.primary.opacity(0.09))
+                }
                 ForEach(stats) { week in
                     BarMark(x: .value("Week", week.start.date(in: calendar), unit: .weekOfYear), y: .value("Units", week.totals.units))
                         .foregroundStyle(week.budget.map { week.totals.units > $0 } == true ? Color.over.gradient : Color.grog.gradient)
@@ -310,7 +314,7 @@ private struct WeekdayCard: View {
                     let days = byWeekday[weekday] ?? []
                     let average = days.isEmpty ? 0 : days.reduce(0) { $0 + ledger.totals(on: $1).units } / Double(days.count)
                     BarMark(x: .value("Day", symbols[weekday - 1]), y: .value("Units", average))
-                        .foregroundStyle(Color.grog.gradient)
+                        .foregroundStyle(Color.grog.opacity(weekday == ledger.today.weekday ? 1 : 0.45).gradient)
                         .clipShape(.rect(cornerRadius: 4))
                 }
             }
