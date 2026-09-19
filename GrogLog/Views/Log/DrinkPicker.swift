@@ -34,6 +34,7 @@ struct DrinkPicker: View {
         let counts = Dictionary(grouping: pours, by: \.serveKey).mapValues(\.count)
 
         ScrollView {
+            let tiles = self.tiles
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(tiles) { serve in
                     DrinkTile(serve: serve, count: counts[serve.id] ?? 0, pulse: pulses[serve.id] ?? 0)
@@ -42,6 +43,7 @@ struct DrinkPicker: View {
                 }
             }
             .padding(.horizontal)
+            .animation(search.isEmpty ? .snappy(duration: 0.4) : nil, value: tiles.map(\.id))
 
             let catalog = catalogMatches
             if !catalog.isEmpty {
@@ -174,26 +176,25 @@ private struct DrinkTile: View {
             card(pour)
         } keyframes: { _ in
             KeyframeTrack(\.scale) {
-                SpringKeyframe(0.9, duration: 0.08)
-                SpringKeyframe(1.05, duration: 0.17)
-                SpringKeyframe(1, duration: 0.3)
+                CubicKeyframe(0.92, duration: 0.09)
+                SpringKeyframe(1, duration: 0.45, spring: .bouncy(duration: 0.45, extraBounce: 0.1))
             }
             KeyframeTrack(\.fill) {
-                LinearKeyframe(0, duration: 0)
-                CubicKeyframe(1, duration: 0.55)
+                CubicKeyframe(0.15, duration: 0.12)
+                SpringKeyframe(1, duration: 0.5, spring: .smooth(duration: 0.5))
             }
             KeyframeTrack(\.tilt) {
-                CubicKeyframe(-10, duration: 0.14)
-                SpringKeyframe(0, duration: 0.4)
+                CubicKeyframe(-8, duration: 0.12)
+                SpringKeyframe(0, duration: 0.45, spring: .bouncy(duration: 0.45))
             }
             KeyframeTrack(\.badge) {
-                LinearKeyframe(1, duration: 0.2)
-                SpringKeyframe(1.35, duration: 0.12)
-                SpringKeyframe(1, duration: 0.3)
+                LinearKeyframe(1, duration: 0.15)
+                CubicKeyframe(1.3, duration: 0.1)
+                SpringKeyframe(1, duration: 0.35, spring: .bouncy(duration: 0.35))
             }
             KeyframeTrack(\.rise) {
                 LinearKeyframe(0, duration: 0)
-                CubicKeyframe(1, duration: 0.85)
+                CubicKeyframe(1, duration: 0.8)
             }
         }
         .contentShape(.rect(cornerRadius: 20))
@@ -234,6 +235,7 @@ private struct DrinkTile: View {
                     .scaleEffect(pour.badge)
                     .padding(6)
                     .transition(.scale.combined(with: .opacity))
+                    .animation(.snappy, value: count)
             }
         }
         .overlay(alignment: .top) {
@@ -247,7 +249,6 @@ private struct DrinkTile: View {
             }
         }
         .scaleEffect(pour.scale)
-        .animation(.snappy, value: count)
     }
 
     /// One logged drink's worth of motion.

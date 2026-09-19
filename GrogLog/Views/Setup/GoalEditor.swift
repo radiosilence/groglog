@@ -10,12 +10,11 @@ struct GoalEditor: View {
         @Bindable var prefs = prefs
         let goal = prefs.goal
         let recent = ledger.recentWeeklyAverage()
-        // Amounts are stored per week; a per-day cut reads more naturally per day.
-        let scale = goal.periodDays == 1 ? 7.0 : 1
-        let per = goal.periodDays == 1 ? "u/day" : "u/week"
-        let amount = { (weekly: Double) in "\((weekly / scale).unitsText) \(per)" }
+        // Amounts are stored per week but people think in a day's drinking, whatever the taper's pace.
+        let per = "u/day"
+        let amount = { (weekly: Double) in "\((weekly / 7).unitsText) u/day" }
         let perPeriod = { (keyPath: WritableKeyPath<Goal, Double>) in
-            Binding(get: { prefs.goal[keyPath: keyPath] / scale }, set: { prefs.goal[keyPath: keyPath] = $0 * scale })
+            Binding(get: { prefs.goal[keyPath: keyPath] / 7 }, set: { prefs.goal[keyPath: keyPath] = $0 * 7 })
         }
 
         Section {
@@ -81,7 +80,7 @@ struct ProjectionRow: View {
         let format = { (day: DayKey) in day.date(in: ledger.clock.calendar).formatted(date: .abbreviated, time: .omitted) }
         VStack(alignment: .leading, spacing: 6) {
             if let target = projection.target {
-                LabeledContent(goal.periodDays == 1 ? "\((goal.targetWeekly / 7).unitsText) u/day by" : "\(goal.targetWeekly.unitsText) u/week by", value: format(target))
+                LabeledContent("\((goal.targetWeekly / 7).unitsText) u/day by", value: format(target))
             }
             if let stop = projection.underOneUnit {
                 LabeledContent("Under 1 u/day by", value: format(stop))
@@ -126,14 +125,14 @@ private struct BurndownPreview: View {
         let points = stride(from: 0, through: 84, by: 3).map { start + $0 }
         Chart {
             ForEach(points, id: \.self) { day in
-                let amount = (ledger.dailyBudget(on: day, goal: goal) ?? 0) * (goal.periodDays == 1 ? 1 : 7)
+                let amount = ledger.dailyBudget(on: day, goal: goal) ?? 0
                 AreaMark(x: .value("Date", day.date(in: calendar)), y: .value("Budget", amount))
                     .foregroundStyle(LinearGradient(colors: [Color.dry.opacity(0.4), Color.dry.opacity(0.05)], startPoint: .top, endPoint: .bottom))
                 LineMark(x: .value("Date", day.date(in: calendar)), y: .value("Budget", amount))
                     .foregroundStyle(Color.dry)
             }
         }
-        .chartYAxisLabel(goal.periodDays == 1 ? "u/day" : "u/week")
+        .chartYAxisLabel("u/day")
         .frame(height: 120)
         .padding(.vertical, 6)
     }
