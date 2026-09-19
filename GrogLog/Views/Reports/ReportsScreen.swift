@@ -19,8 +19,8 @@ struct ReportsScreen: View {
 
         ScrollView {
             VStack(spacing: 16) {
-                ProgressCard(title: "Weekly progress", days: 10, history: 60, ledger: ledger, goal: prefs.goal) { settingGoal = true }
-                ProgressCard(title: "Monthly progress", days: 35, history: 120, ledger: ledger, goal: prefs.goal) { settingGoal = true }
+                ProgressCard(title: "Weekly progress", days: 10, history: 60, smoothing: 3, ledger: ledger, goal: prefs.goal) { settingGoal = true }
+                ProgressCard(title: "Monthly progress", days: 35, history: 120, smoothing: 7, ledger: ledger, goal: prefs.goal) { settingGoal = true }
                 WeekCard(ledger: ledger, goal: prefs.goal)
                 MonthCard(ledger: ledger)
                 WeeksCard(stats: stats, weeks: $weeks)
@@ -46,22 +46,23 @@ private struct ProgressCard: View {
     let title: String
     /// As far back as the chart scrolls; the drinks themselves are only fetched for this window.
     let history: Int
+    /// Days averaged over, so the lines read as a trend rather than a comb.
+    let smoothing: Int
     let ledger: Ledger
     let goal: Goal
     let onSetGoal: () -> Void
-    @Query<EntriesRequest> private var entries: [Entry]
     /// Days across, pinchable between a few days and the lot.
     @State private var window: Double
     @GestureState private var pinch = 1.0
 
-    init(title: String, days: Double, history: Int, ledger: Ledger, goal: Goal, onSetGoal: @escaping () -> Void) {
+    init(title: String, days: Double, history: Int, smoothing: Int, ledger: Ledger, goal: Goal, onSetGoal: @escaping () -> Void) {
         self.title = title
         self.history = history
+        self.smoothing = smoothing
         self.ledger = ledger
         self.goal = goal
         self.onSetGoal = onSetGoal
         _window = State(initialValue: days)
-        _entries = Query(constant: EntriesRequest(days: (ledger.today - history - 1)...ledger.today))
     }
 
     var body: some View {
@@ -72,8 +73,11 @@ private struct ProgressCard: View {
         // Never show more days than there are; a window wider than the data leaves it stranded at the left.
         let days = min(Int((window / pinch).rounded()), start.distance(to: today + 15))
         let past = start...today
-        let drank = ledger.rollingDay(entries, over: past)
-        let budgets = { (days: ClosedRange<DayKey>) in days.compactMap { day in ledger.dailyBudget(on: day, goal: goal).map { (day, $0) } } }
+        let drank = past.compactMap { day in
+            average(to: day) { ledger.isLogged($0) || $0 == today ? ledger.totals(on: $0).units : nil }
+                .map { (date: day.date(in: calendar), units: $0) }
+        }
+        let budgets = { (days: ClosedRange<DayKey>) in days.compactMap { day in self.average(to: day) { ledger.dailyBudget(on: $0, goal: goal) }.map { (day, $0) } } }
         let behind = goal.isEnabled ? budgets(past) : []
         let ahead = goal.isEnabled ? budgets(today...(today + 14)).map { ($0.0.date(in: calendar), $0.1) } : []
         // Scale to the window in view, so an old binge doesn't flatten the recent weeks.
@@ -111,10 +115,14 @@ private struct ProgressCard: View {
                         .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, dash: [4, 4]))
                         .interpolationMethod(.monotone)
                 }
-                // Today's band: drawn over the data in plain grey so it mutes rather than tints.
-                let noon = today.date(in: calendar).addingTimeInterval(12 * 3600)
-                RectangleMark(xStart: .value("From", noon.addingTimeInterval(-12 * 3600)), xEnd: .value("To", noon.addingTimeInterval(12 * 3600)))
-                    .foregroundStyle(.gray.opacity(0.18))
+                if let now = drank.last {
+                    PointMark(x: .value("Today", now.date), y: .value("Units", now.units))
+                        .foregroundStyle(Color.grog)
+                        .symbolSize(70)
+                }
+                RuleMark(x: .value("Today", today.date(in: calendar).addingTimeInterval(12 * 3600)))
+                    .foregroundStyle(Color.grog.opacity(0.8))
+                    .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
             }
             .chartYScale(domain: 0...top)
             .clipped()
@@ -135,7 +143,7 @@ private struct ProgressCard: View {
             )
 
             HStack(spacing: 16) {
-                LegendKey(label: "Last 24h", color: .grog)
+                LegendKey(label: "Drank", color: .grog)
                 if goal.isEnabled {
                     LegendKey(label: "Budget", color: .dry)
                     LegendKey(label: "Plan", color: .dry, dashed: true)
@@ -147,7 +155,15 @@ private struct ProgressCard: View {
             }
         }
     }
+
+    /// Mean of `value` over the days it's known for, in the window ending `day` — the trend rather than the noise.
+    /// Today counts as it goes, so the line moves as you log.
+    private func average(to day: DayKey, _ value: (DayKey) -> Double?) -> Double? {
+        let values = ((day - smoothing + 1)...day).compactMap(value)
+        return values.isEmpty ? nil : values.reduce(0, +) / Double(values.count)
+    }
 }
+
 
 /// This week's running total against the last few weeks, with the week's budget as a dashed line.
 private struct WeekCard: View {
@@ -297,8 +313,9 @@ private struct MonthCard: View {
                         .foregroundStyle(Color.grog)
                         .symbolSize(80)
                 }
-                RectangleMark(xStart: .value("From", Double(dayOfMonth) - 0.5), xEnd: .value("To", Double(dayOfMonth) + 0.5))
-                    .foregroundStyle(.gray.opacity(0.18))
+                RuleMark(x: .value("Today", Double(dayOfMonth)))
+                    .foregroundStyle(Color.grog.opacity(0.8))
+                    .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
             }
             .chartXScale(domain: 0...31)
             .chartXAxis {
@@ -346,8 +363,9 @@ private struct WeeksCard: View {
                         .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
                 }
                 if let thisWeek = stats.last?.start.date(in: calendar) {
-                    RectangleMark(xStart: .value("From", thisWeek.addingTimeInterval(-12 * 3600)), xEnd: .value("To", thisWeek.addingTimeInterval(6.5 * 24 * 3600)))
-                        .foregroundStyle(.gray.opacity(0.18))
+                    RuleMark(x: .value("This week", thisWeek.addingTimeInterval(3 * 24 * 3600)))
+                        .foregroundStyle(Color.grog.opacity(0.8))
+                        .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
                 }
                 RuleMark(y: .value("Guideline", Units.weeklyGuideline))
                     .foregroundStyle(.secondary.opacity(0.6))
