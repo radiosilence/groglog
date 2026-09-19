@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Editing a drink updates everything already logged as it; "Save as new drink" is there for when the drink itself changed.
+- Price entry fixed: typing 1, 5, 0 reads £0.01, £0.15, £1.50.
 - Reports opens with **Monthly progress**: what you drank and your budget as 7-day rolling averages over four weeks, with the taper ahead.
 - Dynamic budgets look back past gaps to the last logged day (up to four weeks) and show no budget rather than inventing one when there's no history.
 

@@ -163,6 +163,22 @@ private func date(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 0, _ min: Int = 0) ->
     }
 }
 
+@MainActor @Suite struct CorrectionTests {
+    @Test func correctingADrinkUpdatesPastPoursBySize() {
+        let drink = Drink(name: "Staropramen", category: .beer, vessel: .can, volumeMl: 440, abv: 5, price: 2)
+        let usual = Pour(drink: drink, at: .now)
+        let pint = Pour(drink: drink, at: .now, volumeMl: 568)
+        drink.name = "Staropramen Premium"
+        drink.abv = 4
+        drink.volumeMl = 500
+        drink.price = 2.5
+        usual.correct(to: drink, previousVolumeMl: 440)
+        pint.correct(to: drink, previousVolumeMl: 440)
+        #expect(usual.name == "Staropramen Premium" && usual.volumeMl == 500 && usual.price == 2.5 && usual.abv == 4)
+        #expect(pint.volumeMl == 568 && abs(pint.price - 2.5 * 568 / 500) < 0.0001)
+    }
+}
+
 @MainActor @Suite struct BackupTests {
     private func container() throws -> ModelContainer {
         try ModelContainer(for: Drink.self, Pour.self, AlcoholFreeDay.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))

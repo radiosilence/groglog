@@ -91,6 +91,24 @@ extension Pour {
     }
 }
 
+extension Pour {
+    /// Brings a pour in line with a corrected drink. Pours logged at the drink's usual size take its new size and price;
+    /// ones logged at another size keep their size and scale the new price.
+    func correct(to drink: Drink, previousVolumeMl: Double) {
+        name = drink.name
+        categoryRaw = drink.categoryRaw
+        vesselRaw = drink.vesselRaw
+        abv = drink.abv
+        if volumeMl == previousVolumeMl {
+            volumeMl = drink.volumeMl
+            price = drink.price
+        } else {
+            price = drink.price * volumeMl / drink.volumeMl
+        }
+        recalculateKcal()
+    }
+}
+
 /// An explicit "I didn't drink" marker. Its absence means the day wasn't logged, not that it was dry.
 @Model final class AlcoholFreeDay {
     var day: Date = Date.distantPast

@@ -47,6 +47,16 @@ struct DrinkEditor: View {
 
                 if let drink {
                     Section {
+                        Button("Save as new drink", systemImage: "plus.square.on.square") {
+                            let new = Drink(name: draft.name, category: draft.category, vessel: draft.vessel, volumeMl: draft.volumeMl, abv: draft.abv)
+                            draft.apply(to: new)
+                            context.insert(new)
+                            dismiss()
+                        }
+                    } footer: {
+                        Text("Saving updates everything logged as this drink. If the drink itself changed, save it as a new one and the old entries stay as they were.")
+                    }
+                    Section {
                         Toggle("Show in picker", isOn: Binding(get: { !draft.isHidden }, set: { draft.isHidden = !$0 }))
                         if !drink.isGeneric {
                             Button("Delete drink", role: .destructive) {
@@ -54,8 +64,6 @@ struct DrinkEditor: View {
                                 dismiss()
                             }
                         }
-                    } footer: {
-                        Text("Changes apply to drinks you log from now on. Past drinks keep what they were.")
                     }
                 }
             }
@@ -67,16 +75,31 @@ struct DrinkEditor: View {
                     Button("Cancel", role: .cancel) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(drink == nil ? "Add" : "Save", role: .confirm) {
-                        if draft.name.isEmpty { draft.name = "\(draft.vessel.label) of \(draft.category.label.lowercased())" }
-                        let target = drink ?? Drink(name: draft.name, category: draft.category, vessel: draft.vessel, volumeMl: draft.volumeMl, abv: draft.abv)
-                        draft.apply(to: target)
-                        if drink == nil { context.insert(target) }
-                        dismiss()
-                    }
+                    Button(drink == nil ? "Add" : "Save", role: .confirm, action: save)
                 }
             }
         }
+    }
+
+    /// Everything already logged as this drink.
+    private var history: [Pour] {
+        guard let id = drink?.id else { return [] }
+        return (try? context.fetch(FetchDescriptor(predicate: #Predicate<Pour> { $0.drinkID == id }))) ?? []
+    }
+
+    /// Writes the draft back, and brings everything already logged as this drink in line with it.
+    private func save() {
+        if draft.name.isEmpty { draft.name = "\(draft.vessel.label) of \(draft.category.label.lowercased())" }
+        guard let drink else {
+            let new = Drink(name: draft.name, category: draft.category, vessel: draft.vessel, volumeMl: draft.volumeMl, abv: draft.abv)
+            draft.apply(to: new)
+            context.insert(new)
+            return dismiss()
+        }
+        let previousVolume = drink.volumeMl
+        draft.apply(to: drink)
+        history.forEach { $0.correct(to: drink, previousVolumeMl: previousVolume) }
+        dismiss()
     }
 
     /// Changing the type on a new drink resets its serve to that type's usual one.
