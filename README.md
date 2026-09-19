@@ -20,7 +20,7 @@ Written because Drinkaware's Drink Coach is low-friction but slow, allows one dr
 | Log | The picker for today. Search, tap, long-press, undo. |
 | Calendar | History; tap a day to see or backfill it, long-press to mark it dry. |
 | Day | Running units through the day vs yesterday and the month's average day, plus the day's budget draining. |
-| Reports | Daily burndown against the budget, this month vs last (cumulative), weekly bars, streaks, spend. |
+| Reports | Monthly progress (daily units vs the budget, with the fortnight ahead), this month vs last (cumulative), weekly bars, streaks, spend. |
 | Setup | Goal, drinks, day end, currency, export/import. |
 
 Code: `Model/` holds pure logic — `DayClock` (drinking days), `Goal` (scheduled taper), `Ledger` (read-only view of everything logged; budgets, streaks, curves) — plus SwiftData models. Views take a `Ledger` and don't group data themselves.

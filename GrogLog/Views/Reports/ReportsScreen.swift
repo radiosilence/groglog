@@ -16,7 +16,7 @@ struct ReportsScreen: View {
 
         ScrollView {
             VStack(spacing: 16) {
-                BurndownCard(ledger: ledger, goal: prefs.goal) { settingGoal = true }
+                MonthlyProgressCard(ledger: ledger, goal: prefs.goal) { settingGoal = true }
                 MonthCard(ledger: ledger)
                 WeeksCard(stats: stats, weeks: $weeks)
                 SummaryTiles(ledger: ledger, stats: stats, days: days, currency: prefs.currency)
@@ -34,8 +34,9 @@ struct ReportsScreen: View {
     }
 }
 
-/// Daily units as bars against the budget line coming down, with the fortnight ahead.
-private struct BurndownCard: View {
+/// The last four weeks as two trend lines — what you drank and your budget, each a 7-day rolling average so the
+/// direction shows through the day-to-day noise — with the budget's taper over the fortnight ahead.
+private struct MonthlyProgressCard: View {
     let ledger: Ledger
     let goal: Goal
     let onSetGoal: () -> Void
@@ -45,13 +46,14 @@ private struct BurndownCard: View {
         let today = clock.today
         let past = ledger.days(from: clock.adding(-27, to: today), through: today)
         let ahead = goal.isEnabled ? ledger.days(from: today, through: clock.adding(14, to: today)) : []
+        let drank = past.compactMap { day in rolling(day) { ledger.totals(on: $0).units }.map { (day, $0) } }
+        let budget = past.compactMap { day in rolling(day) { ledger.dailyBudget(on: $0, goal: goal) }.map { (day, $0) } }
 
-        Card(title: "Burndown") {
-            if let budget = ledger.dailyBudget(on: today, goal: goal) {
-                let projection = ledger.projection(goal: goal)
+        Card(title: "Monthly progress") {
+            if let todays = ledger.dailyBudget(on: today, goal: goal) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Today's budget \(budget.unitsText) u")
-                    if let stop = projection.underOneUnit {
+                    Text("Today's budget \(todays.unitsText) u")
+                    if let stop = ledger.projection(goal: goal).underOneUnit {
                         Text("Under 1 u/day by \(stop.formatted(date: .abbreviated, time: .omitted)) at this rate")
                             .foregroundStyle(Color.dry)
                     }
@@ -60,25 +62,27 @@ private struct BurndownCard: View {
                 .foregroundStyle(.secondary)
             }
             Chart {
-                ForEach(past, id: \.self) { day in
-                    let units = ledger.totals(on: day).units
-                    BarMark(x: .value("Day", day, unit: .day), y: .value("Units", units))
-                        .foregroundStyle(Color.heat(units: units, budget: ledger.dailyBudget(on: day, goal: goal)).gradient)
-                        .clipShape(.rect(cornerRadius: 3))
-                }
-                ForEach(past, id: \.self) { day in
-                    if let budget = ledger.dailyBudget(on: day, goal: goal) {
-                        LineMark(x: .value("Day", day, unit: .day), y: .value("Budget", budget), series: .value("Line", "Budget"))
-                            .foregroundStyle(Color.dry)
-                            .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                    }
+                ForEach(budget, id: \.0) { day, units in
+                    LineMark(x: .value("Day", day, unit: .day), y: .value("Units", units), series: .value("Line", "Budget"))
+                        .foregroundStyle(Color.dry)
+                        .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                        .interpolationMethod(.monotone)
                 }
                 ForEach(ahead, id: \.self) { day in
-                    if let budget = ledger.dailyBudget(on: day, goal: goal) {
-                        LineMark(x: .value("Day", day, unit: .day), y: .value("Budget", budget), series: .value("Line", "Ahead"))
-                            .foregroundStyle(Color.dry.opacity(0.7))
+                    if let units = ledger.dailyBudget(on: day, goal: goal) {
+                        LineMark(x: .value("Day", day, unit: .day), y: .value("Units", units), series: .value("Line", "Ahead"))
+                            .foregroundStyle(Color.dry)
                             .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, dash: [4, 4]))
                     }
+                }
+                ForEach(drank, id: \.0) { day, units in
+                    AreaMark(x: .value("Day", day, unit: .day), y: .value("Units", units), series: .value("Line", "Drank"))
+                        .foregroundStyle(LinearGradient(colors: [Color.grog.opacity(0.3), Color.grog.opacity(0.02)], startPoint: .top, endPoint: .bottom))
+                        .interpolationMethod(.monotone)
+                    LineMark(x: .value("Day", day, unit: .day), y: .value("Units", units), series: .value("Line", "Drank"))
+                        .foregroundStyle(Color.grog)
+                        .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                        .interpolationMethod(.monotone)
                 }
             }
             .chartXAxis {
@@ -86,17 +90,30 @@ private struct BurndownCard: View {
             }
             .frame(height: 220)
 
-            if goal.isEnabled {
-                HStack(spacing: 16) {
-                    LegendKey(label: "Units", color: .grog)
+            HStack(spacing: 16) {
+                LegendKey(label: "Drank", color: .grog)
+                if goal.isEnabled {
                     LegendKey(label: "Budget", color: .dry)
                     LegendKey(label: "Ahead", color: .dry, dashed: true)
                 }
-            } else {
+                Spacer()
+                Text("7-day average").font(.caption).foregroundStyle(.tertiary)
+            }
+            if !goal.isEnabled {
                 Button("Set a goal to see your budget come down", systemImage: "target", action: onSetGoal)
                     .font(.subheadline)
             }
         }
+    }
+
+    /// Mean of `value` over the logged days in the week ending `day` (today counts once it has drinks). Nil when none.
+    private func rolling(_ day: Date, _ value: (Date) -> Double?) -> Double? {
+        let clock = ledger.clock
+        let values = (0..<7).map { clock.adding(-$0, to: day) }
+            .filter { [.drank, .alcoholFree].contains(ledger.status(on: $0)) }
+            .compactMap(value)
+        guard !values.isEmpty, ledger.status(on: day) != .today else { return nil }
+        return values.reduce(0, +) / Double(values.count)
     }
 }
 

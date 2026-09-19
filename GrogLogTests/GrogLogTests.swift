@@ -139,6 +139,19 @@ private func date(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 0, _ min: Int = 0) ->
         #expect(abs(budget - 7.5) < 0.0001)
     }
 
+    @Test func dynamicBudgetLooksPastGapsButNotForever() throws {
+        let today = clock.today
+        let evening = { (daysAgo: Int) in clock.start(of: clock.adding(-daysAgo, to: today)).addingTimeInterval(15 * 3600) }
+        let goal = Goal(isEnabled: true, isDynamic: true, reductionPercent: 10, periodDays: 1)
+        // Last logged five days ago (10 u): budget carries on from there.
+        let gap = Ledger(pours: [pour(evening(5), ml: 1000, abv: 10)], dryDays: [], clock: clock)
+        #expect(abs(try #require(gap.dailyBudget(on: today, goal: goal)) - 9) < 0.0001)
+        // Nothing within four weeks, or nothing at all: no budget rather than a made-up one.
+        let stale = Ledger(pours: [pour(evening(40), ml: 1000, abv: 10)], dryDays: [], clock: clock)
+        #expect(stale.dailyBudget(on: today, goal: goal) == nil)
+        #expect(Ledger(pours: [], dryDays: [], clock: clock).dailyBudget(on: today, goal: goal) == nil)
+    }
+
     @Test func averageLeavesOutUnloggedDays() {
         let ledger = Ledger(
             pours: [pour(date(2026, 9, 18, 20), ml: 1000, abv: 10)],

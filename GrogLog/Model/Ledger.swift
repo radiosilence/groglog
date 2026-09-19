@@ -162,7 +162,7 @@ struct Ledger {
 
     /// The unfloored budget for `day` and the level it tapers from. Scheduled: from the baseline on the start date.
     /// Dynamic: the cut applied to your average over the previous period (dry days count as zero, unlogged days are
-    /// left out), continuing the taper daily for future days.
+    /// left out), continuing the taper daily for future days. No history to go on means no budget.
     private func taper(on day: Date, goal: Goal) -> (budget: Double, reference: Double)? {
         guard goal.isEnabled else { return nil }
         let calendar = clock.calendar
@@ -172,10 +172,12 @@ struct Ledger {
             let reference = goal.baselineWeekly / 7
             return (reference * pow(1 - goal.dailyCut, Double(elapsed)), reference)
         }
+        // The period before the day — or, after a gap, the period ending at the last logged day within four weeks.
         let anchor = min(day, clock.today)
-        let window = (1...max(1, goal.periodDays)).map { clock.adding(-$0, to: anchor) }
-            .filter { [.drank, .alcoholFree].contains(status(on: $0)) }
-        let average = window.isEmpty ? goal.baselineWeekly / 7 : window.reduce(0) { $0 + totals(on: $1).units } / Double(window.count)
+        let isLogged = { (day: Date) in [.drank, .alcoholFree].contains(self.status(on: day)) }
+        guard let lastLogged = (1...28).map({ clock.adding(-$0, to: anchor) }).first(where: isLogged) else { return nil }
+        let window = (0..<max(1, goal.periodDays)).map { clock.adding(-$0, to: lastLogged) }.filter(isLogged)
+        let average = window.reduce(0) { $0 + totals(on: $1).units } / Double(window.count)
         let daysAhead = max(0, calendar.dateComponents([.day], from: anchor, to: day).day ?? 0)
         return (average * (1 - goal.reductionPercent / 100) * pow(1 - goal.dailyCut, Double(daysAhead)), average)
     }

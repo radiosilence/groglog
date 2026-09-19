@@ -47,6 +47,12 @@ struct DayScreen: View {
                 Section("Budget") {
                     BudgetBar(used: DayTotals(pours).units, budget: budget)
                 }
+            } else if prefs.goal.isEnabled {
+                Section("Budget") {
+                    Text("No budget yet — it's worked out from the days logged before this one.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             } else {
                 Section {
                     Button("Set a goal to get a daily budget", systemImage: "target") { settingGoal = true }
