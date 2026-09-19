@@ -5,7 +5,7 @@ import SwiftUI
 /// Log grid at this size. The size starts as the tile's and can be overridden from the type's usual sizes.
 struct LogOptionsSheet: View {
     let base: Serve
-    let day: Date
+    let day: DayKey
     let ledger: Ledger
     /// Told the serve key of what was logged, so the picker can bring it to the front.
     let onLog: (String) -> Void
@@ -13,6 +13,7 @@ struct LogOptionsSheet: View {
     @Query private var favourites: [Favourite]
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(Prefs.self) private var prefs
     @State private var selected: String
     @State private var size: Size
     @State private var count = 1
@@ -20,14 +21,14 @@ struct LogOptionsSheet: View {
     @State private var search = ""
     @State private var editing: Drink?
 
-    init(base: Serve, day: Date, ledger: Ledger, onLog: @escaping (String) -> Void) {
+    init(base: Serve, day: DayKey, ledger: Ledger, after last: Date?, onLog: @escaping (String) -> Void) {
         self.base = base
         self.day = day
         self.ledger = ledger
         self.onLog = onLog
         _selected = State(initialValue: base.drink.id.uuidString)
         _size = State(initialValue: Size(vessel: base.vessel, ml: base.volumeMl))
-        _time = State(initialValue: ledger.clock.suggestedTime(for: day, after: ledger.pours(on: day).last?.timestamp))
+        _time = State(initialValue: ledger.clock.suggestedTime(for: day, after: last))
     }
 
     var body: some View {
@@ -56,7 +57,7 @@ struct LogOptionsSheet: View {
                 Section {
                     ChipRow(options: sizes, selection: $size) { $0.vessel.label(ml: $0.ml) }
                     Stepper("How many: \(count)", value: $count, in: 1...12)
-                    if day == ledger.clock.today {
+                    if day == ledger.today {
                         ChipRow(options: [0, 15, 30, 60, 120, 180], selection: minutesAgo) {
                             $0 == 0 ? "Now" : $0 < 60 ? "\(Int($0))m ago" : "\(Int($0 / 60))h ago"
                         }
@@ -79,12 +80,10 @@ struct LogOptionsSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Log \(count > 1 ? "\(count) " : "")· \((Units.of(ml: size.ml, abv: choice.abv) * Double(count)).unitsText) u", role: .confirm) {
                         let drink = resolve(choice)
-                        let price = favourite(for: choice)?.price ?? drink.price(forMl: size.ml)
-                        for at in spreadTimes {
-                            context.insert(Pour(drink: drink, at: at, vessel: size.vessel, volumeMl: size.ml, price: price))
-                        }
-                        context.setAlcoholFree(false, on: day)
-                        onLog(Serve.key(drink.id, size.vessel, size.ml))
+                        var serve = Serve(drink, size.vessel, size.ml, price: favourite(for: choice)?.price)
+                        serve.favourite = favourite(for: choice)
+                        context.logbook(prefs).log(serve, at: spreadTimes)
+                        onLog(serve.id)
                         dismiss()
                     }
                     .fontWeight(.semibold)
@@ -141,7 +140,7 @@ struct LogOptionsSheet: View {
     private var spreadTimes: [Date] {
         guard count > 1 else { return [time] }
         let now = Date.now
-        let gap = day == ledger.clock.today && now > time
+        let gap = day == ledger.today && now > time
             ? now.timeIntervalSince(time) / Double(count - 1)
             : 20 * 60
         return (0..<count).map { time.addingTimeInterval(gap * Double($0)) }

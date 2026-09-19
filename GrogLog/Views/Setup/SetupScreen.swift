@@ -6,6 +6,7 @@ struct SetupScreen: View {
     @Environment(Prefs.self) private var prefs
     @Environment(\.modelContext) private var context
     @State private var importing = false
+    @AppStorage("demoMode") private var demoMode = false
     @State private var importResult: String?
 
     var body: some View {
@@ -25,6 +26,7 @@ struct SetupScreen: View {
             } footer: {
                 Text("Drinks after midnight count towards the night before, until the day ends.")
             }
+            .onChange(of: prefs.rolloverHour) { context.logbook(prefs).rebuild(reassigningDays: true) }
 
             Section {
                 ShareLink(item: ExportFile(kind: .markdown, container: context.container), preview: SharePreview("GrogLog log")) {
@@ -41,9 +43,13 @@ struct SetupScreen: View {
             }
 
             #if DEBUG
-            Section("Developer") {
-                Button("Load sample data") { Seed.sample(context, prefs: prefs) }
-                Button("Erase all history", role: .destructive) { Seed.eraseHistory(context) }
+            Section {
+                Toggle("Demo mode", isOn: $demoMode)
+                Button("Rebuild daily totals") { context.logbook(prefs).rebuild() }
+            } header: {
+                Text("Developer")
+            } footer: {
+                Text("Demo mode swaps in four months of sample data, held in memory. Your own log is left alone and comes back when you switch it off.")
             }
             #endif
         }

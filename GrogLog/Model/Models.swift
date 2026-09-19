@@ -49,6 +49,8 @@ import SwiftData
     var volumeMl: Double = 568
     var price: Double = 0
     var order: Int = 0
+    /// When it was last logged, for putting your usuals first without scanning history.
+    var lastUsed: Date?
     var drink: Drink?
 
     init(drink: Drink, vessel: Vessel, volumeMl: Double, price: Double? = nil, order: Int = 0) {
@@ -65,8 +67,12 @@ import SwiftData
 /// A drink actually had: a reference to the drink, plus what's particular to this one — when, what size, and what it cost.
 /// Name, strength and type are read from the drink, so correcting a drink corrects everything logged as it.
 @Model final class Pour {
+    #Index<Pour>([\.day], [\.timestamp])
+
     var id: UUID = UUID()
     var timestamp: Date = Date.now
+    /// The drinking day (`DayKey.number`) it counted towards when logged, so entries are fetched by day and stay put across timezones.
+    var day: Int = 0
     var vesselRaw: String = Vessel.pint.rawValue
     var volumeMl: Double = 0
     /// What it cost at the time. Prices change, so this is copied rather than read from the drink.
@@ -75,10 +81,11 @@ import SwiftData
     var kcalOverride: Double?
     var drink: Drink?
 
-    init(drink: Drink, at timestamp: Date, vessel: Vessel? = nil, volumeMl: Double? = nil, price: Double? = nil, kcalOverride: Double? = nil, id: UUID = UUID()) {
+    init(drink: Drink, at timestamp: Date, day: DayKey, vessel: Vessel? = nil, volumeMl: Double? = nil, price: Double? = nil, kcalOverride: Double? = nil, id: UUID = UUID()) {
         let volume = volumeMl ?? drink.volumeMl
         self.id = id
         self.timestamp = timestamp
+        self.day = day.number
         self.vesselRaw = (vessel ?? drink.vessel).rawValue
         self.volumeMl = volume
         self.price = price ?? drink.price(forMl: volume)
@@ -86,9 +93,6 @@ import SwiftData
         self.drink = drink
     }
 
-    convenience init(_ serve: Serve, at timestamp: Date) {
-        self.init(drink: serve.drink, at: timestamp, vessel: serve.vessel, volumeMl: serve.volumeMl, price: serve.price)
-    }
 
     var name: String { drink?.name ?? "Deleted drink" }
     var category: DrinkCategory { drink?.category ?? .units }
@@ -97,6 +101,33 @@ import SwiftData
     var units: Double { Units.of(ml: volumeMl, abv: abv) }
     var kcal: Double { kcalOverride ?? Units.kcal(ml: volumeMl, abv: abv, category: category) }
     var serveKey: String { Serve.key(drink?.id, vessel, volumeMl) }
+    var dayKey: DayKey { DayKey(number: day) }
+
+    /// Entries for a range of drinking days, oldest first.
+    static func on(_ days: ClosedRange<DayKey>) -> FetchDescriptor<Pour> {
+        let (first, last) = (days.lowerBound.number, days.upperBound.number)
+        return FetchDescriptor(predicate: #Predicate { $0.day >= first && $0.day <= last }, sortBy: [SortDescriptor(\.timestamp)])
+    }
+}
+
+/// One drinking day's totals, kept in step with its entries by `Logbook`, plus whether it was marked alcohol-free.
+/// Reports, the calendar and budgets read only these — a few hundred rows a year — never the entries themselves.
+/// A day with neither drinks nor a dry mark has no row: it simply wasn't logged.
+@Model final class Day {
+    #Index<Day>([\.number])
+
+    var number: Int = 0
+    var isAlcoholFree: Bool = false
+    var units: Double = 0
+    var kcal: Double = 0
+    var cost: Double = 0
+    var count: Int = 0
+
+    init(_ key: DayKey) {
+        number = key.number
+    }
+
+    var key: DayKey { DayKey(number: number) }
 }
 
 /// A drink in a size, with the price to assume — what a Log tile is, and what a log entry is made from.
@@ -132,15 +163,6 @@ nonisolated struct Serve: Identifiable {
     }
 }
 
-/// An explicit "I didn't drink" marker. Its absence means the day wasn't logged, not that it was dry.
-@Model final class AlcoholFreeDay {
-    var day: Date = Date.distantPast
-
-    init(day: Date) {
-        self.day = day
-    }
-}
-
 extension ModelContext {
     /// The drink for bare unit counts (1 unit = 10 ml at 100%).
     func unitsDrink() -> Drink {
@@ -160,9 +182,4 @@ extension ModelContext {
         return drink
     }
 
-    func setAlcoholFree(_ dry: Bool, on day: Date) {
-        let existing = (try? fetch(FetchDescriptor(predicate: #Predicate<AlcoholFreeDay> { $0.day == day }))) ?? []
-        if dry, existing.isEmpty { insert(AlcoholFreeDay(day: day)) }
-        if !dry { existing.forEach(delete) }
-    }
 }

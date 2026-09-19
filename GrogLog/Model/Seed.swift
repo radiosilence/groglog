@@ -35,12 +35,9 @@ enum Seed {
     }
 
     #if DEBUG
-    /// Three months of history shaped like the original Drink Coach screenshots: mostly heavy days, the odd dry run,
-    /// a few gaps, and the real 12–18 Sep 2026 totals. Days that already have drinks are left alone.
-    static func sample(_ context: ModelContext, prefs: Prefs) {
-        let clock = prefs.clock
-        let today = clock.today
-        let existing = Set(((try? context.fetch(FetchDescriptor<Pour>())) ?? []).map { clock.day(for: $0.timestamp) })
+    /// History shaped like the original Drink Coach screenshots — mostly heavy days, the odd dry run, a few gaps, and
+    /// the real 12–18 Sep 2026 totals — over `days` days. For demo mode's own in-memory store, never the real one.
+    static func sample(_ context: ModelContext, clock: DayClock, days: Int = 120) {
         let favourites = [
             favourite(named: "Stella Artois", .beer, 4.6, .can, 440, 1.75, in: context),
             favourite(named: "Henry Westons Vintage", .cider, 8.2, .bottle, 500, 2.75, in: context),
@@ -52,56 +49,48 @@ enum Seed {
             "2026-09-18": (29.1, 2444, 32.80),
         ]
         let dryRun = Set((6...11).map { String(format: "2026-09-%02d", $0) })
+        let units = context.unitsDrink()
+        var dry: [DayKey] = []
 
         var rng = SeededRandom(seed: 42)
-        for offset in (1...90).reversed() {
-            let day = clock.adding(-offset, to: today)
-            let key = clock.key(day)
-            guard !existing.contains(day) else { continue }
-            if dryRun.contains(key) {
-                context.setAlcoholFree(true, on: day)
-                continue
-            }
-            let evening = clock.calendar.date(bySettingHour: 19, minute: 0, second: 0, of: day)!
-            if let total = screenshot[key] {
-                context.insert(Pour(drink: context.unitsDrink(), at: evening, volumeMl: total.units * 10, price: total.cost, kcalOverride: total.kcal))
-                continue
-            }
-            let roll = Double.random(in: 0..<1, using: &rng)
-            if roll < 0.06 { continue }
-            if roll < 0.14 {
-                context.setAlcoholFree(true, on: day)
-                continue
-            }
-            let weekend = [1, 6, 7].contains(clock.calendar.component(.weekday, from: day))
-            let target = Double.random(in: weekend ? 28...42 : 18...34, using: &rng)
-            var time = clock.calendar.date(bySettingHour: 13, minute: Int.random(in: 0..<59, using: &rng), second: 0, of: day)!
-            var units = 0.0
-            while units < target {
-                let serve = favourites[Int.random(in: 0..<10, using: &rng) < 6 ? 0 : Int.random(in: 1...2, using: &rng)]
-                context.insert(Pour(serve, at: time))
-                units += serve.units
-                time = time.addingTimeInterval(Double.random(in: 20...40, using: &rng) * 60)
+        for offset in (1...days).reversed() {
+            let day = clock.today - offset
+            let evening = clock.start(of: day).addingTimeInterval(14 * 3600)
+            if dryRun.contains(day.description) {
+                dry.append(day)
+            } else if let total = screenshot[day.description] {
+                context.insert(Pour(drink: units, at: evening, day: day, volumeMl: total.units * 10, price: total.cost, kcalOverride: total.kcal))
+            } else {
+                let roll = Double.random(in: 0..<1, using: &rng)
+                if roll < 0.06 { continue }
+                if roll < 0.14 {
+                    dry.append(day)
+                    continue
+                }
+                let weekend = [1, 6, 7].contains(day.weekday)
+                let target = Double.random(in: weekend ? 28...42 : 18...34, using: &rng)
+                var time = clock.start(of: day).addingTimeInterval(Double.random(in: 8...9, using: &rng) * 3600)
+                var total = 0.0
+                while total < target {
+                    let serve = favourites[Int.random(in: 0..<10, using: &rng) < 6 ? 0 : Int.random(in: 1...2, using: &rng)]
+                    context.insert(Pour(drink: serve.drink, at: time, day: day, vessel: serve.vessel, volumeMl: serve.volumeMl, price: serve.price))
+                    total += serve.units
+                    time = time.addingTimeInterval(Double.random(in: 20...40, using: &rng) * 60)
+                }
             }
         }
-        if !prefs.goal.isEnabled {
-            prefs.goal = Goal(isEnabled: true, isDynamic: true, reductionPercent: 10, periodDays: 1)
-        }
-    }
-
-    static func eraseHistory(_ context: ModelContext) {
-        try? context.delete(model: Pour.self)
-        try? context.delete(model: AlcoholFreeDay.self)
+        let logbook = Logbook(context: context, clock: clock)
+        logbook.rebuild()
+        dry.forEach { logbook.setAlcoholFree(true, on: $0) }
     }
 
     private static func favourite(named name: String, _ category: DrinkCategory, _ abv: Double, _ vessel: Vessel, _ ml: Double, _ price: Double, in context: ModelContext) -> Serve {
         let drink = context.drink(named: name, category: category, abv: abv, vessel: vessel, volumeMl: ml)
         drink.price = price
-        let serve = Serve(drink, vessel, ml, price: price)
         if !(drink.favourites ?? []).contains(where: { $0.vessel == vessel && $0.volumeMl == ml }) {
             context.insert(Favourite(drink: drink, vessel: vessel, volumeMl: ml, price: price))
         }
-        return serve
+        return Serve(drink, vessel, ml, price: price)
     }
     #endif
 }

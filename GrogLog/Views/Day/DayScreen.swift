@@ -3,16 +3,17 @@ import SwiftUI
 
 /// A day with prev/next navigation.
 struct DayPager: View {
-    @State var day: Date
+    @State var day: DayKey
 
     var body: some View {
         LedgerReader { ledger in
             DayScreen(day: day, ledger: ledger)
+                .id(day)
                 .toolbar {
                     ToolbarItemGroup(placement: .topBarTrailing) {
-                        Button("Previous day", systemImage: "chevron.left") { day = ledger.clock.adding(-1, to: day) }
-                        Button("Next day", systemImage: "chevron.right") { day = ledger.clock.adding(1, to: day) }
-                            .disabled(day >= ledger.clock.today)
+                        Button("Previous day", systemImage: "chevron.left") { day = day - 1 }
+                        Button("Next day", systemImage: "chevron.right") { day = day + 1 }
+                            .disabled(day >= ledger.today)
                     }
                 }
         }
@@ -20,22 +21,29 @@ struct DayPager: View {
 }
 
 struct DayScreen: View {
-    let day: Date
+    let day: DayKey
     let ledger: Ledger
+    @Query private var pours: [Pour]
     @Environment(Prefs.self) private var prefs
     @Environment(\.modelContext) private var context
     @State private var adding = false
     @State private var editing: Pour?
     @State private var settingGoal = false
 
+    init(day: DayKey, ledger: Ledger) {
+        self.day = day
+        self.ledger = ledger
+        _pours = Query(Pour.on(day...day))
+    }
+
     var body: some View {
-        let pours = ledger.pours(on: day)
+        let logbook = context.logbook(prefs)
         let status = ledger.status(on: day)
         let budget = ledger.dailyBudget(on: day, goal: prefs.goal)
 
         List {
             Section {
-                TotalsHeader(totals: DayTotals(pours), budget: budget, currency: prefs.currency)
+                TotalsHeader(totals: ledger.totals(on: day), budget: budget, currency: prefs.currency)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 8, trailing: 4))
                 TimelineView(.everyMinute) { timeline in
@@ -45,7 +53,7 @@ struct DayScreen: View {
 
             if let budget {
                 Section("Budget") {
-                    BudgetBar(used: DayTotals(pours).units, budget: budget)
+                    BudgetBar(used: ledger.totals(on: day).units, budget: budget)
                 }
             } else if prefs.goal.isEnabled {
                 Section("Budget") {
@@ -68,7 +76,7 @@ struct DayScreen: View {
                     }
                     .onDelete { offsets in
                         let reversed = Array(pours.reversed())
-                        offsets.forEach { context.delete(reversed[$0]) }
+                        offsets.forEach { logbook.delete(reversed[$0]) }
                     }
                 }
             case .alcoholFree:
@@ -77,13 +85,13 @@ struct DayScreen: View {
                         .font(.headline)
                         .foregroundStyle(Color.dry)
                     Button("Not alcohol-free after all", role: .destructive) {
-                        context.setAlcoholFree(false, on: day)
+                        logbook.setAlcoholFree(false, on: day)
                     }
                 }
             case .today, .unlogged, .untracked:
                 Section {
                     Button {
-                        context.setAlcoholFree(true, on: day)
+                        logbook.setAlcoholFree(true, on: day)
                     } label: {
                         Label(status == .today ? "Mark today alcohol-free" : "It was alcohol-free", systemImage: "leaf")
                             .font(.headline)
@@ -119,15 +127,14 @@ struct DayScreen: View {
         }
         .sheet(isPresented: $settingGoal) { GoalSheet() }
         .sheet(item: $editing) { pour in
-            PourEditor(pour: pour, day: day, clock: ledger.clock)
+            PourEditor(pour: pour, day: day)
         }
     }
 
     private var title: String {
-        let today = ledger.clock.today
-        if day == today { return "Today" }
-        if day == ledger.clock.adding(-1, to: today) { return "Yesterday" }
-        return day.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+        if day == ledger.today { return "Today" }
+        if day == ledger.today - 1 { return "Yesterday" }
+        return day.date(in: ledger.clock.calendar).formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
     }
 }
 

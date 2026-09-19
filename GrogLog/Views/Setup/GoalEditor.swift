@@ -71,12 +71,13 @@ struct ProjectionRow: View {
 
     var body: some View {
         let projection = ledger.projection(goal: goal)
+        let format = { (day: DayKey) in day.date(in: ledger.clock.calendar).formatted(date: .abbreviated, time: .omitted) }
         VStack(alignment: .leading, spacing: 6) {
             if let target = projection.target {
-                LabeledContent("\(goal.targetWeekly.unitsText) u/week by", value: target.formatted(date: .abbreviated, time: .omitted))
+                LabeledContent("\(goal.targetWeekly.unitsText) u/week by", value: format(target))
             }
             if let stop = projection.underOneUnit {
-                LabeledContent("Under 1 u/day by", value: stop.formatted(date: .abbreviated, time: .omitted))
+                LabeledContent("Under 1 u/day by", value: format(stop))
                     .foregroundStyle(Color.dry)
             }
         }
@@ -112,15 +113,16 @@ private struct BurndownPreview: View {
     let ledger: Ledger
 
     var body: some View {
-        let clock = ledger.clock
-        let start = goal.isDynamic ? clock.today : clock.calendar.startOfDay(for: goal.start)
-        let points = stride(from: 0, through: 84, by: 3).map { clock.adding($0, to: start) }
+        let calendar = ledger.clock.calendar
+        let scheduled = calendar.dateComponents([.year, .month, .day], from: goal.start)
+        let start = goal.isDynamic ? ledger.today : DayKey(year: scheduled.year!, month: scheduled.month!, day: scheduled.day!)
+        let points = stride(from: 0, through: 84, by: 3).map { start + $0 }
         Chart {
             ForEach(points, id: \.self) { day in
                 let weekly = (ledger.dailyBudget(on: day, goal: goal) ?? 0) * 7
-                AreaMark(x: .value("Date", day), y: .value("Budget", weekly))
+                AreaMark(x: .value("Date", day.date(in: calendar)), y: .value("Budget", weekly))
                     .foregroundStyle(LinearGradient(colors: [Color.dry.opacity(0.4), Color.dry.opacity(0.05)], startPoint: .top, endPoint: .bottom))
-                LineMark(x: .value("Date", day), y: .value("Budget", weekly))
+                LineMark(x: .value("Date", day.date(in: calendar)), y: .value("Budget", weekly))
                     .foregroundStyle(Color.dry)
             }
         }

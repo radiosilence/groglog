@@ -4,11 +4,13 @@ import SwiftUI
 /// The logging surface: your Log-grid favourites plus anything already logged that day, each a drink in a size,
 /// most recently drunk first. Tap logs one now; long-press to change the drink, size, time or count.
 struct DrinkPicker: View {
-    let day: Date
+    let day: DayKey
     let ledger: Ledger
     @Query(sort: \Favourite.order) private var favourites: [Favourite]
     @Query(sort: \Drink.order) private var drinks: [Drink]
+    @Query private var pours: [Pour]
     @Environment(\.modelContext) private var context
+    @Environment(Prefs.self) private var prefs
     @State private var search = ""
     @State private var options: Serve?
     @State private var countingUnits = false
@@ -20,8 +22,14 @@ struct DrinkPicker: View {
 
     private let columns = [GridItem(.adaptive(minimum: 104), spacing: 12)]
 
+    init(day: DayKey, ledger: Ledger) {
+        self.day = day
+        self.ledger = ledger
+        _pours = Query(Pour.on(day...day))
+    }
+
     var body: some View {
-        let counts = Dictionary(grouping: ledger.pours(on: day), by: \.serveKey).mapValues(\.count)
+        let counts = Dictionary(grouping: pours, by: \.serveKey).mapValues(\.count)
 
         ScrollView {
             LazyVGrid(columns: columns, spacing: 12) {
@@ -55,7 +63,7 @@ struct DrinkPicker: View {
         .scrollDismissesKeyboard(.immediately)
         .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Stella, Rioja, pint…")
         .safeAreaInset(edge: .bottom) {
-            DaySummaryBar(day: day, ledger: ledger)
+            DaySummaryBar(day: day, ledger: ledger, pours: pours)
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -63,18 +71,23 @@ struct DrinkPicker: View {
             }
         }
         .sheet(item: $options) { serve in
-            LogOptionsSheet(base: serve, day: day, ledger: ledger) { recency[$0] = .now }
+            LogOptionsSheet(base: serve, day: day, ledger: ledger, after: pours.last?.timestamp) { recency[$0] = .now }
                 .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $countingUnits) {
-            UnitsSheet(day: day, ledger: ledger)
+            UnitsSheet(day: day, at: ledger.clock.suggestedTime(for: day, after: pours.last?.timestamp))
                 .presentationDetents([.medium])
         }
         .sheet(isPresented: $creating) {
             DrinkEditor(drink: nil)
         }
         .sensoryFeedback(.impact(weight: .medium), trigger: logged)
-        .onAppear { recency = ledger.lastPoured }
+        .onAppear {
+            recency = Dictionary(favourites.compactMap { favourite in
+                favourite.lastUsed.flatMap { used in favourite.drink.map { (Serve.key($0.id, favourite.vessel, favourite.volumeMl), used) } }
+            }, uniquingKeysWith: max)
+            for pour in pours { recency[pour.serveKey] = max(recency[pour.serveKey] ?? .distantPast, pour.timestamp) }
+        }
     }
 
     /// Favourites and the day's drinks — or, when searching, the Log-grid sizes (or default size) of every drink that matches.
@@ -84,7 +97,7 @@ struct DrinkPicker: View {
         var serves: [Serve]
         if query.isEmpty {
             serves = favourites.filter { $0.drink != nil }.map(Serve.init)
-            for pour in ledger.pours(on: day) where !serves.contains(where: { $0.id == pour.serveKey }) {
+            for pour in pours where !serves.contains(where: { $0.id == pour.serveKey }) {
                 if let drink = pour.drink { serves.append(Serve(drink, pour.vessel, pour.volumeMl, price: pour.price)) }
             }
         } else {
@@ -115,9 +128,7 @@ struct DrinkPicker: View {
     }
 
     private func log(_ serve: Serve) {
-        let last = ledger.pours(on: day).last?.timestamp
-        context.insert(Pour(serve, at: ledger.clock.suggestedTime(for: day, after: last)))
-        context.setAlcoholFree(false, on: day)
+        context.logbook(prefs).log(serve, at: [ledger.clock.suggestedTime(for: day, after: pours.last?.timestamp)])
         logged += 1
     }
 
@@ -191,13 +202,15 @@ private struct DrinkTile: View {
 
 /// What's logged for the day so far, with undo — or a one-tap alcohol-free mark when there's nothing.
 private struct DaySummaryBar: View {
-    let day: Date
+    let day: DayKey
     let ledger: Ledger
+    let pours: [Pour]
     @Environment(\.modelContext) private var context
+    @Environment(Prefs.self) private var prefs
 
     var body: some View {
-        let pours = ledger.pours(on: day)
-        let totals = DayTotals(pours)
+        let logbook = context.logbook(prefs)
+        let totals = ledger.totals(on: day)
         let status = ledger.status(on: day)
 
         HStack {
@@ -206,17 +219,17 @@ private struct DaySummaryBar: View {
                 Text("\(totals.count) \(totals.count == 1 ? "drink" : "drinks") · \(Text("\(totals.units.unitsText) u").bold())")
                 Spacer()
                 Button("Undo", systemImage: "arrow.uturn.backward") {
-                    if let last = pours.last { context.delete(last) }
+                    if let last = pours.last { logbook.delete(last) }
                 }
                 .labelStyle(.iconOnly)
             case .alcoholFree:
                 Label("Alcohol-free", systemImage: "leaf.fill").foregroundStyle(Color.dry)
                 Spacer()
-                Button("Undo") { context.setAlcoholFree(false, on: day) }
+                Button("Undo") { logbook.setAlcoholFree(false, on: day) }
             case .today, .unlogged, .untracked:
                 Text("Nothing logged").foregroundStyle(.secondary)
                 Spacer()
-                Button("Alcohol-free", systemImage: "leaf") { context.setAlcoholFree(true, on: day) }
+                Button("Alcohol-free", systemImage: "leaf") { logbook.setAlcoholFree(true, on: day) }
                     .tint(.dry)
             case .future:
                 EmptyView()

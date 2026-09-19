@@ -6,7 +6,7 @@ struct LogScreen: View {
     let ledger: Ledger
 
     var body: some View {
-        DrinkPicker(day: ledger.clock.today, ledger: ledger)
+        DrinkPicker(day: ledger.today, ledger: ledger)
             .navigationTitle("Log")
             .background(Color(.systemGroupedBackground))
     }
@@ -14,7 +14,8 @@ struct LogScreen: View {
 
 /// The picker for backfilling another day.
 struct AddDrinkSheet: View {
-    let day: Date
+    let day: DayKey
+    @Environment(Prefs.self) private var prefs
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -22,7 +23,7 @@ struct AddDrinkSheet: View {
             LedgerReader { ledger in
                 DrinkPicker(day: day, ledger: ledger)
             }
-            .navigationTitle(day.formatted(.dateTime.weekday(.wide).day().month()))
+            .navigationTitle(day.date(in: prefs.clock.calendar).formatted(.dateTime.weekday(.wide).day().month()))
             .navigationBarTitleDisplayMode(.inline)
             .background(Color(.systemGroupedBackground))
             .toolbar {
@@ -38,8 +39,7 @@ struct AddDrinkSheet: View {
 /// Works on a draft saved on Done.
 struct PourEditor: View {
     let pour: Pour
-    let day: Date
-    let clock: DayClock
+    let day: DayKey
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Environment(Prefs.self) private var prefs
@@ -49,10 +49,9 @@ struct PourEditor: View {
     @State private var price: Double
     @State private var editingDrink = false
 
-    init(pour: Pour, day: Date, clock: DayClock) {
+    init(pour: Pour, day: DayKey) {
         self.pour = pour
         self.day = day
-        self.clock = clock
         _time = State(initialValue: pour.timestamp)
         _vessel = State(initialValue: pour.vessel)
         _volume = State(initialValue: pour.volumeMl)
@@ -79,7 +78,7 @@ struct PourEditor: View {
                     }
                 }
                 Section {
-                    DatePicker("Time", selection: Binding(get: { time }, set: { time = clock.resolve($0, into: day) }), displayedComponents: .hourAndMinute)
+                    DatePicker("Time", selection: Binding(get: { time }, set: { time = prefs.clock.resolve($0, into: day) }), displayedComponents: .hourAndMinute)
                     if isUnits {
                         NumberRow(label: "Units", value: Binding(get: { volume / 10 }, set: { volume = $0 * 10 }), suffix: "u")
                     } else {
@@ -94,7 +93,7 @@ struct PourEditor: View {
                 }
                 Section {
                     Button("Delete", role: .destructive) {
-                        context.delete(pour)
+                        context.logbook(prefs).delete(pour)
                         dismiss()
                     }
                 }
@@ -107,10 +106,7 @@ struct PourEditor: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done", role: .confirm) {
-                        pour.timestamp = time
-                        pour.vesselRaw = vessel.rawValue
-                        pour.volumeMl = volume
-                        pour.price = price
+                        context.logbook(prefs).update(pour, time: time, vessel: vessel, volumeMl: volume, price: price)
                         dismiss()
                     }
                 }

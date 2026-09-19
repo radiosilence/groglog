@@ -7,11 +7,10 @@ struct CalendarScreen: View {
 
     var body: some View {
         let calendar = ledger.clock.calendar
-        let thisMonth = calendar.dateInterval(of: .month, for: ledger.clock.today)!.start
-        let earliest = calendar.dateInterval(of: .month, for: ledger.firstDay ?? thisMonth)!.start
-        let first = min(earliest, calendar.date(byAdding: .month, value: -2, to: thisMonth)!)
-        let months = sequence(first: first) { calendar.date(byAdding: .month, value: 1, to: $0)! }
-            .prefix { $0 <= thisMonth }
+        let thisMonth = ledger.today.monthStart
+        let twoBack = ((thisMonth - 1).monthStart - 1).monthStart
+        let first = min((ledger.firstDay ?? thisMonth).monthStart, twoBack)
+        let months = sequence(first: first) { $0 + $0.daysInMonth }.prefix { $0 <= thisMonth }
 
         ScrollView {
             LazyVStack(spacing: 32) {
@@ -39,7 +38,7 @@ struct CalendarScreen: View {
                 }
             }
         }
-        .navigationDestination(for: Date.self) { DayPager(day: $0) }
+        .navigationDestination(for: DayKey.self) { DayPager(day: $0) }
     }
 }
 
@@ -64,22 +63,20 @@ private struct WeekdayHeader: View {
 }
 
 private struct MonthGrid: View {
-    let month: Date
+    let month: DayKey
     let ledger: Ledger
     let goal: Goal
 
     var body: some View {
-        let clock = ledger.clock
-        let calendar = clock.calendar
-        let count = calendar.range(of: .day, in: .month, for: month)!.count
-        let days = (0..<count).map { clock.adding($0, to: month) }
-        let offset = (calendar.component(.weekday, from: month) - calendar.firstWeekday + 7) % 7
+        let calendar = ledger.clock.calendar
+        let days = Array(month...(month + month.daysInMonth - 1))
+        let offset = (month.weekday - calendar.firstWeekday + 7) % 7
         let units = days.reduce(0) { $0 + ledger.totals(on: $1).units }
         let dry = days.filter { ledger.status(on: $0) == .alcoholFree }.count
 
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
-                Text(month.formatted(.dateTime.month(.wide).year()))
+                Text(month.date(in: calendar).formatted(.dateTime.month(.wide).year()))
                     .font(.title2.bold())
                 Spacer()
                 Text("\(units.unitsText) u · \(dry) dry")
@@ -97,15 +94,16 @@ private struct MonthGrid: View {
 }
 
 private struct DayCell: View {
-    let day: Date
+    let day: DayKey
     let ledger: Ledger
     let budget: Double?
     @Environment(\.modelContext) private var context
+    @Environment(Prefs.self) private var prefs
 
     var body: some View {
         let status = ledger.status(on: day)
         let units = ledger.totals(on: day).units
-        let isToday = day == ledger.clock.today
+        let isToday = day == ledger.today
         let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
         let fill: Color = switch status {
         case .drank: Color.heat(units: units, budget: budget)
@@ -114,7 +112,7 @@ private struct DayCell: View {
         }
 
         let cell = VStack(spacing: 0) {
-            Text(day.formatted(.dateTime.day()))
+            Text("\(day.components.day)")
                 .font(.caption2.weight(.semibold))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .opacity(status == .drank || status == .alcoholFree ? 0.85 : 0.6)
@@ -155,9 +153,9 @@ private struct DayCell: View {
                 .buttonStyle(.plain)
                 .contextMenu {
                     if status == .alcoholFree {
-                        Button("Not alcohol-free", systemImage: "xmark") { context.setAlcoholFree(false, on: day) }
+                        Button("Not alcohol-free", systemImage: "xmark") { context.logbook(prefs).setAlcoholFree(false, on: day) }
                     } else if status != .drank {
-                        Button("Alcohol-free", systemImage: "leaf") { context.setAlcoholFree(true, on: day) }
+                        Button("Alcohol-free", systemImage: "leaf") { context.logbook(prefs).setAlcoholFree(true, on: day) }
                     }
                 }
         }

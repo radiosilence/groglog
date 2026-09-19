@@ -1,66 +1,56 @@
 import Foundation
 
-/// Maps timestamps onto drinking days. A day runs from `rolloverHour` to `rolloverHour` the next morning,
+/// Maps moments onto drinking days. A day runs from `rolloverHour` to `rolloverHour` the next morning,
 /// so the 1am pint counts towards the night it belongs to.
-struct DayClock {
+nonisolated struct DayClock {
     var rolloverHour: Int
     var calendar: Calendar = .current
 
-    var today: Date { day(for: .now) }
+    var today: DayKey { day(for: .now) }
 
-    func day(for date: Date) -> Date {
-        calendar.startOfDay(for: calendar.date(byAdding: .hour, value: -rolloverHour, to: date)!)
+    func day(for date: Date) -> DayKey {
+        let shifted = calendar.date(byAdding: .hour, value: -rolloverHour, to: date)!
+        let c = calendar.dateComponents([.year, .month, .day], from: shifted)
+        return DayKey(year: c.year!, month: c.month!, day: c.day!)
     }
 
-    func start(of day: Date) -> Date {
-        calendar.date(byAdding: .hour, value: rolloverHour, to: day)!
+    func start(of day: DayKey) -> Date {
+        let c = day.components
+        return calendar.date(from: DateComponents(year: c.year, month: c.month, day: c.day, hour: rolloverHour))!
     }
 
-    func end(of day: Date) -> Date {
-        start(of: adding(1, to: day))
+    func end(of day: DayKey) -> Date { start(of: day + 1) }
+
+    func weekStart(of day: DayKey) -> DayKey {
+        day - (day.weekday - calendar.firstWeekday + 7) % 7
     }
 
-    func adding(_ days: Int, to day: Date) -> Date {
-        calendar.date(byAdding: .day, value: days, to: day)!
-    }
-
-    func weekStart(of day: Date) -> Date {
-        calendar.dateInterval(of: .weekOfYear, for: day)!.start
-    }
-
-    func hours(_ date: Date, into day: Date) -> Double {
+    func hours(_ date: Date, into day: DayKey) -> Double {
         date.timeIntervalSince(start(of: day)) / 3600
     }
 
     /// Places a clock time within the drinking day: 01:30 lands after midnight rather than before the day began.
-    func resolve(_ time: Date, into day: Date) -> Date {
+    func resolve(_ time: Date, into day: DayKey) -> Date {
         let parts = calendar.dateComponents([.hour, .minute], from: time)
         let hour = parts.hour ?? 0
-        let date = calendar.date(bySettingHour: hour, minute: parts.minute ?? 0, second: 0, of: day)!
-        return hour < rolloverHour ? adding(1, to: date) : date
+        let c = (hour < rolloverHour ? day + 1 : day).components
+        return calendar.date(from: DateComponents(year: c.year, month: c.month, day: c.day, hour: hour, minute: parts.minute ?? 0))!
     }
 
-    func suggestedTime(for day: Date, after last: Date?) -> Date {
+    /// Now for today; otherwise just after the last drink, or 8pm for an empty day.
+    func suggestedTime(for day: DayKey, after last: Date?) -> Date {
         if day == today { return .now }
         if let last { return min(last.addingTimeInterval(20 * 60), end(of: day).addingTimeInterval(-60)) }
-        return calendar.date(bySettingHour: 20, minute: 0, second: 0, of: day)!
-    }
-
-    /// `yyyy-MM-dd` in the local calendar — ISO formatting would use UTC and shift days near midnight.
-    func key(_ day: Date) -> String {
-        let parts = calendar.dateComponents([.year, .month, .day], from: day)
-        return String(format: "%04d-%02d-%02d", parts.year!, parts.month!, parts.day!)
-    }
-
-    func day(key: String) -> Date? {
-        let parts = key.split(separator: "-").compactMap { Int($0) }
-        guard parts.count == 3 else { return nil }
-        return calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
+        let c = day.components
+        return calendar.date(from: DateComponents(year: c.year, month: c.month, day: c.day, hour: 20))!
     }
 
     func hourLabel(_ hours: Double) -> String {
-        start(of: calendar.startOfDay(for: .now))
-            .addingTimeInterval(hours * 3600)
-            .formatted(.dateTime.hour())
+        start(of: today).addingTimeInterval(hours * 3600).formatted(.dateTime.hour())
     }
+}
+
+nonisolated extension DayKey {
+    static func + (day: DayKey, n: Int) -> DayKey { day.advanced(by: n) }
+    static func - (day: DayKey, n: Int) -> DayKey { day.advanced(by: -n) }
 }

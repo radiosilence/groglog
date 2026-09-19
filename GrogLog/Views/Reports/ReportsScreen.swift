@@ -9,10 +9,10 @@ struct ReportsScreen: View {
 
     var body: some View {
         let clock = ledger.clock
-        let today = clock.today
+        let today = ledger.today
         let thisWeek = clock.weekStart(of: today)
-        let stats = (0..<weeks).reversed().map { ledger.week(starting: clock.adding(-7 * $0, to: thisWeek), goal: prefs.goal) }
-        let days = ledger.days(from: max(stats[0].start, ledger.firstDay ?? today), through: today)
+        let stats = (0..<weeks).reversed().map { ledger.week(starting: thisWeek - 7 * $0, goal: prefs.goal) }
+        let days = max(stats[0].start, ledger.firstDay ?? today)...today
 
         ScrollView {
             VStack(spacing: 16) {
@@ -42,19 +42,19 @@ private struct MonthlyProgressCard: View {
     let onSetGoal: () -> Void
 
     var body: some View {
-        let clock = ledger.clock
-        let today = clock.today
-        let past = ledger.days(from: clock.adding(-27, to: today), through: today)
-        let ahead = goal.isEnabled ? ledger.days(from: today, through: clock.adding(14, to: today)) : []
-        let drank = past.compactMap { day in rolling(day) { ledger.totals(on: $0).units }.map { (day, $0) } }
-        let budget = past.compactMap { day in rolling(day) { ledger.dailyBudget(on: $0, goal: goal) }.map { (day, $0) } }
+        let calendar = ledger.clock.calendar
+        let today = ledger.today
+        let past = (today - 27)...today
+        let ahead = goal.isEnabled ? Array(today...(today + 14)) : []
+        let drank = past.compactMap { day in rolling(day) { ledger.totals(on: $0).units }.map { (day.date(in: calendar), $0) } }
+        let budget = past.compactMap { day in rolling(day) { ledger.dailyBudget(on: $0, goal: goal) }.map { (day.date(in: calendar), $0) } }
 
         Card(title: "Monthly progress") {
             if let todays = ledger.dailyBudget(on: today, goal: goal) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Today's budget \(todays.unitsText) u")
                     if let stop = ledger.projection(goal: goal).underOneUnit {
-                        Text("Under 1 u/day by \(stop.formatted(date: .abbreviated, time: .omitted)) at this rate")
+                        Text("Under 1 u/day by \(stop.date(in: calendar).formatted(date: .abbreviated, time: .omitted)) at this rate")
                             .foregroundStyle(Color.dry)
                     }
                 }
@@ -70,7 +70,7 @@ private struct MonthlyProgressCard: View {
                 }
                 ForEach(ahead, id: \.self) { day in
                     if let units = ledger.dailyBudget(on: day, goal: goal) {
-                        LineMark(x: .value("Day", day, unit: .day), y: .value("Units", units), series: .value("Line", "Ahead"))
+                        LineMark(x: .value("Day", day.date(in: calendar), unit: .day), y: .value("Units", units), series: .value("Line", "Ahead"))
                             .foregroundStyle(Color.dry)
                             .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, dash: [4, 4]))
                     }
@@ -107,10 +107,9 @@ private struct MonthlyProgressCard: View {
     }
 
     /// Mean of `value` over the logged days in the week ending `day` (today counts once it has drinks). Nil when none.
-    private func rolling(_ day: Date, _ value: (Date) -> Double?) -> Double? {
-        let clock = ledger.clock
-        let values = (0..<7).map { clock.adding(-$0, to: day) }
-            .filter { [.drank, .alcoholFree].contains(ledger.status(on: $0)) }
+    private func rolling(_ day: DayKey, _ value: (DayKey) -> Double?) -> Double? {
+        let values = ((day - 6)...day)
+            .filter(ledger.isLogged)
             .compactMap(value)
         guard !values.isEmpty, ledger.status(on: day) != .today else { return nil }
         return values.reduce(0, +) / Double(values.count)
@@ -122,14 +121,13 @@ private struct MonthCard: View {
     let ledger: Ledger
 
     var body: some View {
-        let clock = ledger.clock
-        let calendar = clock.calendar
-        let today = clock.today
-        let thisMonth = calendar.dateInterval(of: .month, for: today)!.start
-        let lastMonth = calendar.date(byAdding: .month, value: -1, to: thisMonth)!
+        let calendar = ledger.clock.calendar
+        let today = ledger.today
+        let thisMonth = today.monthStart
+        let lastMonth = (thisMonth - 1).monthStart
         let current = ledger.monthCumulative(thisMonth, through: today)
         let previous = ledger.monthCumulative(lastMonth)
-        let dayOfMonth = calendar.component(.day, from: today)
+        let dayOfMonth = today.components.day
         let lastAtSameDay = previous[min(dayOfMonth, previous.count - 1)].units
         let now = current.last?.units ?? 0
         let hasLastMonth = (previous.last?.units ?? 0) > 0
@@ -179,9 +177,9 @@ private struct MonthCard: View {
             .frame(height: 200)
 
             HStack(spacing: 16) {
-                LegendKey(label: thisMonth.formatted(.dateTime.month(.wide)), color: .grog)
+                LegendKey(label: thisMonth.date(in: calendar).formatted(.dateTime.month(.wide)), color: .grog)
                 if hasLastMonth {
-                    LegendKey(label: lastMonth.formatted(.dateTime.month(.wide)), color: .gray.opacity(0.6))
+                    LegendKey(label: lastMonth.date(in: calendar).formatted(.dateTime.month(.wide)), color: .gray.opacity(0.6))
                 }
             }
         }
@@ -192,8 +190,10 @@ private struct MonthCard: View {
 private struct WeeksCard: View {
     let stats: [WeekStat]
     @Binding var weeks: Int
+    @Environment(Prefs.self) private var prefs
 
     var body: some View {
+        let calendar = prefs.clock.calendar
         Card(title: "Weekly") {
             Picker("Range", selection: $weeks) {
                 Text("8 weeks").tag(8)
@@ -205,12 +205,12 @@ private struct WeeksCard: View {
 
             Chart {
                 ForEach(stats) { week in
-                    BarMark(x: .value("Week", week.start, unit: .weekOfYear), y: .value("Units", week.totals.units))
+                    BarMark(x: .value("Week", week.start.date(in: calendar), unit: .weekOfYear), y: .value("Units", week.totals.units))
                         .foregroundStyle(week.budget.map { week.totals.units > $0 } == true ? Color.over.gradient : Color.grog.gradient)
                         .clipShape(.rect(cornerRadius: 4))
                 }
                 ForEach(stats.filter { $0.budget != nil }) { week in
-                    LineMark(x: .value("Week", week.start, unit: .weekOfYear), y: .value("Budget", week.budget!))
+                    LineMark(x: .value("Week", week.start.date(in: calendar), unit: .weekOfYear), y: .value("Budget", week.budget!))
                         .interpolationMethod(.stepCenter)
                         .foregroundStyle(Color.dry)
                         .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
@@ -235,7 +235,7 @@ private struct WeeksCard: View {
 private struct SummaryTiles: View {
     let ledger: Ledger
     let stats: [WeekStat]
-    let days: [Date]
+    let days: ClosedRange<DayKey>
     let currency: String
 
     var body: some View {
@@ -287,12 +287,11 @@ private struct Tile: View {
 /// Which nights do the damage: average units per weekday across logged days.
 private struct WeekdayCard: View {
     let ledger: Ledger
-    let days: [Date]
+    let days: ClosedRange<DayKey>
 
     var body: some View {
         let calendar = ledger.clock.calendar
-        let logged = days.filter { [.drank, .alcoholFree].contains(ledger.status(on: $0)) }
-        let byWeekday = Dictionary(grouping: logged) { calendar.component(.weekday, from: $0) }
+        let byWeekday = Dictionary(grouping: days.filter(ledger.isLogged), by: \.weekday)
         let order = (0..<7).map { ($0 + calendar.firstWeekday - 1) % 7 + 1 }
         let symbols = calendar.shortWeekdaySymbols
 

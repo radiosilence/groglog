@@ -39,16 +39,19 @@ struct Card<Content: View>: View {
     }
 }
 
-/// Builds a `Ledger` from the store, so screens deal in drinking days rather than raw queries.
+/// Builds a `Ledger` from the per-day totals — never the individual drinks — so it stays cheap however long the history.
 struct LedgerReader<Content: View>: View {
-    @Query(sort: \Pour.timestamp) private var pours: [Pour]
-    @Query private var dryDays: [AlcoholFreeDay]
+    @Query private var days: [Day]
     @Environment(Prefs.self) private var prefs
     @ViewBuilder var content: (Ledger) -> Content
 
     var body: some View {
-        content(Ledger(pours: pours, dryDays: dryDays, clock: prefs.clock))
+        content(Ledger(days: days, clock: prefs.clock))
     }
+}
+
+extension ModelContext {
+    func logbook(_ prefs: Prefs) -> Logbook { Logbook(context: self, clock: prefs.clock) }
 }
 
 /// A series swatch for chart legends.

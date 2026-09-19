@@ -70,17 +70,15 @@ enum Exporter {
     static func backup(context: ModelContext, prefs: Prefs) throws -> Backup {
         let drinks = try context.fetch(FetchDescriptor<Drink>(sortBy: [SortDescriptor(\.name)]))
         let favourites = try context.fetch(FetchDescriptor<Favourite>(sortBy: [SortDescriptor(\.order)]))
-        let pours = try context.fetch(FetchDescriptor<Pour>())
-        let dryDays = try context.fetch(FetchDescriptor<AlcoholFreeDay>())
-        let ledger = Ledger(pours: pours, dryDays: dryDays, clock: prefs.clock)
-        let today = ledger.clock.today
-        let days = ledger.firstDay.map { ledger.days(from: $0, through: today) } ?? []
+        let ledger = Ledger(days: try context.fetch(FetchDescriptor<Day>()), clock: prefs.clock)
+        let pours = Dictionary(grouping: try context.fetch(FetchDescriptor<Pour>(sortBy: [SortDescriptor(\.timestamp)])), by: \.day)
+        let days = ledger.firstDay.map { Array($0...ledger.today) } ?? []
 
         return Backup(
             dayStartsAtHour: prefs.rolloverHour,
             currency: prefs.currency,
             goal: prefs.goal,
-            projectedUnderOneUnit: ledger.projection(goal: prefs.goal).underOneUnit.map(ledger.clock.key),
+            projectedUnderOneUnit: ledger.projection(goal: prefs.goal).underOneUnit?.description,
             drinks: drinks.map {
                 .init(id: $0.id, name: $0.name, category: $0.category, abv: $0.abv, vessel: $0.vessel, volumeMl: $0.volumeMl, price: $0.price, isGeneric: $0.isGeneric, isHidden: $0.isHidden)
             },
@@ -96,13 +94,13 @@ enum Exporter {
                 default: "not_logged"
                 }
                 return .init(
-                    date: ledger.clock.key(day),
+                    date: day.description,
                     status: status,
                     units: totals.units.rounded2,
                     kcal: totals.kcal.rounded(),
                     cost: totals.cost.rounded2,
                     budget: ledger.dailyBudget(on: day, goal: prefs.goal)?.rounded2,
-                    pours: ledger.pours(on: day).map {
+                    pours: (pours[day.number] ?? []).map {
                         .init(id: $0.id, time: $0.timestamp, name: $0.name, category: $0.category, vessel: $0.vessel, volumeMl: $0.volumeMl, abv: $0.abv, units: $0.units.rounded2, kcal: $0.kcal.rounded(), price: $0.price, drinkID: $0.drink?.id)
                     }
                 )
@@ -157,18 +155,23 @@ enum Exporter {
 
     /// Merges a backup in. Nothing already here is touched: drinks and pours are matched by id,
     /// and a day that already has drinks logged keeps them. Settings are restored when present.
+    /// Merges a backup in. Nothing already here is touched: drinks and entries are matched by id, and a day that
+    /// already has drinks logged keeps them. Settings are restored when present. Totals are recomputed for the days touched.
     @discardableResult
     static func restore(_ data: Data, into context: ModelContext, prefs: Prefs) throws -> Int {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let backup = try decoder.decode(Backup.self, from: data)
+        if let hour = backup.dayStartsAtHour { prefs.rolloverHour = hour }
+        if let currency = backup.currency { prefs.currency = currency }
+        if let goal = backup.goal { prefs.goal = goal }
         let clock = prefs.clock
 
         var drinks = try context.fetch(FetchDescriptor<Drink>())
         let drinkIDs = Set(drinks.map(\.id))
         let existing = try context.fetch(FetchDescriptor<Pour>())
         let pourIDs = Set(existing.map(\.id))
-        let daysWithPours = Set(existing.map { clock.day(for: $0.timestamp) })
+        let daysWithPours = Set(existing.map(\.day))
 
         for record in backup.drinks ?? [] where !drinkIDs.contains(record.id) {
             let drink = Drink(name: record.name, category: record.category, abv: record.abv, vessel: record.vessel, volumeMl: record.volumeMl, price: record.price, isGeneric: record.isGeneric)
@@ -186,39 +189,41 @@ enum Exporter {
         }
 
         var added = 0
-        for day in backup.days {
-            guard let date = clock.day(key: day.date) else { continue }
-            if day.status == "alcohol_free", !daysWithPours.contains(date) {
-                context.setAlcoholFree(true, on: date)
-            }
-            guard !daysWithPours.contains(date) else { continue }
+        var touched: Set<DayKey> = []
+        var dry: [DayKey] = []
+        for record in backup.days {
+            guard let day = DayKey(record.date), !daysWithPours.contains(day.number) else { continue }
+            if record.status == "alcohol_free" { dry.append(day) }
 
-            let evening = clock.calendar.date(bySettingHour: 20, minute: 0, second: 0, of: date)!
-            let records = day.pours ?? []
-            if records.isEmpty, let units = day.units, units > 0 {
-                context.insert(Pour(drink: context.unitsDrink(), at: evening, volumeMl: units * 10, price: day.cost ?? 0, kcalOverride: day.kcal))
+            let evening = clock.suggestedTime(for: day, after: nil)
+            let pours = record.pours ?? []
+            if pours.isEmpty, let units = record.units, units > 0 {
+                context.insert(Pour(drink: context.unitsDrink(), at: evening, day: day, volumeMl: units * 10, price: record.cost ?? 0, kcalOverride: record.kcal))
                 added += 1
+                touched.insert(day)
             }
-            for (index, record) in records.enumerated() where !pourIDs.contains(record.id ?? UUID()) {
-                let time = record.time ?? evening.addingTimeInterval(Double(index) * 30 * 60)
-                let id = record.id ?? UUID()
-                if let volume = record.volumeMl {
-                    let category = record.category ?? .beer
-                    let abv = record.abv ?? category.defaultABV
-                    let vessel = record.vessel ?? category.defaultVessel
-                    let drink = drinks.first { $0.id == record.drinkID }
-                        ?? context.drink(named: record.name, category: category, abv: abv, vessel: vessel, volumeMl: volume)
-                    context.insert(Pour(drink: drink, at: time, vessel: vessel, volumeMl: volume, price: record.price ?? 0, id: id))
+            for (index, pour) in pours.enumerated() where !pourIDs.contains(pour.id ?? UUID()) {
+                let time = pour.time ?? evening.addingTimeInterval(Double(index) * 30 * 60)
+                let id = pour.id ?? UUID()
+                if let volume = pour.volumeMl {
+                    let category = pour.category ?? .beer
+                    let abv = pour.abv ?? category.defaultABV
+                    let vessel = pour.vessel ?? category.defaultVessel
+                    let drink = drinks.first { $0.id == pour.drinkID }
+                        ?? context.drink(named: pour.name, category: category, abv: abv, vessel: vessel, volumeMl: volume)
+                    context.insert(Pour(drink: drink, at: time, day: day, vessel: vessel, volumeMl: volume, price: pour.price ?? 0, id: id))
                 } else {
-                    context.insert(Pour(drink: context.unitsDrink(), at: time, volumeMl: (record.units ?? 0) * 10, price: record.price ?? 0, kcalOverride: record.kcal, id: id))
+                    context.insert(Pour(drink: context.unitsDrink(), at: time, day: day, volumeMl: (pour.units ?? 0) * 10, price: pour.price ?? 0, kcalOverride: pour.kcal, id: id))
                 }
                 added += 1
+                touched.insert(day)
             }
         }
 
-        if let hour = backup.dayStartsAtHour { prefs.rolloverHour = hour }
-        if let currency = backup.currency { prefs.currency = currency }
-        if let goal = backup.goal { prefs.goal = goal }
+        let logbook = Logbook(context: context, clock: clock)
+        logbook.refresh(touched)
+        for day in dry where !touched.contains(day) { logbook.setAlcoholFree(true, on: day) }
+        try context.save()
         return added
     }
 }
@@ -248,7 +253,7 @@ nonisolated struct ExportFile: Transferable {
         let container = container
         let (data, name) = try await MainActor.run {
             let backup = try Exporter.backup(context: container.mainContext, prefs: Prefs())
-            let stamp = DayClock(rolloverHour: 0).key(.now)
+            let stamp = DayClock(rolloverHour: 0).today.description
             return kind == .json
                 ? (try Exporter.json(backup), "groglog-\(stamp).json")
                 : (Data(Exporter.markdown(backup).utf8), "groglog-\(stamp).md")

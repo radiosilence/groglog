@@ -22,7 +22,16 @@ Written because Drinkaware's Drink Coach is low-friction but slow, allows one dr
 | Reports | Monthly progress (daily units vs the budget, with the fortnight ahead), this month vs last (cumulative), weekly bars, streaks, spend. |
 | Setup | Goal, drinks, day end, currency, export/import. |
 
-Code: `Model/` holds pure logic — `DayClock` (drinking days), `Goal` (taper settings), `Ledger` (read-only view of everything logged; budgets, streaks, curves, projections) — plus SwiftData models: `Drink` (what it is), `Favourite` (a drink + size on the grid), `Pour` (a drink + size + price, logged), `AlcoholFreeDay`. Views take a `Ledger` and don't group data themselves.
+## Data
+
+Built to stay instant after years of heavy use:
+
+- **Day totals are stored, entries are fetched by day.** Each `Day` row holds a drinking day's units, kcal, cost, count and dry mark — a few hundred rows a year. Calendar, Reports, budgets, streaks and projections read only these. Individual `Pour`s are indexed by day and fetched only for the days on screen (one or two; a month for the average curve).
+- **All writes go through `Logbook`.** Log, undo, edit, mark dry, change a drink: it recomputes just the affected days from their entries. Totals are always derived, never incremented, so they can't drift; `rebuild()` is the same arithmetic over everything (imports, changing the day-end hour, or Setup › Developer).
+- **Days are integers.** `DayKey` is days since 1970 with pure civil-date arithmetic, so windows and weeks are integer maths. Each entry stores the day it counted towards when logged, so travelling across timezones doesn't move old nights.
+- `ScaleTests` logs three years at 20 drinks a day of one drink and times the common taps and a full screen's worth of maths.
+
+Model: `Drink` (what it is), `Favourite` (a drink + size + usual price on the grid), `Pour` (a drink + size + price paid), `Day` (a day's totals), plus `Ledger` (read-only maths over days), `Logbook` (writes), `DayClock`, `Goal`. Views take a `Ledger` and don't group data themselves.
 
 ## Data
 
@@ -43,6 +52,6 @@ xcodegen generate
 open GrogLog.xcodeproj
 ```
 
-Requires Xcode 26+ / iOS 26. The app icon is rendered from the pint glyph by `scripts/render-icon.sh`. `scripts/shoot.sh <dir> [light|dark]` builds, launches with sample data (`-demo`) and screenshots every tab (`-tab <name>` picks the starting tab). Debug builds have Setup › Developer › Load sample data.
+Requires Xcode 26+ / iOS 26. The app icon is rendered from the pint glyph by `scripts/render-icon.sh`. `scripts/shoot.sh <dir> [light|dark]` builds, launches in demo mode (`-demoMode YES`) and screenshots every tab (`-tab <name>` picks the starting tab). Debug builds have Setup › Developer › Demo mode, which swaps in an in-memory store of sample data and leaves your log alone.
 
 Tests: `xcodebuild -scheme GrogLog -destination 'platform=iOS Simulator,name=iPhone 18 Pro' test`.

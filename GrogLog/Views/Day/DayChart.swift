@@ -1,27 +1,39 @@
 import Charts
+import SwiftData
 import SwiftUI
 
-/// Running units through the day, against yesterday and the month's average day.
+/// Running units through the day, against yesterday and the month's average day. Fetches just the drinks in that
+/// window — about a month's worth — rather than the whole history.
 struct DayChart: View {
-    let day: Date
+    let day: DayKey
     let ledger: Ledger
     let budget: Double?
     let now: Date
+    @Query private var pours: [Pour]
+
+    init(day: DayKey, ledger: Ledger, budget: Double?, now: Date) {
+        self.day = day
+        self.ledger = ledger
+        self.budget = budget
+        self.now = now
+        _pours = Query(Pour.on(ledger.monthBefore(day).lowerBound...day))
+    }
 
     var body: some View {
         let clock = ledger.clock
-        let yesterday = clock.adding(-1, to: day)
-        let nowHour = day == clock.today ? clock.hours(now, into: day) : nil
-        let firstHour = [day, yesterday]
-            .flatMap { d in ledger.pours(on: d).map { clock.hours($0.timestamp, into: d) } }
+        let yesterday = day - 1
+        let nowHour = day == ledger.today ? clock.hours(now, into: day) : nil
+        let firstHour = pours
+            .filter { $0.day == day.number || $0.day == yesterday.number }
+            .map { clock.hours($0.timestamp, into: $0.dayKey) }
             .min()
         let from = max(0, min(10, (firstHour ?? 10) - 1).rounded(.down))
 
-        let yesterdayLogged = [.drank, .alcoholFree].contains(ledger.status(on: yesterday))
+        let yesterdayLogged = ledger.isLogged(yesterday)
         let series = [
-            Series(name: "Today", color: .grog, points: ledger.cumulative(on: day, from: from, through: nowHour ?? 24)),
-            Series(name: "Yesterday", color: .gray.opacity(0.6), points: yesterdayLogged ? ledger.cumulative(on: yesterday, from: from) : []),
-            Series(name: "Month avg", color: .dry, points: ledger.averageCumulative(of: ledger.monthBefore(day), from: from), dashed: true),
+            Series(name: "Today", color: .grog, points: ledger.cumulative(pours, on: day, from: from, through: nowHour ?? 24)),
+            Series(name: "Yesterday", color: .gray.opacity(0.6), points: yesterdayLogged ? ledger.cumulative(pours, on: yesterday, from: from) : []),
+            Series(name: "Month avg", color: .dry, points: ledger.averageCumulative(pours, over: ledger.monthBefore(day), from: from), dashed: true),
         ]
         let at = nowHour ?? 24
         let top = max(2, budget ?? 0, series.flatMap(\.points).map(\.units).max() ?? 0) * 1.1

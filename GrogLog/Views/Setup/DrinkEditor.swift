@@ -78,7 +78,13 @@ struct DrinkEditor: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(drink == nil ? "Add" : "Save", role: .confirm) {
-                        if let drink { draft.apply(to: drink) } else { insertNew() }
+                        if let drink {
+                            let retotal = drink.abv != draft.abv || drink.category != draft.category
+                            draft.apply(to: drink)
+                            if retotal { context.logbook(prefs).drinkChanged(drink) }
+                        } else {
+                            insertNew()
+                        }
                         dismiss()
                     }
                     .disabled(draft.name.trimmingCharacters(in: .whitespaces).isEmpty)

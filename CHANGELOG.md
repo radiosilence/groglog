@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Stays fast with years of history: screens read per-day totals and fetch individual drinks only for the days shown; every change recomputes just the days it touches. Drinking days are fixed when logged, so timezone changes don't move them.
+- Debug builds get a Demo mode that swaps in sample data without touching your log.
 - Drinks are now separate from sizes: one Staropramen covers the 440 can and the 660 bottle. Log tiles and entries are a drink + size + price; sizes are limited to what suits the type. Existing data was folded in place (brands saved at several sizes became one drink; the per-size generics became Beer, Cider, … at Drinkaware's standard strengths).
 - Long-press lists one row per drink of the same type, with a size override and a star to pin that drink + size to the grid. Spirits come as 25 ml or 35 ml singles or a 70 cl bottle.
 - Logged drinks reference their drink instead of copying it: edits to name, type or strength apply to everything logged as it, while each entry keeps its own time, size and price. "Save as new drink" for when the drink itself changed; drinks with history can only be hidden.

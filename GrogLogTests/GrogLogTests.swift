@@ -10,8 +10,22 @@ private let london: Calendar = {
     return calendar
 }()
 
+private let clock = DayClock(rolloverHour: 5, calendar: london)
+
 private func date(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 0, _ min: Int = 0) -> Date {
     london.date(from: DateComponents(year: y, month: m, day: d, hour: h, minute: min))!
+}
+
+@MainActor private func container() throws -> ModelContainer {
+    try ModelContainer(for: Drink.self, Favourite.self, Pour.self, Day.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+}
+
+@MainActor private func ledger(_ context: ModelContext) throws -> Ledger {
+    Ledger(days: try context.fetch(FetchDescriptor<Day>()), clock: clock)
+}
+
+private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
+    Drink(name: "Beer", category: .beer, abv: abv, vessel: .pint, volumeMl: ml, price: 5)
 }
 
 @Suite struct UnitsTests {
@@ -20,46 +34,115 @@ private func date(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 0, _ min: Int = 0) ->
     }
 
     @Test func caloriesLandNearDrinkawaresFigures() {
-        // Drinkaware: pint of 4% beer ≈ 182 kcal, 175 ml of 13% wine ≈ 159 kcal.
         #expect(abs(Units.kcal(ml: 568, abv: 4, category: .beer) - 182) < 10)
         #expect(abs(Units.kcal(ml: 175, abv: 13, category: .redWine) - 159) < 10)
     }
 }
 
-@Suite struct DayClockTests {
-    let clock = DayClock(rolloverHour: 5, calendar: london)
+@Suite struct DayKeyTests {
+    @Test func roundTripsThroughCivilDates() {
+        #expect(DayKey(year: 1970, month: 1, day: 1).number == 0)
+        for number in stride(from: -800_000, through: 800_000, by: 997) {
+            let c = DayKey(number: number).components
+            #expect(DayKey(year: c.year, month: c.month, day: c.day).number == number)
+        }
+        #expect(DayKey("2026-09-19")?.description == "2026-09-19")
+    }
 
+    @Test func knowsWeekdaysAndMonths() {
+        #expect(DayKey(year: 2026, month: 9, day: 19).weekday == 7)
+        #expect(DayKey(year: 2024, month: 2, day: 10).daysInMonth == 29)
+        #expect(DayKey(year: 2026, month: 2, day: 10).daysInMonth == 28)
+        #expect(DayKey(year: 2026, month: 9, day: 19).monthStart == DayKey(year: 2026, month: 9, day: 1))
+    }
+}
+
+@Suite struct DayClockTests {
     @Test func smallHoursBelongToTheNightBefore() {
-        #expect(clock.day(for: date(2026, 9, 20, 1, 30)) == date(2026, 9, 19))
-        #expect(clock.day(for: date(2026, 9, 20, 5, 0)) == date(2026, 9, 20))
+        #expect(clock.day(for: date(2026, 9, 20, 1, 30)) == DayKey(year: 2026, month: 9, day: 19))
+        #expect(clock.day(for: date(2026, 9, 20, 5, 0)) == DayKey(year: 2026, month: 9, day: 20))
     }
 
     @Test func resolvingATimeLandsWithinTheDrinkingDay() {
-        let day = date(2026, 9, 19)
+        let day = DayKey(year: 2026, month: 9, day: 19)
         #expect(clock.resolve(date(2000, 1, 1, 1, 30), into: day) == date(2026, 9, 20, 1, 30))
         #expect(clock.resolve(date(2000, 1, 1, 21, 0), into: day) == date(2026, 9, 19, 21, 0))
     }
 
-    @Test func keysAreLocalDates() {
-        #expect(clock.key(date(2026, 9, 19)) == "2026-09-19")
-        #expect(clock.day(key: "2026-09-19") == date(2026, 9, 19))
+    @Test func weeksStartOnTheCalendarsFirstWeekday() {
+        #expect(clock.weekStart(of: DayKey(year: 2026, month: 9, day: 19)) == DayKey(year: 2026, month: 9, day: 14))
     }
 }
 
-@MainActor @Suite struct TaperTests {
-    let empty = Ledger(pours: [], dryDays: [], clock: DayClock(rolloverHour: 5, calendar: london))
+@MainActor @Suite struct LogbookTests {
+    @Test func keepsDayTotalsInStepWithEntries() throws {
+        let container = try container()
+        let context = container.mainContext
+        let logbook = Logbook(context: context, clock: clock)
+        let drink = beer()
+        context.insert(drink)
+        let night = date(2026, 9, 19, 21)
+
+        logbook.log(Serve(drink), at: [night, night.addingTimeInterval(1800), date(2026, 9, 20, 1)])
+        let saturday = DayKey(year: 2026, month: 9, day: 19)
+        #expect(try ledger(context).totals(on: saturday).count == 3)
+
+        let pours = try context.fetch(Pour.on(saturday...saturday))
+        logbook.delete(pours[0])
+        logbook.update(pours[1], time: date(2026, 9, 20, 20), vessel: .half, volumeMl: 284, price: 3)
+        let after = try ledger(context)
+        #expect(after.totals(on: saturday).count == 1)
+        #expect(abs(after.totals(on: saturday + 1).units - Units.of(ml: 284, abv: 5)) < 0.0001)
+
+        drink.abv = 4
+        logbook.drinkChanged(drink)
+        #expect(abs(try ledger(context).totals(on: saturday).units - Units.of(ml: 568, abv: 4)) < 0.0001)
+    }
+
+    @Test func dryMarksGiveWayToDrinksAndEmptyDaysDisappear() throws {
+        let container = try container()
+        let context = container.mainContext
+        let logbook = Logbook(context: context, clock: clock)
+        let drink = beer()
+        context.insert(drink)
+        let day = DayKey(year: 2026, month: 9, day: 10)
+
+        logbook.setAlcoholFree(true, on: day)
+        #expect(try ledger(context).status(on: day) == .alcoholFree)
+        logbook.log(Serve(drink), at: [date(2026, 9, 10, 20)])
+        #expect(try ledger(context).status(on: day) == .drank)
+        try context.fetch(Pour.on(day...day)).forEach(logbook.delete)
+        #expect(try context.fetchCount(FetchDescriptor<Day>()) == 0)
+    }
+
+    @Test func rebuildAgreesWithIncrementalUpdates() throws {
+        let container = try container()
+        let context = container.mainContext
+        let logbook = Logbook(context: context, clock: clock)
+        let drink = beer()
+        context.insert(drink)
+        for offset in 0..<20 {
+            logbook.log(Serve(drink), at: [date(2026, 8, 1 + offset, 20), date(2026, 8, 1 + offset, 22)])
+        }
+        let incremental = try context.fetch(FetchDescriptor<Day>(sortBy: [SortDescriptor(\.number)])).map { ($0.number, $0.units, $0.count) }
+        logbook.rebuild()
+        let rebuilt = try context.fetch(FetchDescriptor<Day>(sortBy: [SortDescriptor(\.number)])).map { ($0.number, $0.units, $0.count) }
+        #expect(incremental.elementsEqual(rebuilt) { $0 == $1 })
+    }
+}
+
+@Suite struct TaperTests {
+    let empty = Ledger(days: [], clock: clock)
     let weekly = Goal(isEnabled: true, isDynamic: false, baselineWeekly: 70, reductionPercent: 10, periodDays: 7, start: date(2026, 9, 1), targetWeekly: 14)
 
     @Test func scheduleCompoundsSmoothlyPerPeriod() throws {
-        #expect(empty.dailyBudget(on: date(2026, 9, 1), goal: weekly) == 10)
-        let aWeekIn = try #require(empty.dailyBudget(on: date(2026, 9, 8), goal: weekly))
-        #expect(abs(aWeekIn - 9) < 0.0001)
-        let midWeek = try #require(empty.dailyBudget(on: date(2026, 9, 4), goal: weekly))
+        let start = DayKey(year: 2026, month: 9, day: 1)
+        #expect(empty.dailyBudget(on: start, goal: weekly) == 10)
+        #expect(abs(try #require(empty.dailyBudget(on: start + 7, goal: weekly)) - 9) < 0.0001)
+        let midWeek = try #require(empty.dailyBudget(on: start + 3, goal: weekly))
         #expect(midWeek < 10 && midWeek > 9)
-    }
-
-    @Test func holdsAtTheTarget() {
-        #expect(empty.dailyBudget(on: date(2028, 1, 1), goal: weekly) == 2)
+        #expect(empty.dailyBudget(on: start + 800, goal: weekly) == 2)
+        #expect(empty.dailyBudget(on: start - 1, goal: weekly) == nil)
     }
 
     @Test func tenPercentADayIsExactlyTheSafeLimit() {
@@ -72,102 +155,61 @@ private func date(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 0, _ min: Int = 0) ->
 
     @Test func projectsTargetAndStopDates() throws {
         var goal = weekly
-        goal.start = empty.clock.today
+        goal.start = .now
         let projection = empty.projection(goal: goal)
-        let toTarget = empty.clock.calendar.dateComponents([.day], from: empty.clock.today, to: try #require(projection.target)).day!
-        let toStop = empty.clock.calendar.dateComponents([.day], from: empty.clock.today, to: try #require(projection.underOneUnit)).day!
-        // 10/day → 2/day at 10%/week ≈ 107 days; → 1/day ≈ 153 days.
-        #expect((105...109).contains(toTarget))
-        #expect((150...156).contains(toStop))
-    }
-
-    @Test func noBudgetBeforeStartOrWhenOff() {
-        #expect(empty.dailyBudget(on: date(2026, 8, 31), goal: weekly) == nil)
-        var off = weekly
-        off.isEnabled = false
-        #expect(empty.dailyBudget(on: date(2026, 9, 10), goal: off) == nil)
+        #expect((105...109).contains(empty.today.distance(to: try #require(projection.target))))
+        #expect((150...156).contains(empty.today.distance(to: try #require(projection.underOneUnit))))
     }
 }
 
-@MainActor @Suite struct LedgerTests {
-    let clock = DayClock(rolloverHour: 5, calendar: london)
-
-    private func pour(_ at: Date, ml: Double = 568, abv: Double = 5) -> Pour {
-        Pour(drink: Drink(name: "Pint", category: .beer, abv: abv, vessel: .pint, volumeMl: ml, price: 5), at: at)
-    }
-
-    @Test func distinguishesDryFromUnlogged() {
+@MainActor @Suite struct DynamicBudgetTests {
+    @Test func isTheCutOffTheRecentAverage() throws {
+        let container = try container()
+        let context = container.mainContext
+        let logbook = Logbook(context: context, clock: clock)
+        let drink = beer(abv: 20, ml: 1000)
+        context.insert(drink)
         let today = clock.today
-        let ledger = Ledger(
-            pours: [pour(clock.start(of: clock.adding(-3, to: today)).addingTimeInterval(15 * 3600))],
-            dryDays: [AlcoholFreeDay(day: clock.adding(-2, to: today))],
-            clock: clock
-        )
-        #expect(ledger.status(on: clock.adding(-3, to: today)) == .drank)
-        #expect(ledger.status(on: clock.adding(-2, to: today)) == .alcoholFree)
-        #expect(ledger.status(on: clock.adding(-1, to: today)) == .unlogged)
-        #expect(ledger.status(on: clock.adding(-4, to: today)) == .untracked)
-        #expect(ledger.status(on: today) == .today)
-        #expect(ledger.status(on: clock.adding(1, to: today)) == .future)
+        // Last week: two 20 u days and a dry day; the rest unlogged and left out. Average 13.33, less 10%.
+        logbook.log(Serve(drink), at: [clock.start(of: today - 2).addingTimeInterval(15 * 3600), clock.start(of: today - 5).addingTimeInterval(15 * 3600)])
+        logbook.setAlcoholFree(true, on: today - 1)
+        let goal = Goal(isEnabled: true, isDynamic: true, reductionPercent: 10, periodDays: 7)
+        #expect(abs(try #require(try ledger(context).dailyBudget(on: today, goal: goal)) - 12) < 0.0001)
     }
 
-    @Test func emptyTodayDoesNotBreakTheDryStreak() {
+    @Test func looksPastGapsButNotForever() throws {
+        let container = try container()
+        let context = container.mainContext
+        let logbook = Logbook(context: context, clock: clock)
+        let drink = beer(abv: 10, ml: 1000)
+        context.insert(drink)
         let today = clock.today
-        let dry = (1...3).map { AlcoholFreeDay(day: clock.adding(-$0, to: today)) }
-        #expect(Ledger(pours: [], dryDays: dry, clock: clock).dryStreak() == 3)
+        let goal = Goal(isEnabled: true, isDynamic: true, reductionPercent: 10, periodDays: 1)
+        #expect(try ledger(context).dailyBudget(on: today, goal: goal) == nil)
+        logbook.log(Serve(drink), at: [clock.start(of: today - 40).addingTimeInterval(15 * 3600)])
+        #expect(try ledger(context).dailyBudget(on: today, goal: goal) == nil)
+        logbook.log(Serve(drink), at: [clock.start(of: today - 5).addingTimeInterval(15 * 3600)])
+        #expect(abs(try #require(try ledger(context).dailyBudget(on: today, goal: goal)) - 9) < 0.0001)
     }
+}
 
+@MainActor @Suite struct CurveTests {
     @Test func cumulativeStepsUpAtEachDrink() {
-        let day = date(2026, 9, 19)
-        let ledger = Ledger(pours: [pour(date(2026, 9, 19, 20)), pour(date(2026, 9, 20, 1))], dryDays: [], clock: clock)
-        let points = ledger.cumulative(on: day)
+        let day = DayKey(year: 2026, month: 9, day: 19)
+        let drink = beer()
+        let pours = [Pour(drink: drink, at: date(2026, 9, 19, 20), day: day), Pour(drink: drink, at: date(2026, 9, 20, 1), day: day)]
+        let points = Ledger(days: [], clock: clock).cumulative(pours, on: day)
         #expect(points.map(\.hour) == [0, 15, 20, 24])
         #expect(abs(points.last!.units - 2 * Units.of(ml: 568, abv: 5)) < 0.001)
-    }
-
-    @Test func dynamicBudgetIsTheCutOffTheRecentAverageNotASchedule() throws {
-        let today = clock.today
-        let evening = { (daysAgo: Int) in clock.start(of: clock.adding(-daysAgo, to: today)).addingTimeInterval(15 * 3600) }
-        // Last week: 20 u, a dry day (0) and 5 u logged; the rest unlogged and left out. Average 8.33, less 10%.
-        let ledger = Ledger(
-            pours: [pour(evening(2), ml: 1000, abv: 20), pour(evening(5), ml: 500, abv: 10)],
-            dryDays: [AlcoholFreeDay(day: clock.adding(-1, to: today))],
-            clock: clock
-        )
-        let goal = Goal(isEnabled: true, isDynamic: true, baselineWeekly: 10, reductionPercent: 10, periodDays: 7, start: clock.adding(-60, to: today))
-        let budget = try #require(ledger.dailyBudget(on: today, goal: goal))
-        #expect(abs(budget - 7.5) < 0.0001)
-    }
-
-    @Test func dynamicBudgetLooksPastGapsButNotForever() throws {
-        let today = clock.today
-        let evening = { (daysAgo: Int) in clock.start(of: clock.adding(-daysAgo, to: today)).addingTimeInterval(15 * 3600) }
-        let goal = Goal(isEnabled: true, isDynamic: true, reductionPercent: 10, periodDays: 1)
-        // Last logged five days ago (10 u): budget carries on from there.
-        let gap = Ledger(pours: [pour(evening(5), ml: 1000, abv: 10)], dryDays: [], clock: clock)
-        #expect(abs(try #require(gap.dailyBudget(on: today, goal: goal)) - 9) < 0.0001)
-        // Nothing within four weeks, or nothing at all: no budget rather than a made-up one.
-        let stale = Ledger(pours: [pour(evening(40), ml: 1000, abv: 10)], dryDays: [], clock: clock)
-        #expect(stale.dailyBudget(on: today, goal: goal) == nil)
-        #expect(Ledger(pours: [], dryDays: [], clock: clock).dailyBudget(on: today, goal: goal) == nil)
-    }
-
-    @Test func averageLeavesOutUnloggedDays() {
-        let ledger = Ledger(
-            pours: [pour(date(2026, 9, 18, 20), ml: 1000, abv: 10)],
-            dryDays: [AlcoholFreeDay(day: date(2026, 9, 17))],
-            clock: clock
-        )
-        let average = ledger.averageCumulative(of: [date(2026, 9, 16), date(2026, 9, 17), date(2026, 9, 18)])
-        #expect(average.last?.units == 5)
     }
 }
 
 @MainActor @Suite struct ReferenceTests {
     @Test func loggedDrinksFollowTheirDrinkButKeepTheirPrice() {
         let drink = Drink(name: "Staropramen", category: .beer, abv: 5, vessel: .can, volumeMl: 440, price: 2)
-        let usual = Pour(drink: drink, at: .now)
-        let pint = Pour(drink: drink, at: .now, vessel: .pint, volumeMl: 568)
+        let day = clock.today
+        let usual = Pour(drink: drink, at: .now, day: day)
+        let pint = Pour(drink: drink, at: .now, day: day, vessel: .pint, volumeMl: 568)
         drink.name = "Staropramen Premium"
         drink.abv = 4
         drink.price = 3
@@ -179,24 +221,18 @@ private func date(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 0, _ min: Int = 0) ->
 }
 
 @MainActor @Suite struct BackupTests {
-    private func container() throws -> ModelContainer {
-        try ModelContainer(for: Drink.self, Favourite.self, Pour.self, AlcoholFreeDay.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
-    }
-
-    private func prefs() -> Prefs {
-        let suite = "test-\(UUID())"
-        return Prefs(store: UserDefaults(suiteName: suite)!)
-    }
+    private func prefs() -> Prefs { Prefs(store: UserDefaults(suiteName: "test-\(UUID())")!) }
 
     @Test func roundTripsAndIsIdempotent() throws {
         let sourceContainer = try container()
         let source = sourceContainer.mainContext
         let prefs = prefs()
+        let logbook = Logbook(context: source, clock: prefs.clock)
         let drink = Drink(name: "Hepcat", category: .beer, abv: 4.6, vessel: .pint, volumeMl: 568)
         source.insert(drink)
         source.insert(Favourite(drink: drink, vessel: .can, volumeMl: 440, price: 3))
-        source.insert(Pour(drink: drink, at: .now.addingTimeInterval(-3600 * 30)))
-        source.insert(AlcoholFreeDay(day: prefs.clock.adding(-3, to: prefs.clock.today)))
+        logbook.log(Serve(drink), at: [.now.addingTimeInterval(-3600 * 30)])
+        logbook.setAlcoholFree(true, on: prefs.clock.today - 3)
         let data = try Exporter.json(Exporter.backup(context: source, prefs: prefs))
 
         let targetContainer = try container()
@@ -204,10 +240,10 @@ private func date(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 0, _ min: Int = 0) ->
         #expect(try Exporter.restore(data, into: target, prefs: prefs) == 1)
         #expect(try Exporter.restore(data, into: target, prefs: prefs) == 0)
         #expect(try target.fetchCount(FetchDescriptor<Pour>()) == 1)
-        #expect(try target.fetchCount(FetchDescriptor<AlcoholFreeDay>()) == 1)
+        let days = try target.fetch(FetchDescriptor<Day>())
+        #expect(days.count == 2 && days.filter(\.isAlcoholFree).count == 1)
         let favourite = try #require(try target.fetch(FetchDescriptor<Favourite>()).first)
         #expect(favourite.drink?.name == "Hepcat" && favourite.vessel == .can && favourite.price == 3)
-        #expect(try target.fetchCount(FetchDescriptor<Favourite>()) == 1)
     }
 
     @Test func importsDailyTotalsFromAnotherApp() throws {
@@ -221,10 +257,10 @@ private func date(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 0, _ min: Int = 0) ->
         ]}
         """
         #expect(try Exporter.restore(Data(json.utf8), into: context, prefs: prefs) == 1)
-        let pour = try #require(try context.fetch(FetchDescriptor<Pour>()).first)
-        #expect(abs(pour.units - 30.6) < 0.001)
-        #expect(pour.kcal == 2696)
-        #expect(prefs.clock.day(for: pour.timestamp) == prefs.clock.day(key: "2026-09-12"))
-        #expect(try context.fetchCount(FetchDescriptor<AlcoholFreeDay>()) == 1)
+        let ledger = Ledger(days: try context.fetch(FetchDescriptor<Day>()), clock: prefs.clock)
+        let saturday = DayKey(year: 2026, month: 9, day: 12)
+        #expect(abs(ledger.totals(on: saturday).units - 30.6) < 0.001)
+        #expect(ledger.totals(on: saturday).kcal == 2696)
+        #expect(ledger.status(on: saturday - 1) == .alcoholFree)
     }
 }

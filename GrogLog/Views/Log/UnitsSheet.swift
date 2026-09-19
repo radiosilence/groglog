@@ -3,18 +3,17 @@ import SwiftUI
 
 /// Log a bare number of units — for when you know the total but not the drinks.
 struct UnitsSheet: View {
-    let day: Date
-    let ledger: Ledger
+    let day: DayKey
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(Prefs.self) private var prefs
     @State private var units: Double?
     @State private var time: Date
     @FocusState private var focused: Bool
 
-    init(day: Date, ledger: Ledger) {
+    init(day: DayKey, at time: Date) {
         self.day = day
-        self.ledger = ledger
-        _time = State(initialValue: ledger.clock.suggestedTime(for: day, after: ledger.pours(on: day).last?.timestamp))
+        _time = State(initialValue: time)
     }
 
     var body: some View {
@@ -30,7 +29,7 @@ struct UnitsSheet: View {
                     }
                 }
                 Section {
-                    DatePicker("At", selection: Binding(get: { time }, set: { time = ledger.clock.resolve($0, into: day) }), displayedComponents: .hourAndMinute)
+                    DatePicker("At", selection: Binding(get: { time }, set: { time = prefs.clock.resolve($0, into: day) }), displayedComponents: .hourAndMinute)
                 } footer: {
                     Text("Counts towards the day like any drink. Use it for totals from another app, or a night you didn't log drink by drink.")
                 }
@@ -45,8 +44,7 @@ struct UnitsSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Log", role: .confirm) {
                         guard let units, units > 0 else { return }
-                        context.insert(Pour(drink: context.unitsDrink(), at: time, volumeMl: units * 10))
-                        context.setAlcoholFree(false, on: day)
+                        context.logbook(prefs).logUnits(units, at: time)
                         dismiss()
                     }
                     .disabled((units ?? 0) <= 0)

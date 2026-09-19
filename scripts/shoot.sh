@@ -9,7 +9,7 @@ xcrun simctl install "$SIM" build/Build/Products/Debug-iphonesimulator/GrogLog.a
 mkdir -p "$OUT"
 for tab in log calendar day reports setup; do
   xcrun simctl terminate "$SIM" cc.blit.groglog 2>/dev/null || true
-  xcrun simctl launch "$SIM" cc.blit.groglog -demo -tab "$tab" >/dev/null
+  xcrun simctl launch "$SIM" cc.blit.groglog -demoMode YES -tab "$tab" >/dev/null
   sleep 4
   xcrun simctl io "$SIM" screenshot "$OUT/$tab-$APPEARANCE.png" >/dev/null 2>&1
 done
