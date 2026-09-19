@@ -124,7 +124,8 @@ struct LogOptionsSheet: View {
     /// Catalogue picks become your own drinks, first had at this size.
     private func resolve(_ choice: Choice) -> Drink? {
         if let drink = choice.drink { return drink }
-        let drink = database.logbook(prefs).drink(named: choice.name, category: choice.category, abv: choice.abv, vessel: size.vessel, volumeMl: size.ml)
+        let price = choice.brand.map { Catalog.price($0, size.vessel, size.ml) } ?? 0
+        let drink = database.logbook(prefs).drink(named: choice.name, category: choice.category, abv: choice.abv, vessel: size.vessel, volumeMl: size.ml, price: price)
         if let drink { selected = drink.id.uuidString }
         return drink
     }
@@ -158,6 +159,8 @@ private struct Choice: Identifiable {
     let category: DrinkCategory
     let abv: Double
     var drink: Drink?
+    /// Kept so a catalogue pick can be priced in whatever size you settle on.
+    var brand: CatalogBrand?
 
     init(_ drink: Drink) {
         id = drink.id.uuidString
@@ -172,6 +175,7 @@ private struct Choice: Identifiable {
         name = brand.name
         category = brand.category
         abv = brand.abv
+        self.brand = brand
     }
 }
 
