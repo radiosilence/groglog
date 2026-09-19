@@ -20,6 +20,7 @@ struct ReportsScreen: View {
         ScrollView {
             VStack(spacing: 16) {
                 MonthlyProgressCard(ledger: ledger, goal: prefs.goal) { settingGoal = true }
+                WeekCard(ledger: ledger, goal: prefs.goal)
                 MonthCard(ledger: ledger)
                 WeeksCard(stats: stats, weeks: $weeks)
                 SummaryTiles(ledger: ledger, stats: Array(shown), days: days, currency: prefs.currency)
@@ -48,6 +49,9 @@ private struct MonthlyProgressCard: View {
 
     /// As far back as the chart scrolls; the drinks themselves are only fetched for this window.
     private static let history = 120
+    /// Days across, pinchable between a week and the lot.
+    @State private var window = 35.0
+    @GestureState private var pinch = 1.0
 
     init(ledger: Ledger, goal: Goal, onSetGoal: @escaping () -> Void) {
         self.ledger = ledger
@@ -60,8 +64,10 @@ private struct MonthlyProgressCard: View {
         let calendar = ledger.clock.calendar
         let today = ledger.today
         // The whole history is drawn; the chart shows a month of it at a time and scrolls back through the rest.
-        let window = 35
-        let past = max(ledger.firstDay ?? today - 27, today - Self.history)...today
+        let history = max(ledger.firstDay ?? today - 27, today - Self.history)
+        // Never show more days than there are; a window wider than the data leaves it stranded at the left.
+        let days = min(Int((window / pinch).rounded()), history.distance(to: today + 15))
+        let past = history...today
         let drank = ledger.rollingDay(entries, over: past)
         let budgets = { (days: ClosedRange<DayKey>) in days.compactMap { day in ledger.dailyBudget(on: day, goal: goal).map { (day, $0) } } }
         let behind = goal.isEnabled ? budgets(past) : []
@@ -107,12 +113,19 @@ private struct MonthlyProgressCard: View {
             .chartYScale(domain: 0...top)
             .clipped()
             .chartXAxis {
-                AxisMarks(values: .stride(by: .day, count: 7)) { AxisGridLine(); AxisValueLabel(format: .dateTime.day().month(.abbreviated)) }
+                AxisMarks(values: .stride(by: .day, count: max(1, days / 5))) { AxisGridLine(); AxisValueLabel(format: .dateTime.day().month(.abbreviated)) }
             }
             .chartScrollableAxes(.horizontal)
-            .chartXVisibleDomain(length: Double(window) * 86_400)
-            .chartScrollPosition(initialX: (today - (window - 15)).date(in: calendar))
+            .chartXVisibleDomain(length: Double(days) * 86_400)
+            .chartScrollPosition(initialX: (today - (days - 4)).date(in: calendar))
             .frame(height: 220)
+            .gesture(
+                MagnifyGesture()
+                    .updating($pinch) { value, pinch, _ in pinch = min(5, max(0.2, value.magnification)) }
+                    .onEnded { value in
+                        window = min(Double(Self.history), max(7, (window / min(5, max(0.2, value.magnification))).rounded()))
+                    }
+            )
 
             HStack(spacing: 16) {
                 LegendKey(label: "Last 24h", color: .grog)
@@ -124,6 +137,95 @@ private struct MonthlyProgressCard: View {
             if !goal.isEnabled {
                 Button("Set a goal to see your budget come down", systemImage: "target", action: onSetGoal)
                     .font(.subheadline)
+            }
+        }
+    }
+}
+
+/// This week's running total against the last few weeks, with the week's budget as a dashed line.
+private struct WeekCard: View {
+    let ledger: Ledger
+    let goal: Goal
+    @Query<EntriesRequest> private var entries: [Entry]
+
+    init(ledger: Ledger, goal: Goal) {
+        self.ledger = ledger
+        self.goal = goal
+        let start = ledger.clock.weekStart(of: ledger.today)
+        _entries = Query(constant: EntriesRequest(days: (start - 21)...ledger.today))
+    }
+
+    var body: some View {
+        let clock = ledger.clock
+        let today = ledger.today
+        let start = clock.weekStart(of: today)
+        let current = ledger.weekCurve(entries, of: start, through: today)
+        let earlier = (1...3).map { ledger.weekCurve(entries, of: start - 7 * $0) }.filter { $0.count > 1 }
+        let budget = goal.isEnabled ? ledger.weekBudgetCurve(of: start, goal: goal) : []
+        let into = Double(start.distance(to: today)) + min(1, clock.hours(.now, into: today) / 24)
+        let lastWeek = earlier.first?.last { $0.hour <= into }?.units
+        let now = current.last?.units ?? 0
+
+        Card(title: "This week") {
+            HStack(alignment: .firstTextBaseline) {
+                Text(now.unitsText)
+                    .font(.system(size: 40, weight: .bold, design: .rounded))
+                Text("units").foregroundStyle(.secondary)
+                Spacer()
+                if let lastWeek, lastWeek > 0 {
+                    let change = (now - lastWeek) / lastWeek
+                    Label(change.formatted(.percent.precision(.fractionLength(0))), systemImage: change <= 0 ? "arrow.down.right" : "arrow.up.right")
+                        .font(.headline)
+                        .foregroundStyle(change <= 0 ? Color.dry : Color.over)
+                }
+            }
+            if let lastWeek {
+                Text("Last week by now: \(lastWeek.unitsText) u")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Chart {
+                ForEach(Array(earlier.enumerated()), id: \.offset) { index, week in
+                    ForEach(week) { point in
+                        LineMark(x: .value("Day", point.hour), y: .value("Units", point.units), series: .value("Week", "-\(index + 1)"))
+                            .foregroundStyle(Color.gray.opacity(0.5 - Double(index) * 0.12))
+                            .lineStyle(StrokeStyle(lineWidth: 1.5))
+                    }
+                }
+                ForEach(budget) { point in
+                    LineMark(x: .value("Day", point.hour), y: .value("Units", point.units), series: .value("Week", "budget"))
+                        .foregroundStyle(Color.dry)
+                        .lineStyle(StrokeStyle(lineWidth: 2, dash: [4, 4]))
+                }
+                ForEach(current) { point in
+                    AreaMark(x: .value("Day", point.hour), yStart: .value("Units", 0), yEnd: .value("Units", point.units))
+                        .foregroundStyle(LinearGradient(colors: [Color.grog.opacity(0.3), Color.grog.opacity(0.02)], startPoint: .top, endPoint: .bottom))
+                    LineMark(x: .value("Day", point.hour), y: .value("Units", point.units), series: .value("Week", "this"))
+                        .foregroundStyle(Color.grog)
+                        .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
+                }
+                if let last = current.last {
+                    PointMark(x: .value("Day", last.hour), y: .value("Units", last.units))
+                        .foregroundStyle(Color.grog)
+                        .symbolSize(80)
+                }
+            }
+            .chartXScale(domain: 0...7)
+            .chartXAxis {
+                AxisMarks(values: Array(0...6).map(Double.init)) { value in
+                    AxisGridLine()
+                    AxisValueLabel {
+                        Text((start + Int(value.as(Double.self) ?? 0)).date(in: clock.calendar).formatted(.dateTime.weekday(.abbreviated)))
+                    }
+                }
+            }
+            .frame(height: 200)
+
+            HStack(spacing: 16) {
+                LegendKey(label: "This week", color: .grog)
+                LegendKey(label: "Earlier weeks", color: .gray.opacity(0.5))
+                if !budget.isEmpty { LegendKey(label: "Budget", color: .dry, dashed: true) }
             }
         }
     }

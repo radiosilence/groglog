@@ -115,6 +115,32 @@ nonisolated struct Ledger {
         return start...(day - 1)
     }
 
+    /// Running units total through a week, stepping at each drink — x is days into the week.
+    func weekCurve(_ entries: [Entry], of start: DayKey, through: DayKey? = nil) -> [CurvePoint] {
+        let days = start...(start + 6)
+        let last = through ?? days.upperBound
+        var total = 0.0
+        var points = [CurvePoint(hour: 0, units: 0)]
+        for entry in entries.filter({ days.contains($0.dayKey) && $0.dayKey <= last }).sorted(by: { $0.timestamp < $1.timestamp }) {
+            total += entry.units
+            let into = Double(start.distance(to: entry.dayKey)) + min(1, max(0, clock.hours(entry.timestamp, into: entry.dayKey) / 24))
+            points.append(CurvePoint(hour: into, units: total))
+        }
+        return points
+    }
+
+    /// The week's budget as a running total, for comparing with `weekCurve`.
+    func weekBudgetCurve(of start: DayKey, goal: Goal) -> [CurvePoint] {
+        var total = 0.0
+        var points = [CurvePoint(hour: 0, units: 0)]
+        for index in 0..<7 {
+            guard let budget = dailyBudget(on: start + index, goal: goal) else { return points.count > 1 ? points : [] }
+            total += budget
+            points.append(CurvePoint(hour: Double(index + 1), units: total))
+        }
+        return points
+    }
+
     /// Running units total through a month, stepping at each drink — x is days into the month, so a heavy night
     /// shows as a steep climb rather than a single step.
     func monthCurve(_ entries: [Entry], of month: DayKey, through: DayKey? = nil) -> [CurvePoint] {
