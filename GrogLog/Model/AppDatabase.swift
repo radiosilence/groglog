@@ -105,6 +105,24 @@ nonisolated struct AppDatabase: Sendable {
                 t.add(column: "costOverride", .double)
             }
         }
+        // The catalogue prices a drink as it's adopted, so anything added before it had prices sat at £0.00 and
+        // logged as free ever after. Only prices still at zero are touched: one you set yourself stands, and
+        // entries already logged keep what they cost at the time, because that's the one figure that was true.
+        migrator.registerMigration("v3-prices-for-drinks-added-before-the-catalogue-had-them") { db in
+            for var drink in try Drink.filter(Column("price") == 0).fetchAll(db) {
+                guard let found = Catalog.price(name: drink.name, category: drink.category, vessel: drink.vessel, ml: drink.volumeMl) else { continue }
+                drink.price = found
+                try drink.update(db)
+            }
+            for var favourite in try Favourite.filter(Column("price") == 0).fetchAll(db) {
+                guard let drink = try Drink.fetchOne(db, key: favourite.drinkId) else { continue }
+                let found = Catalog.price(name: drink.name, category: drink.category, vessel: favourite.vessel, ml: favourite.volumeMl)
+                    ?? drink.price(forMl: favourite.volumeMl)
+                guard found > 0 else { continue }
+                favourite.price = found
+                try favourite.update(db)
+            }
+        }
         return migrator
     }
 }

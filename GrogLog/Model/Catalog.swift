@@ -5,7 +5,7 @@ import Foundation
 /// the bottle 4.7% — because a drink is one strength and rounding the difference away costs you a unit a night.
 /// Brands do quietly change strength (the 3.5% duty threshold has pulled a lot of lagers down to 3.4%), so
 /// anything logged from here becomes an editable drink of your own.
-struct CatalogBrand: Identifiable {
+nonisolated struct CatalogBrand: Identifiable {
     let name: String
     let category: DrinkCategory
     let abv: Double
@@ -20,7 +20,7 @@ struct CatalogBrand: Identifiable {
 }
 
 /// One brand in one of its usual sizes.
-struct CatalogItem: Identifiable, Hashable {
+nonisolated struct CatalogItem: Identifiable, Hashable {
     let name: String
     let category: DrinkCategory
     let vessel: Vessel
@@ -32,7 +32,7 @@ struct CatalogItem: Identifiable, Hashable {
     var units: Double { Units.of(ml: volumeMl, abv: abv) }
 }
 
-enum Catalog {
+nonisolated enum Catalog {
     private static let pint = ServeSize(.pint, 568)
     private static let half = ServeSize(.half, 284)
     private static let can250 = ServeSize(.can, 250)
@@ -352,6 +352,16 @@ enum Catalog {
 
     /// What a brand costs in a size it may not be listed in — its own price for that size, else the
     /// first serve scaled by volume, the same way a drink's own price scales.
+    /// What a drink of this name in this size normally costs: a brand's own price, else a generic's starting one.
+    /// Nil where nothing is known, so a caller can tell "we don't price this" from "this is free".
+    static func price(name: String, category: DrinkCategory, vessel: Vessel, ml: Double) -> Double? {
+        if let brand = brands.first(where: { $0.name == name && $0.category == category }) {
+            let found = price(brand, vessel, ml)
+            return found > 0 ? found : nil
+        }
+        return Seed.price(name: name, vessel: vessel, ml: ml)
+    }
+
     static func price(_ brand: CatalogBrand, _ vessel: Vessel, _ ml: Double) -> Double {
         if let exact = brand.serves.first(where: { $0.size.vessel == vessel && $0.size.ml == ml }) { return exact.price }
         guard let first = brand.serves.first else { return 0 }

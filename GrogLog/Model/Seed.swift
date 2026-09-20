@@ -19,6 +19,11 @@ nonisolated enum Seed {
         ("Port or sherry", .fortified, [(.wineGlass, 50, 5.50)]),
     ]
 
+    /// What a generic serve starts at, for repairing a database seeded before the generics carried prices.
+    static func price(name: String, vessel: Vessel, ml: Double) -> Double? {
+        generics.first { $0.name == name }?.serves.first { $0.0 == vessel && $0.1 == ml }?.2
+    }
+
     /// Generic drinks and their starting Log-grid tiles, on a fresh install.
     static func drinksIfNeeded(_ logbook: Logbook) throws {
         try logbook.writer.write { db in

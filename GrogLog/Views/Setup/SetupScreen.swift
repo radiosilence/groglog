@@ -9,6 +9,8 @@ struct SetupScreen: View {
     @AppStorage("demoMode") private var demoMode = false
     @State private var importResult: String?
     @State private var settingGoal = false
+    @State private var resettingPrices = false
+    @State private var pricesReset: Int?
 
     var body: some View {
         @Bindable var prefs = prefs
@@ -28,6 +30,7 @@ struct SetupScreen: View {
 
             Section {
                 NavigationLink("Drinks") { DrinksScreen() }
+                Button("Reset prices to the catalogue", systemImage: "sterlingsign.arrow.trianglehead.counterclockwise.rotate.90") { resettingPrices = true }
                 Picker("Day ends at", selection: $prefs.rolloverHour) {
                     ForEach(0..<9) { Text(ledger.clock.hourLabel(Double($0 - prefs.rolloverHour))).tag($0) }
                 }
@@ -84,6 +87,16 @@ struct SetupScreen: View {
         }
         .navigationTitle("Setup")
         .sheet(isPresented: $settingGoal) { GoalSheet(goal: prefs.goal) }
+        .confirmationDialog("Reset prices to the catalogue?", isPresented: $resettingPrices, titleVisibility: .visible) {
+            Button("Reset prices", role: .destructive) { pricesReset = database.logbook(prefs).resetPrices() }
+        } message: {
+            Text("Every drink and Log tile goes back to what the catalogue charges, losing any price you set yourself. Drinks already logged keep what they cost at the time.")
+        }
+        .alert("Prices reset", isPresented: Binding(get: { pricesReset != nil }, set: { if !$0 { pricesReset = nil } })) {
+            Button("OK") { pricesReset = nil }
+        } message: {
+            Text(pricesReset == 0 ? "Everything already matched the catalogue." : "^[\(pricesReset ?? 0) price](inflect: true) changed.")
+        }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { result in
             do {
                 let url = try result.get()

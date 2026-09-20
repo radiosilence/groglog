@@ -121,6 +121,32 @@ nonisolated struct Logbook: Sendable {
         write { db in _ = try favourite.delete(db) }
     }
 
+    /// Puts every drink and Log tile back to what the catalogue charges, for prices that drifted or were never
+    /// set. Drinks it doesn't price are left as they are, and entries already logged keep what they cost at the
+    /// time — that figure was true when it was written, whatever the shelf says now. Returns how many moved.
+    @discardableResult
+    func resetPrices() -> Int {
+        write { db in
+            var changed = 0
+            for var drink in try Drink.fetchAll(db) {
+                guard let price = Catalog.price(name: drink.name, category: drink.category, vessel: drink.vessel, ml: drink.volumeMl),
+                      price != drink.price else { continue }
+                drink.price = price
+                try drink.update(db)
+                changed += 1
+            }
+            for var favourite in try Favourite.fetchAll(db) {
+                guard let drink = try Drink.fetchOne(db, key: favourite.drinkId),
+                      let price = Catalog.price(name: drink.name, category: drink.category, vessel: favourite.vessel, ml: favourite.volumeMl),
+                      price != favourite.price else { continue }
+                favourite.price = price
+                try favourite.update(db)
+                changed += 1
+            }
+            return changed
+        } ?? 0
+    }
+
     // MARK: Rebuilding
 
     /// Recomputes every day from scratch — after an import, or when the hour days end at changes (which moves
