@@ -27,6 +27,7 @@ struct GrogLogApp: App {
 
 struct RootView: View {
     @Environment(Prefs.self) private var prefs
+    @Environment(\.databaseContext) private var database
     @Environment(\.scenePhase) private var scenePhase
     /// Opens on Log; `-tab <name>` picks another, for screenshots.
     @State private var tab = UserDefaults.standard.string(forKey: "tab") ?? "log"
@@ -50,8 +51,15 @@ struct RootView: View {
                 NavigationStack { LedgerReader { SetupScreen(ledger: $0) } }
             }
         }
-        // Reading scenePhase re-evaluates `today` when the app comes back the next morning.
-        .onChange(of: scenePhase) {}
+        // Reading scenePhase re-evaluates `today` when the app comes back the next morning, and picks up anything
+        // the widget logged while we were away: observations only see writes made through this process, and a
+        // widget is another one. A widget can only be tapped with the app in the background, so coming back is the
+        // moment to ask. The database is told its region changed rather than written to — there's nothing to write,
+        // the drink is already there; the screens just don't know yet.
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active, let writer = try? database.writer else { return }
+            try? writer.write { try $0.notifyChanges(in: .fullDatabase) }
+        }
         // The Lock Screen widget: two taps from a locked phone to a logged drink.
         .onOpenURL { if $0.host() == "log" { tab = "log" } }
     }
