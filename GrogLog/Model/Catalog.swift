@@ -724,9 +724,9 @@ nonisolated enum Catalog {
         ("Planter's Punch", .cocktail, 13.8, [(.init(.tumbler, 130), 10)]),
         ("Porto Flip", .cocktail, 18.8, [(.init(.coupe, 80), 10)]),
         ("Ramos Gin Fizz", .cocktail, 6.0, [(.init(.tumbler, 300), 10)]),
-        ("Remember the Maine", .cocktail, 30.6, [(.init(.coupe, 115), 10)]),
+        ("Remember the Maine", .cocktail, 31.2, [(.init(.coupe, 117), 10)]),
         ("Rusty Nail", .cocktail, 32.9, [(.init(.tumbler, 85), 10)]),
-        ("Sazerac", .cocktail, 31.8, [(.init(.tumbler, 65), 10)]),
+        ("Sazerac", .cocktail, 32.9, [(.init(.tumbler, 67), 10)]),
         ("Sidecar", .cocktail, 26.0, [(.init(.coupe, 100), 10)]),
         ("Stinger", .cocktail, 31.0, [(.init(.coupe, 80), 10)]),
         ("Tuxedo", .cocktail, 25.3, [(.init(.coupe, 80), 10)]),
@@ -764,6 +764,9 @@ nonisolated enum Catalog {
         ("Tommy's Margarita", .cocktail, 17.1, [(.init(.tumbler, 140), 10)]),
         ("Trinidad Sour", .cocktail, 19.9, [(.init(.coupe, 135), 10)]),
         ("Ve.N.To", .cocktail, 15.0, [(.init(.tumbler, 120), 10)]),
+        // An absinthe rinse is poured out, but it isn't gone: about 2 ml of 68% clings to the glass, which
+        // the Sazerac and Remember the Maine are counted with. The rest of the pour isn't, because it's in
+        // the sink. Nothing else here is rinsed — a French 75 and a Dry Martini have no absinthe in them.
         // The IBA's own specs, with the strength worked out from the measures rather than guessed:
         // alcohol in the glass over the liquid in the glass, ice melt included. That's why a Zombie
         // is five units in a tumbler and a Bellini is under one in a flute. Glass volumes are a
