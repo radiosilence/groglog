@@ -75,14 +75,18 @@ private struct ProgressCard: View {
         // What was drunk is a bar over its own day, not a line through it — a day's drinking is a
         // quantity, and a mean of the days around it reads 25 on a day you drank 16. Each bar takes
         // its heat against that day's own budget, so it reads as the same colour as its calendar tile.
+        // A bar spans its own day, inset either side for the gap. Today's stops at this moment instead,
+        // so the "now" rule is its right edge rather than a line through the middle of it: the bar covers
+        // the part of the day that's happened, which is the part the units are from.
         let sofar = ledger.totals(on: today).units
-        let drank = past.compactMap { day -> (date: Date, units: Double, partial: Bool, heat: Color)? in
-            let noon = day.date(in: calendar).addingTimeInterval(12 * 3600)
+        let gap = 0.08 * 86_400.0
+        let drank = past.compactMap { day -> (date: Date, until: Date, units: Double, partial: Bool, heat: Color)? in
+            let start = ledger.clock.start(of: day)
             let heat = { Color.heat(units: $0, budget: ledger.dailyBudget(on: day, goal: goal)) }
-            if day == today { return (noon, sofar, true, heat(sofar)) }
+            if day == today { return (start + gap, max(now, start + 2 * gap), sofar, true, heat(sofar)) }
             guard ledger.isLogged(day) else { return nil }
             let units = ledger.totals(on: day).units
-            return (noon, units, false, heat(units))
+            return (start + gap, start + 86_400 - gap, units, false, heat(units))
         }
         // The budget as it stands each day, unsmoothed: a scheduled taper is already a smooth curve, and
         // running a trailing mean over it only lifted the whole line and flattened its first few days,
@@ -111,7 +115,8 @@ private struct ProgressCard: View {
             Chart {
                 // Today's bar is faded: the day isn't over, so the bar isn't its final height.
                 ForEach(drank, id: \.date) { point in
-                    BarMark(x: .value("When", point.date, unit: .day), y: .value("Units", point.units))
+                    BarMark(xStart: .value("From", point.date), xEnd: .value("To", point.until),
+                            y: .value("Units", point.units))
                         .foregroundStyle(point.heat.opacity(point.partial ? 0.45 : 1))
                         .cornerRadius(3)
                 }
