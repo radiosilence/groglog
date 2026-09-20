@@ -36,9 +36,6 @@ struct TodayEntry: TimelineEntry {
     /// Tiles to log from, in the Log grid's order.
     var tiles: [ServeEntity] = []
 
-    /// What the ring fills against when there's no goal: the weekly guideline spread over the week.
-    var limit: Double { budget ?? Units.weeklyGuideline / 7 }
-
     /// The budget draining through the day. Once it's gone the line sits at zero rather than going negative,
     /// because "how far under" stops being the question.
     var burndown: [CurvePoint] {
@@ -92,12 +89,21 @@ struct TodayView: View {
     var body: some View {
         switch family {
         case .accessoryCircular:
-            Gauge(value: min(entry.units, entry.limit), in: 0...entry.limit) {
-                Image(systemName: "mug.fill")
-            } currentValueLabel: {
-                Text(entry.units.unitsText)
+            // The ring means "against your budget", so with no goal there's nothing for it to fill and it says so
+            // by not being there. Clamping to the guideline instead pinned it full all evening, which reads as broken.
+            if let budget = entry.budget, budget > 0 {
+                Gauge(value: min(entry.units, budget), in: 0...budget) {
+                    Text("u")
+                } currentValueLabel: {
+                    Text(entry.units.unitsText)
+                }
+                .gaugeStyle(.accessoryCircularCapacity)
+            } else {
+                VStack(spacing: -2) {
+                    Text(entry.units.unitsText).font(.title2.bold())
+                    Text("units").font(.caption2)
+                }
             }
-            .gaugeStyle(.accessoryCircular)
         case .accessoryInline:
             Label(inline, systemImage: entry.isDry ? "checkmark.circle" : "mug.fill")
         default:
@@ -146,7 +152,7 @@ struct LogView: View {
         HStack(spacing: 10) {
             summary
             if family == .systemMedium, !entry.tiles.isEmpty {
-                tiles.frame(width: 150)
+                tiles.frame(width: 168)
             }
         }
     }
@@ -154,7 +160,11 @@ struct LogView: View {
     private var summary: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("\(entry.units.unitsText) u").font(.title2.bold())
-            Text(detail).font(.caption2).foregroundStyle(.secondary)
+            Text(detail)
+                .font(.caption2)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .foregroundStyle(.secondary)
             Burndown(entry: entry).padding(.top, 6)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -184,10 +194,22 @@ private struct Tile: View {
 
     var body: some View {
         Button(intent: LogDrinkIntent(serve: serve)) {
-            VStack(spacing: 0) {
-                Text(serve.name).font(.caption2.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.8)
-                Text("\(serve.units.unitsText) u").font(.caption2).foregroundStyle(.secondary)
+            VStack(spacing: 1) {
+                // Two lines and a scale floor: the catalogue is full of "Fuller's London Pride (bottle)", and a
+                // name clipped mid-word tells you less than a small one.
+                Text(serve.name)
+                    .font(.caption2.weight(.semibold))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+                    .multilineTextAlignment(.center)
+                // The size is half of what's about to be logged — a can and a bottle of the same beer differ by a unit.
+                Text("\(serve.shortSize) · \(serve.units.unitsText) u")
+                    .font(.system(size: 9))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .foregroundStyle(.secondary)
             }
+            .padding(.horizontal, 3)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(.quaternary, in: .rect(cornerRadius: 10))
         }

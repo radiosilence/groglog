@@ -165,6 +165,19 @@ nonisolated enum Vessel: String, CaseIterable, Codable, Identifiable {
         }
     }
 
+    /// For somewhere with no room for "440 ml can": the vessel is the picture's job, the size is the words'.
+    func shortLabel(ml: Double) -> String {
+        switch self {
+        case .pint: "Pint"
+        case .half: "Half"
+        case .flute: "Glass"
+        case .wineBottle where ml >= 700: "Bottle"
+        case .shot where ml <= 35: "Single"
+        case .tumbler where ml == 50: "Double"
+        default: "\(Int(ml)) ml"
+        }
+    }
+
     var volumes: [Double] {
         switch self {
         case .pint: [568]
