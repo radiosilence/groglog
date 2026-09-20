@@ -200,6 +200,30 @@ nonisolated enum Catalog {
         ("Brixton Coldharbour Lager", .beer, 4.4, [(can330, 1.18)]),
         ("Anspach & Hobday The London Black", .beer, 4.4, [(can440, 4.6)]),
         ("Anspach & Hobday Table Beer", .beer, 2.7, [(can440, 2.95)]),
+        ("Anspach & Hobday The IPA", .beer, 6.0, [(can440, 4.05)]),
+        ("Anspach & Hobday Bermondsey Pale Ale", .beer, 3.4, [(can440, 3.35)]),
+        ("Anspach & Hobday Ansbacher Lager", .beer, 5.0, [(can440, 3.45)]),
+        // The Kernel brew to a style, not to a number: the hop changes batch to batch and the strength
+        // with it, so these are the current figure rather than a fixed one. Edit yours to what the can says.
+        ("Kernel Table Beer", .beer, 3.0, [(can330, 3.25)]),
+        ("Kernel Pale Ale", .beer, 5.3, [(can330, 3.75)]),
+        ("Kernel India Pale Ale", .beer, 7.0, [(can330, 4.5)]),
+        ("Kernel Dry Stout", .stout, 4.7, [(can330, 3.65)]),
+        ("Kernel Export Stout", .stout, 7.5, [(can330, 4.7)]),
+        ("Kernel Bière de Saison", .beer, 4.9, [(can330, 4.8)]),
+        ("Drop Project Shifty", .beer, 5.2, [(can440, 4)]),
+        ("Drop Project Glisten", .beer, 5.8, [(can440, 3.85)]),
+        ("Drop Project Savage", .beer, 4.8, [(can440, 3.4)]),
+        ("Drop Project Choppy", .stout, 4.8, [(can440, 3.4)]),
+        ("Drop Project Strike", .beer, 4.2, [(can440, 3.5)]),
+        // Partizan is still brewed, but in Leicestershire — the Bermondsey company went into liquidation
+        // and the brand went with its founder to Langton.
+        ("Partizan Pale Ale", .beer, 4.5, [(can330, 2.85)]),
+        // Small Beer brew deliberately weak, which is the point of them and not a mistake in the numbers.
+        ("Small Beer Lager", .beer, 2.1, [(can330, 2.5)]),
+        ("Small Beer IPA", .beer, 2.3, [(can330, 2.5)]),
+        ("Small Beer Pale", .beer, 2.5, [(can330, 2.5)]),
+        ("Small Beer Hazy", .beer, 2.6, [(can330, 2.5)]),
         ("Five Points Pale", .beer, 4.4, [(pint, 4)]),
         ("Five Points XPA", .beer, 4.0, [(can330, 2.99)]),
         ("Five Points Railway Porter", .beer, 4.8, [(can330, 2.95)]),
