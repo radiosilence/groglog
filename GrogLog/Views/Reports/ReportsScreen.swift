@@ -74,18 +74,17 @@ private struct ProgressCard: View {
         let past = start...today
         // A day sits over its own column; today sits at this moment, so its marks land on the "now" rule.
         let now = Date.now
-        let elapsed = min(1, max(0.05, ledger.clock.hours(now, into: today) / 24))
         let at = { (day: DayKey) in day == today ? now : day.date(in: calendar).addingTimeInterval(12 * 3600) }
+        // Today is what's logged so far, not a mean including yesterday — the line runs into the dot marking it.
         let sofar = ledger.totals(on: today).units
-        let drank = past.compactMap { day in
-            average(to: day, dayWeight: { $0 == today ? elapsed : 1 }) { ledger.isLogged($0) || $0 == today ? ledger.totals(on: $0).units : nil }
-                .map { (date: at(day), units: $0) }
+        let drank = past.compactMap { day -> (date: Date, units: Double)? in
+            if day == today { return (at(day), sofar) }
+            return average(to: day) { ledger.isLogged($0) ? ledger.totals(on: $0).units : nil }.map { (at(day), $0) }
         }
         // Each day's budget worked out once, not once per window it's averaged into — this runs every frame of a pinch.
         let daily = Dictionary(uniqueKeysWithValues: ((start - smoothing)...(today + 14)).compactMap { day in
             ledger.dailyBudget(on: day, goal: goal).map { (day, $0) }
         })
-        // Budgets are already daily rates, so a part-finished today counts whole.
         let budgets = { (days: ClosedRange<DayKey>) in days.compactMap { day in self.average(to: day) { daily[$0] }.map { (at(day), $0) } } }
         let behind = budgets(past)
         let ahead = budgets(today...(today + 14))
@@ -165,17 +164,9 @@ private struct ProgressCard: View {
     }
 
     /// Mean of `value` over the days it's known for, in the window ending `day` — the trend rather than the noise.
-    /// `dayWeight` is how much of a day each one counts as, so a today six hours old doesn't drag the line down to a
-    /// fraction of yesterday: the units logged so far are divided by the days elapsed so far.
-    private func average(to day: DayKey, dayWeight: (DayKey) -> Double = { _ in 1 }, _ value: (DayKey) -> Double?) -> Double? {
-        var total = 0.0
-        var weight = 0.0
-        for day in (day - smoothing + 1)...day {
-            guard let value = value(day) else { continue }
-            total += value
-            weight += dayWeight(day)
-        }
-        return weight > 0 ? total / weight : nil
+    private func average(to day: DayKey, _ value: (DayKey) -> Double?) -> Double? {
+        let values = ((day - smoothing + 1)...day).compactMap(value)
+        return values.isEmpty ? nil : values.reduce(0, +) / Double(values.count)
     }
 }
 
