@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- South London gets its breweries: Gipsy Hill's core and current seasonals, Brockley's four, and Deya's core range from Cheltenham. Two things worth knowing rather than guessing at. Gipsy Hill's Trail is a full-strength 4% pale despite the eco-branding — HepcAF is the alcohol-free one, and it isn't here, because a 0.5% can logged as a beer is units you didn't drink. And Brockley has shrunk: brewing left Harcourt Road in 2024 and their shop is down to Pale Ale, Lager, Session IPA and Hilly Fields, so the porter and the bitter aren't here either. Bandit is 3.4% on the brewery's page and 3.8% at two shops; it's in at 3.4%, the duty band breweries brew down to on purpose.
+
 - The Day screen's week-average line is rolled flat over three hours. It's the mean of seven running totals, so every drink in the whole week put a seventh-of-a-drink step in it and it read as a staircase — but the line is there to say where a usual day has you by now, not which nights had a round at nine. Smoothing a running total is only safe if it still only rises and still ends on the week's mean, so it holds its ends by repeating the first and last sample, and a test says so.
 
 - The progress bars take their colour from the same scale the calendar tiles do — teal inside that day's budget, amber just over, sliding to red the further past it goes — so a day is the same colour wherever you meet it. The legend's swatch carries the whole scale rather than claiming one colour.

@@ -167,7 +167,17 @@ nonisolated enum Catalog {
         ("BrewDog Hazy Jane", .beer, 5.0, [(pint, 7.05), (can330, 1.99)]),
         ("BrewDog Lost Lager", .beer, 4.5, [(pint, 6.9), (can440, 1.75)]),
         ("BrewDog Elvis Juice", .beer, 6.5, [(pint, 7.5), (can330, 2.19)]),
+        // Gipsy Hill. Bandit is 3.4% on the brewery's own page and 3.8% at two shops; 3.4% is the duty
+        // band breweries deliberately brew down to, so it's the likelier current recipe. HepcAF is the
+        // alcohol-free one and isn't here — Trail, despite the eco-branding, is a full-strength pale.
         ("Gipsy Hill Hepcat", .beer, 4.6, [(pint, 6.9), (can330, 2.95)]),
+        ("Gipsy Hill Swell", .beer, 4.0, [(can330, 2.65)]),
+        ("Gipsy Hill Bandit", .beer, 3.4, [(can330, 2.8)]),
+        ("Gipsy Hill Trail", .beer, 4.0, [(can330, 2.7)]),
+        ("Gipsy Hill Apogee", .stout, 4.0, [(can440, 4)]),
+        ("Gipsy Hill Freewheeler", .beer, 6.0, [(can440, 4.5)]),
+        ("Gipsy Hill Quaint Towns", .beer, 6.8, [(can440, 4.65)]),
+        ("Gipsy Hill Waidmanns", .beer, 5.8, [(can440, 4)]),
         ("Thornbridge Jaipur", .beer, 5.9, [(pint, 7), (can330, 2.25)]),
         ("Lagunitas IPA", .beer, 6.2, [(pint, 7), (bottle355, 1.28)]),
         ("Brooklyn Lager", .beer, 5.2, [(pint, 6.9), (can330, 1.8)]),
@@ -200,7 +210,18 @@ nonisolated enum Catalog {
         ("Pressure Drop Pale Fire", .beer, 4.8, [(can440, 3.85)]),
         ("Howling Hops Tropical Deluxe", .beer, 3.8, [(pint, 5.9), (can440, 3.2)]),
         ("Howling Hops Barley Pop", .beer, 4.4, [(can440, 3.1)]),
+        // Deya's core range, at what the brewery itself charges. A shop wants half as much again.
         ("Deya Steady Rolling Man", .beer, 5.2, [(half, 3), (can500, 4.5)]),
+        ("Deya Into The Haze", .beer, 6.2, [(can500, 5.5)]),
+        ("Deya Boost", .beer, 4.0, [(can500, 4.2)]),
+        ("Deya Magazine Cover", .beer, 4.2, [(can500, 4.2)]),
+        ("Deya Tappy Pils", .beer, 4.4, [(can500, 3.8)]),
+        // Brockley, whose shop is down to four beers since brewing moved off Harcourt Road in 2024 —
+        // the porter, the bitter and the rest are off it. Sold in sixes, so the can is the pack's rate.
+        ("Brockley Pale Ale", .beer, 4.1, [(can330, 2.67)]),
+        ("Brockley Lager", .beer, 4.1, [(can330, 2.67)]),
+        ("Brockley Session IPA", .beer, 4.4, [(can330, 2.67)]),
+        ("Brockley Hilly Fields IPA", .beer, 5.7, [(can330, 3)]),
         ("Cloudwater DDH Pale", .beer, 5.0, [(can440, 4.75)]),
         ("Northern Monk Faith", .beer, 5.0, [(can440, 3)]),
         ("Track Sonoma", .beer, 3.8, [(can440, 4)]),
