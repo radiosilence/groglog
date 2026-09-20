@@ -271,6 +271,9 @@ private struct DaySummaryBar: View {
         let totals = ledger.totals(on: day)
         let status = ledger.status(on: day)
 
+        // The icon-only Undo brings its own 44pt target; the text buttons need the inset themselves.
+        let trailingInset: CGFloat = status == .drank ? 6 : 18
+
         HStack {
             switch status {
             case .drank:
@@ -299,8 +302,9 @@ private struct DaySummaryBar: View {
         .font(.subheadline.monospacedDigit())
         .contentTransition(.numericText())
         .animation(.snappy, value: totals.units)
+        .frame(minHeight: 44)
         .padding(.leading, 18)
-        .padding(.trailing, 6)
+        .padding(.trailing, trailingInset)
         .padding(.vertical, 6)
         .glassEffect(.regular, in: .capsule)
         .contentShape(.capsule)
