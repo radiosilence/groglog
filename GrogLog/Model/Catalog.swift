@@ -15,6 +15,9 @@ nonisolated struct CatalogBrand: Identifiable {
     /// barely published, so a brand with no menu of its own takes its tier's price. And mainstream
     /// lager and cider don't sell as single cans here at all, only multipacks, so those carry the
     /// multipack's unit rate — roughly half what one can costs, where anyone sells you one.
+    /// Craft therefore splits two ways, and it looks wrong until you know why: the breweries a
+    /// supermarket stocks carry the four-pack rate, and the ones only a bottle shop sells carry what
+    /// it charges for one. A Camden Hells really is a third of a Verdant, because of where you buy it.
     let serves: [(size: ServeSize, price: Double)]
     var id: String { name }
 }
