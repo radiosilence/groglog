@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- A Home Screen widget whose tiles log a drink without opening anything — your usuals in the Log grid's own order — beside today's units, what's left of the budget and the budget draining through the day. The medium size carries four tiles; the small one is the day alone. The day's line stops at now rather than running flat to midnight, which would read as an evening that went well before it had happened.
 - Drinks and calories can be copied into Apple Health as they're logged, converted to the standard drinks Health counts — 17.7 ml of alcohol against a UK unit's 10, so handing over units would have overstated every reading by three quarters. A changed day is rewritten whole rather than patched, so an edit, an undo or a corrected strength moves with it; turning it off takes GrogLog's entries back out.
 - A Lock Screen widget: today's units against the day's budget, and a tap that lands on the Log grid — two taps to a logged drink from a locked phone. Circular, rectangular and inline. The log moves into the app group to get there, since a widget is a separate process; an existing log is carried across on first launch.
 - Logging is an App Intent, so Shortcuts and the Action Button — and a widget button next — write through the same `Logbook` transaction a tap on the grid does. Marking today alcohol-free is one too, and refuses on a day that already has drinks rather than leaving a mark that the next retotal would clear.

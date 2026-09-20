@@ -25,6 +25,8 @@ Written because Drinkaware's Drink Coach is low-friction but slow, allows one dr
 | Reports | Weekly and monthly progress (smoothed daily units against the budget, with the fortnight ahead — scroll and pinch), this week and this month against earlier ones, weekly bars, streaks, spend. |
 | Setup | Goal, drinks, day end, currency, export/import. |
 
+Two widgets, both reading the same log: a Lock Screen accessory showing today against the budget that opens onto Log, and a Home Screen one whose tiles log a drink where they stand.
+
 ## Data
 
 SQLite via [GRDB](https://github.com/groue/GRDB.swift), built to stay instant after years of heavy use:

@@ -50,6 +50,11 @@ struct LogDrinkIntent: AppIntent {
 
     init() {}
 
+    /// What a widget's tile is: this drink, logged now.
+    init(serve: ServeEntity) {
+        self.serve = serve
+    }
+
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let logbook = await Store.logbook
         guard let pour = try await logbook.writer.read({ try Serve.matching(serve.id, $0) }) else { throw DrinkGone() }
