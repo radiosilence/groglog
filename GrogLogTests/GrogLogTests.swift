@@ -385,3 +385,29 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(Catalog.search("  ").isEmpty)
     }
 }
+
+/// The `pour` table is the only one that grows without bound — a row per drink, forever. Everything else is
+/// a few hundred rows at most, where a scan costs nothing and an index would only slow the writes. So this
+/// checks the two that matter are there, and that SQLite actually reaches for them.
+@Suite struct IndexTests {
+    private func database() throws -> AppDatabase { try AppDatabase.inMemory() }
+
+    @Test func pourIsIndexedOnTheColumnsItIsQueriedBy() throws {
+        let indexed = try database().writer.read { db in
+            try db.indexes(on: "pour").flatMap(\.columns)
+        }
+        #expect(indexed.contains("day"))
+        #expect(indexed.contains("drinkId"))
+    }
+
+    @Test func theDayRangeAndTheDrinkLookupBothUseAnIndex() throws {
+        let plans = try database().writer.read { db -> [String] in
+            try [Row.fetchAll(db, sql: "EXPLAIN QUERY PLAN SELECT * FROM pour WHERE day BETWEEN 1 AND 7"),
+                 Row.fetchAll(db, sql: "EXPLAIN QUERY PLAN SELECT COUNT(*) FROM pour WHERE drinkId = x'00'")]
+                .map { $0.map { $0["detail"] as String? ?? "" }.joined(separator: " ") }
+        }
+        // "USING COVERING INDEX" counts — it's the better plan, not a different one.
+        #expect(plans.allSatisfy { $0.contains("SEARCH pour USING") }, "\(plans)")
+        #expect(!plans.contains { $0.contains("SCAN pour") }, "\(plans)")
+    }
+}
