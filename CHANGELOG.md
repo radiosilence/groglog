@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The Day screen's week-average line is rolled flat over three hours. It's the mean of seven running totals, so every drink in the whole week put a seventh-of-a-drink step in it and it read as a staircase — but the line is there to say where a usual day has you by now, not which nights had a round at nine. Smoothing a running total is only safe if it still only rises and still ends on the week's mean, so it holds its ends by repeating the first and last sample, and a test says so.
+
 - The progress bars take their colour from the same scale the calendar tiles do — teal inside that day's budget, amber just over, sliding to red the further past it goes — so a day is the same colour wherever you meet it. The legend's swatch carries the whole scale rather than claiming one colour.
 
 - The budget line is smooth again on a scheduled taper. It was still being run through the trailing mean that used to match the drink line's smoothing, which did two things to it: lifted the whole line by about a day's worth of the cut, and flattened its first few days, where the window had fewer days to average and every missing one biased the mean upward. A scheduled taper is an exponential and was smooth before the chart touched it. A dynamic taper still steps, because it follows what you actually drank and that steps.

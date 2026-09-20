@@ -239,6 +239,27 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(points.map(\.x) == [0, 15, 20, 24])
         #expect(abs(points.last!.units - 2 * Units.of(ml: 568, abv: 5)) < 0.001)
     }
+
+    /// The week line is rolled flat over three hours, which must not cost it the two things that make it a
+    /// running total: it only ever rises, and it ends on the week's mean.
+    @Test func theWeekAverageIsSmoothedButStillARunningTotal() {
+        let day = DayKey(year: 2026, month: 9, day: 20)
+        let week = (day - 7)...(day - 1)
+        let drink = beer()
+        // A pint on two of the seven days, hours apart, so an unsmoothed mean would step twice. The other
+        // five are alcohol-free, so all seven count and the mean lands on two pints across seven days.
+        let drinking = [DayKey(year: 2026, month: 9, day: 14), DayKey(year: 2026, month: 9, day: 18)]
+        let entries = zip(drinking, [date(2026, 9, 14, 19), date(2026, 9, 18, 22)]).map { when, at in
+            Entry(pour: Pour(drinkId: drink.id, timestamp: at, day: when.number, vessel: .pint, volumeMl: 568, price: 5), drink: drink)
+        }
+        let wet = Set(drinking.map(\.number))
+        let rows = week.map { Day(number: $0.number, isAlcoholFree: !wet.contains($0.number), count: wet.contains($0.number) ? 1 : 0) }
+        let points = Ledger(days: rows, clock: clock).averageCumulative(entries, over: week)
+        #expect(!points.isEmpty)
+        #expect(zip(points, points.dropFirst()).allSatisfy { $0.units <= $1.units + 0.000_1 })
+        #expect(abs(points.last!.units - 2 * Units.of(ml: 568, abv: 5) / 7) < 0.001)
+        #expect(points.first!.units == 0)
+    }
 }
 
 @Suite struct ReferenceTests {

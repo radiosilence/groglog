@@ -215,7 +215,11 @@ nonisolated struct Ledger {
         return points
     }
 
-    /// Mean running total across the logged days in `range`. Unlogged days are left out rather than counted as zero.
+    /// Mean running total across the logged days in `range`, smoothed over three hours. Unlogged days are left
+    /// out rather than counted as zero. The mean of seven step functions is a staircase of seventh-of-a-drink
+    /// steps, and this line is meant to say where a usual day has you by now, not which nights had a round at
+    /// nine — so it's rolled flat. A moving average of a rising series still only rises, and the ends are held
+    /// by repeating the first and last sample, so the curve still starts at nothing and finishes on the total.
     func averageCumulative(_ pours: [Entry], over range: ClosedRange<DayKey>, from: Double = 0) -> [CurvePoint] {
         let logged = range.filter(isLogged)
         guard !logged.isEmpty else { return [] }
@@ -225,12 +229,19 @@ nonisolated struct Ledger {
             .sorted { $0.hour < $1.hour }
         var total = 0.0
         var index = 0
-        return stride(from: from, through: 24, by: 0.25).map { hour in
+        let raw = stride(from: from, through: 24, by: 0.25).map { hour -> CurvePoint in
             while index < timed.count, timed[index].hour <= hour {
                 total += timed[index].units
                 index += 1
             }
             return CurvePoint(x: hour, units: total / Double(logged.count))
+        }
+        // Six quarter-hours either side.
+        let span = 6
+        let units = { (i: Int) in raw[min(max(i, 0), raw.count - 1)].units }
+        return raw.indices.map { i in
+            let window = (i - span)...(i + span)
+            return CurvePoint(x: raw[i].x, units: window.map(units).reduce(0, +) / Double(window.count))
         }
     }
 }
