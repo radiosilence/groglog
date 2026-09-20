@@ -55,6 +55,7 @@ enum Catalog {
     private static let glass175 = ServeSize(.wineGlass, 175)
     private static let glass250 = ServeSize(.wineGlass, 250)
     private static let flute = ServeSize(.flute, 125)
+    private static let halfBottle = ServeSize(.wineBottle, 350)
     private static let wineBottle = ServeSize(.wineBottle, 750)
     private static let single = ServeSize(.shot, 25)
     private static let single35 = ServeSize(.shot, 35)
@@ -87,7 +88,7 @@ enum Catalog {
         ("Beck's", .beer, 4.0, [(bottle330, 0.81), (can440, 0.81)]),
         ("Grolsch", .beer, 3.4, [(pint, 6.2), (can440, 1.13)]),
         ("Pravha", .beer, 4.0, [(pint, 6), (bottle660, 2.85)]),
-        ("Staropramen", .beer, 5.0, [(pint, 6.2), (can440, 1.25), (bottle330, 1.95)]),
+        ("Staropramen", .beer, 5.0, [(pint, 6.2), (can440, 1.25), (bottle330, 1.75)]),
         // Imports
         ("Peroni Nastro Azzurro", .beer, 5.0, [(pint, 7.2), (bottle330, 1.5), (bottle620, 2.88)]),
         ("Birra Moretti", .beer, 4.6, [(pint, 7), (bottle330, 1), (can440, 1)]),
@@ -101,12 +102,12 @@ enum Catalog {
         ("Asahi Super Dry", .beer, 5.0, [(pint, 7.4), (bottle330, 1.63)]),
         ("Corona", .beer, 4.5, [(bottle330, 1.08)]),
         ("Sol", .beer, 4.2, [(bottle330, 0.67)]),
-        ("Modelo Especial", .beer, 4.5, [(bottle330, 2.2)]),
-        ("Desperados", .beer, 5.9, [(bottle330, 2.2)]),
-        ("Cobra", .beer, 4.5, [(pint, 7), (bottle330, 2.2), (bottle620, 2.77)]),
+        ("Modelo Especial", .beer, 4.5, [(bottle330, 1.75)]),
+        ("Desperados", .beer, 5.9, [(bottle330, 1.75)]),
+        ("Cobra", .beer, 4.5, [(pint, 7), (bottle330, 1.75), (bottle620, 2.77)]),
         ("Kingfisher", .beer, 4.1, [(pint, 7)]),
-        ("Kingfisher (bottle)", .beer, 4.5, [(bottle330, 2.2), (bottle650, 2.85)]),
-        ("Tiger", .beer, 4.8, [(pint, 7.1), (bottle330, 2.2)]),
+        ("Kingfisher (bottle)", .beer, 4.5, [(bottle330, 1.75), (bottle650, 2.85)]),
+        ("Tiger", .beer, 4.8, [(pint, 7.1), (bottle330, 1.75)]),
         ("Tsingtao", .beer, 4.7, [(bottle330, 1.42)]),
         ("Singha", .beer, 5.0, [(bottle330, 1.67)]),
         ("Red Stripe", .beer, 4.7, [(can440, 1.5), (bottle330, 1.25)]),
@@ -256,7 +257,7 @@ enum Catalog {
         ("Sherry", .fortified, 15.0, [(schooner, 4.9)]),
         ("Cream sherry", .fortified, 17.5, [(schooner, 5.2)]),
         ("Vermouth", .fortified, 15.0, [(port, 3.5), (schooner, 4.9)]),
-        ("Buckfast", .fortified, 15.0, [(glass175, 3.03), (wineBottle, 12.99)]),
+        ("Buckfast", .fortified, 15.0, [(glass175, 3.03), (halfBottle, 5.5), (wineBottle, 12.99)]),
         // Gin
         ("Gordon's Gin", .spirit, 37.5, [(single, 6.8), (single35, 9.5), (bottle70cl, 19.5)]),
         ("Gordon's Pink", .spirit, 37.5, [(single, 6.8), (single35, 9.5), (bottle70cl, 27)]),
