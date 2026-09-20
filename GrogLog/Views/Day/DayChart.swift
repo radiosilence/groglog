@@ -79,7 +79,7 @@ struct DayChart: View {
                 }
                 if let nowHour {
                     RuleMark(x: .value("Now", nowHour))
-                        .foregroundStyle(.secondary.opacity(0.4))
+                        .foregroundStyle(Color.secondary.opacity(0.5))
                 }
             }
             .chartXScale(domain: from...24)

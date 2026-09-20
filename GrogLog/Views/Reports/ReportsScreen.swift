@@ -108,9 +108,17 @@ private struct ProgressCard: View {
                 ForEach(drank, id: \.date) { point in
                     AreaMark(x: .value("When", point.date), y: .value("Units", point.units), series: .value("Line", "Drank"))
                         .foregroundStyle(LinearGradient(colors: [Color.grog.opacity(0.3), Color.grog.opacity(0.02)], startPoint: .top, endPoint: .bottom))
+                }
+                ForEach(drank.dropLast(), id: \.date) { point in
                     LineMark(x: .value("When", point.date), y: .value("Units", point.units), series: .value("Line", "Drank"))
                         .foregroundStyle(Color.grog)
                         .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                }
+                // The run into today is dashed: the day isn't over, so neither is the line.
+                ForEach(drank.suffix(2), id: \.date) { point in
+                    LineMark(x: .value("When", point.date), y: .value("Units", point.units), series: .value("Line", "Today"))
+                        .foregroundStyle(Color.grog)
+                        .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [4, 4]))
                 }
                 ForEach(behind, id: \.0) { date, units in
                     LineMark(x: .value("Day", date), y: .value("Units", units), series: .value("Line", "Budget"))
@@ -128,7 +136,7 @@ private struct ProgressCard: View {
                     .foregroundStyle(Color.grog)
                     .symbolSize(70)
                 RuleMark(x: .value("Today", now))
-                    .foregroundStyle(Color.grog.opacity(0.8))
+                    .foregroundStyle(Color.secondary.opacity(0.7))
                     .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
             }
             .chartYScale(domain: 0...top)
@@ -320,7 +328,7 @@ private struct MonthCard: View {
                         .symbolSize(80)
                 }
                 RuleMark(x: .value("Today", Double(dayOfMonth)))
-                    .foregroundStyle(Color.grog.opacity(0.8))
+                    .foregroundStyle(Color.secondary.opacity(0.7))
                     .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
             }
             .chartXScale(domain: 0...31)
@@ -370,7 +378,7 @@ private struct WeeksCard: View {
                 }
                 if let thisWeek = stats.last?.start.date(in: calendar) {
                     RuleMark(x: .value("This week", thisWeek.addingTimeInterval(3 * 24 * 3600)))
-                        .foregroundStyle(Color.grog.opacity(0.8))
+                        .foregroundStyle(Color.secondary.opacity(0.7))
                         .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
                 }
                 RuleMark(y: .value("Guideline", Units.weeklyGuideline))
