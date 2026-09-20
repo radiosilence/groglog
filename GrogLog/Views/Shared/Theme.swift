@@ -57,11 +57,15 @@ struct LegendKey: View {
     var dashed = false
     /// A filled swatch for a series drawn as bars, so the key looks like the thing it labels.
     var bar = false
+    /// Where the bars are coloured by how far over budget they are, the swatch carries the whole scale.
+    var ramp: [Color] = []
 
     var body: some View {
         HStack(spacing: 6) {
             if bar {
-                RoundedRectangle(cornerRadius: 2).fill(color).frame(width: 9, height: 12)
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(ramp.isEmpty ? AnyShapeStyle(color) : AnyShapeStyle(LinearGradient(colors: ramp, startPoint: .bottom, endPoint: .top)))
+                    .frame(width: 9, height: 12)
             } else {
                 Capsule()
                     .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: dashed ? [3, 4] : []))

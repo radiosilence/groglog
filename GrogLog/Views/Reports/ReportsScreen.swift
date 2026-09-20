@@ -73,12 +73,16 @@ private struct ProgressCard: View {
         let now = Date.now
         let at = { (day: DayKey) in day == today ? now : day.date(in: calendar).addingTimeInterval(12 * 3600) }
         // What was drunk is a bar over its own day, not a line through it — a day's drinking is a
-        // quantity, and a mean of the days around it reads 25 on a day you drank 16.
+        // quantity, and a mean of the days around it reads 25 on a day you drank 16. Each bar takes
+        // its heat against that day's own budget, so it reads as the same colour as its calendar tile.
         let sofar = ledger.totals(on: today).units
-        let drank = past.compactMap { day -> (date: Date, units: Double, partial: Bool)? in
+        let drank = past.compactMap { day -> (date: Date, units: Double, partial: Bool, heat: Color)? in
             let noon = day.date(in: calendar).addingTimeInterval(12 * 3600)
-            if day == today { return (noon, sofar, true) }
-            return ledger.isLogged(day) ? (noon, ledger.totals(on: day).units, false) : nil
+            let heat = { Color.heat(units: $0, budget: ledger.dailyBudget(on: day, goal: goal)) }
+            if day == today { return (noon, sofar, true, heat(sofar)) }
+            guard ledger.isLogged(day) else { return nil }
+            let units = ledger.totals(on: day).units
+            return (noon, units, false, heat(units))
         }
         // The budget as it stands each day, unsmoothed: a scheduled taper is already a smooth curve, and
         // running a trailing mean over it only lifted the whole line and flattened its first few days,
@@ -108,7 +112,7 @@ private struct ProgressCard: View {
                 // Today's bar is faded: the day isn't over, so the bar isn't its final height.
                 ForEach(drank, id: \.date) { point in
                     BarMark(x: .value("When", point.date, unit: .day), y: .value("Units", point.units))
-                        .foregroundStyle(Color.grog.opacity(point.partial ? 0.45 : 1))
+                        .foregroundStyle(point.heat.opacity(point.partial ? 0.45 : 1))
                         .cornerRadius(3)
                 }
                 ForEach(behind, id: \.0) { date, units in
@@ -145,7 +149,7 @@ private struct ProgressCard: View {
             )
 
             HStack(spacing: 16) {
-                LegendKey(label: "Drank", color: .grog, bar: true)
+                LegendKey(label: "Drank", color: .grog, bar: true, ramp: [.dry, .grog, .over])
                 if goal.isEnabled {
                     LegendKey(label: "Budget", color: .dry)
                     LegendKey(label: "Plan", color: .dry, dashed: true)

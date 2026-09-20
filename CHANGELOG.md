@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The progress bars take their colour from the same scale the calendar tiles do — teal inside that day's budget, amber just over, sliding to red the further past it goes — so a day is the same colour wherever you meet it. The legend's swatch carries the whole scale rather than claiming one colour.
+
 - The budget line is smooth again on a scheduled taper. It was still being run through the trailing mean that used to match the drink line's smoothing, which did two things to it: lifted the whole line by about a day's worth of the cut, and flattened its first few days, where the window had fewer days to average and every missing one biased the mean upward. A scheduled taper is an exponential and was smooth before the chart touched it. A dynamic taper still steps, because it follows what you actually drank and that steps.
 
 - The Westons range, and a reformulation worth knowing about: "perry" went in February 2024, so Henry Westons Country Perry is Vintage Pear now and 6% where it was 7.4%. Adds Cloudy Vintage at 7.3%, the 1880 Vintage, Organic Medium Dry, Wyld Wood Organic and Stowford Press Mixed Berries, and puts a pint price on the Vintage, which plenty of London pubs pour. Old Rosie stays at 6.8% — it came down from 7.3% in 2019 and has been there since. Marcle Hill is gone from Westons' own portfolio, and Henry Westons Raspberry appears never to have existed.
