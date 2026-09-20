@@ -39,13 +39,13 @@ struct ReportsScreen: View {
     }
 }
 
-/// Drinking against the budget as two trend lines — daily units and the daily budget, each averaged over `smoothing`
-/// days — with the budget running on as the dashed plan from today.
+/// What was drunk each day as bars, against the daily budget as a line that runs on from today as the
+/// dashed plan. The bars are the days themselves; only the budget is smoothed.
 private struct ProgressCard: View {
     let title: String
     /// As far back as the chart scrolls; the drinks themselves are only fetched for this window.
     let history: Int
-    /// Days averaged over, so the lines read as a trend rather than a comb.
+    /// Days the budget line is averaged over, so it reads as a trend rather than a step.
     let smoothing: Int
     let ledger: Ledger
     let goal: Goal
@@ -72,14 +72,16 @@ private struct ProgressCard: View {
         // Never show more days than there are; a window wider than the data leaves it stranded at the left.
         let days = min(Int((window / pinch).rounded()), start.distance(to: today + 15))
         let past = start...today
-        // A day sits over its own column; today sits at this moment, so its marks land on the "now" rule.
+        // The budget is a trend and sits at the moment it's read, so today's lands on the "now" rule.
         let now = Date.now
         let at = { (day: DayKey) in day == today ? now : day.date(in: calendar).addingTimeInterval(12 * 3600) }
-        // Today is what's logged so far, not a mean including yesterday — the line runs into the dot marking it.
+        // What was drunk is a bar over its own day, not a line through it — a day's drinking is a
+        // quantity, and a mean of the days around it reads 25 on a day you drank 16.
         let sofar = ledger.totals(on: today).units
-        let drank = past.compactMap { day -> (date: Date, units: Double)? in
-            if day == today { return (at(day), sofar) }
-            return average(to: day) { ledger.isLogged($0) ? ledger.totals(on: $0).units : nil }.map { (at(day), $0) }
+        let drank = past.compactMap { day -> (date: Date, units: Double, partial: Bool)? in
+            let noon = day.date(in: calendar).addingTimeInterval(12 * 3600)
+            if day == today { return (noon, sofar, true) }
+            return ledger.isLogged(day) ? (noon, ledger.totals(on: day).units, false) : nil
         }
         // Each day's budget worked out once, not once per window it's averaged into — this runs every frame of a pinch.
         let daily = Dictionary(uniqueKeysWithValues: ((start - smoothing)...(today + 14)).compactMap { day in
@@ -105,20 +107,11 @@ private struct ProgressCard: View {
                 .foregroundStyle(.secondary)
             }
             Chart {
+                // Today's bar is faded: the day isn't over, so the bar isn't its final height.
                 ForEach(drank, id: \.date) { point in
-                    AreaMark(x: .value("When", point.date), y: .value("Units", point.units), series: .value("Line", "Drank"))
-                        .foregroundStyle(LinearGradient(colors: [Color.grog.opacity(0.3), Color.grog.opacity(0.02)], startPoint: .top, endPoint: .bottom))
-                }
-                ForEach(drank.dropLast(), id: \.date) { point in
-                    LineMark(x: .value("When", point.date), y: .value("Units", point.units), series: .value("Line", "Drank"))
-                        .foregroundStyle(Color.grog)
-                        .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
-                }
-                // The run into today is dashed: the day isn't over, so neither is the line.
-                ForEach(drank.suffix(2), id: \.date) { point in
-                    LineMark(x: .value("When", point.date), y: .value("Units", point.units), series: .value("Line", "Today"))
-                        .foregroundStyle(Color.grog)
-                        .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [4, 4]))
+                    BarMark(x: .value("When", point.date, unit: .day), y: .value("Units", point.units))
+                        .foregroundStyle(Color.grog.opacity(point.partial ? 0.45 : 1))
+                        .cornerRadius(3)
                 }
                 ForEach(behind, id: \.0) { date, units in
                     LineMark(x: .value("Day", date), y: .value("Units", units), series: .value("Line", "Budget"))
@@ -131,10 +124,6 @@ private struct ProgressCard: View {
                         .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, dash: [4, 4]))
                         .interpolationMethod(.monotone)
                 }
-                // The day as it actually stands, on the "now" rule — the line either side of it is a trend, not today.
-                PointMark(x: .value("Today", now), y: .value("Units", sofar))
-                    .foregroundStyle(Color.grog)
-                    .symbolSize(70)
                 RuleMark(x: .value("Today", now))
                     .foregroundStyle(Color.secondary.opacity(0.7))
                     .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
@@ -158,7 +147,7 @@ private struct ProgressCard: View {
             )
 
             HStack(spacing: 16) {
-                LegendKey(label: "Drank", color: .grog)
+                LegendKey(label: "Drank", color: .grog, bar: true)
                 if goal.isEnabled {
                     LegendKey(label: "Budget", color: .dry)
                     LegendKey(label: "Plan", color: .dry, dashed: true)
@@ -171,7 +160,9 @@ private struct ProgressCard: View {
         }
     }
 
-    /// Mean of `value` over the days it's known for, in the window ending `day` — the trend rather than the noise.
+    /// Mean of `value` over the days it's known for, in the window ending `day`. Days it isn't known for
+    /// are left out rather than counted as nought, which is right for a budget: no goal set is not a
+    /// budget of zero.
     private func average(to day: DayKey, _ value: (DayKey) -> Double?) -> Double? {
         let values = ((day - smoothing + 1)...day).compactMap(value)
         return values.isEmpty ? nil : values.reduce(0, +) / Double(values.count)

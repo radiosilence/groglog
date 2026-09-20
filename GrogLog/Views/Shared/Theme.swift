@@ -55,12 +55,18 @@ struct LegendKey: View {
     let label: String
     let color: Color
     var dashed = false
+    /// A filled swatch for a series drawn as bars, so the key looks like the thing it labels.
+    var bar = false
 
     var body: some View {
         HStack(spacing: 6) {
-            Capsule()
-                .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: dashed ? [3, 4] : []))
-                .frame(width: 18, height: 1)
+            if bar {
+                RoundedRectangle(cornerRadius: 2).fill(color).frame(width: 9, height: 12)
+            } else {
+                Capsule()
+                    .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: dashed ? [3, 4] : []))
+                    .frame(width: 18, height: 1)
+            }
             Text(label)
         }
         .font(.caption)
