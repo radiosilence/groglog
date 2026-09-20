@@ -25,12 +25,15 @@ nonisolated extension UserDefaults {
     /// are its own empty ones — read those and it sees no goal, so it draws a budget nobody set.
     nonisolated(unsafe) static let shared: UserDefaults = {
         guard let group = UserDefaults(suiteName: AppDatabase.appGroup) else { return .standard }
-        // Settings written before there were widgets are carried across once; `standard` is left as it was.
-        if group.object(forKey: "carriedOver") == nil {
+        // Only the app carries settings across, and only once. An extension's `standard` is its own empty one, so
+        // a widget running this first copied nothing and marked the move done — taking the app's settings with it.
+        // Hence a second key: the first is already stamped on phones the broken version reached.
+        let isExtension = Bundle.main.bundleURL.pathExtension == "appex"
+        if !isExtension, group.object(forKey: "carriedOverFromApp") == nil {
             for key in ["rolloverHour", "currency", "goal", "mirrorsToHealth"] {
                 if let value = UserDefaults.standard.object(forKey: key) { group.set(value, forKey: key) }
             }
-            group.set(true, forKey: "carriedOver")
+            group.set(true, forKey: "carriedOverFromApp")
         }
         return group
     }()
