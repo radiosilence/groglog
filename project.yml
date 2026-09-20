@@ -27,8 +27,16 @@ targets:
     dependencies:
       - package: GRDB
       - package: GRDBQuery
+      - target: GrogLogWidgets
+    entitlements:
+      path: GrogLog/GrogLog.entitlements
+      properties:
+        com.apple.security.application-groups: [group.cc.blit.groglog]
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.access: []
     settings:
       base:
+        INFOPLIST_KEY_NSHealthUpdateUsageDescription: GrogLog copies what you log into Health, so other apps can read it.
         PRODUCT_BUNDLE_IDENTIFIER: cc.blit.groglog
         MARKETING_VERSION: 0.1.0
         CURRENT_PROJECT_VERSION: 1
@@ -39,6 +47,39 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+  # The widget is a separate process, so it compiles the model layer in rather than sharing the app's.
+  GrogLogWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - GrogLogWidgets
+      - GrogLog/Model
+      - GrogLog/Export
+      - GrogLog/Intents
+      - GrogLog/Views/Shared/Theme.swift
+    dependencies:
+      - package: GRDB
+      - package: GRDBQuery
+    entitlements:
+      path: GrogLogWidgets/GrogLogWidgets.entitlements
+      properties:
+        com.apple.security.application-groups: [group.cc.blit.groglog]
+    info:
+      path: GrogLogWidgets/Info.plist
+      properties:
+        # An extension whose version drifts from its app's is refused at install.
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cc.blit.groglog.widgets
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
+        TARGETED_DEVICE_FAMILY: "1"
+        INFOPLIST_KEY_CFBundleDisplayName: GrogLog
+        SKIP_INSTALL: YES
   GrogLogTests:
     type: bundle.unit-test
     platform: iOS
@@ -55,3 +96,11 @@ schemes:
         GrogLog: all
     test:
       targets: [GrogLogTests]
+  # Running this one puts the simulator straight into a widget preview, which is the only sane way to look at one.
+  GrogLogWidgets:
+    build:
+      targets:
+        GrogLogWidgets: all
+    run:
+      askForAppToLaunch: true
+      launchAutomaticallySubstyle: 2

@@ -39,6 +39,24 @@ struct SetupScreen: View {
             }
             .onChange(of: prefs.rolloverHour) { database.logbook(prefs).rebuild(reassigningDays: true) }
 
+            if Health.isAvailable {
+                Section {
+                    Toggle("Copy to Health", isOn: $prefs.mirrorsToHealth)
+                } footer: {
+                    Text("Drinks and calories go into Health as you log them, converted to the standard drinks Health counts — nearly two units each. Turning it off takes GrogLog's entries back out.")
+                }
+                .onChange(of: prefs.mirrorsToHealth) { _, on in
+                    let logbook = database.logbook(prefs)
+                    Task {
+                        if on {
+                            prefs.mirrorsToHealth = await Health.shared.enable(logbook)
+                        } else {
+                            await Health.shared.disable()
+                        }
+                    }
+                }
+            }
+
             Section {
                 ShareLink(item: ExportFile(kind: .markdown, reader: try! database.reader, prefs: prefs), preview: SharePreview("GrogLog log")) {
                     Label("Export for an LLM (Markdown)", systemImage: "text.bubble")

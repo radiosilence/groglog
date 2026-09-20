@@ -33,6 +33,7 @@ SQLite via [GRDB](https://github.com/groue/GRDB.swift), built to stay instant af
 - **Every write is one transaction through `Logbook`.** Log, undo, edit, mark dry, change a drink: the affected days are recomputed from their entries in the same transaction. Totals are always derived, never incremented, so they can't drift; `rebuild()` is the same arithmetic over everything.
 - **Logging is an `AppIntent` too.** Shortcuts, the Action Button and widgets reach the same `Logbook` transaction as a tap on the grid, so there's no second write path to keep in step.
 - **Screens observe the database.** `GRDBQuery` requests (`Queries.swift`) re-run after each commit, so every screen updates the moment a write lands, whoever made it.
+- **The log lives in the app group**, not the app's own container: a widget is a separate process and sees only what's shared. A log written before there were widgets moves across on first launch, its write-ahead log folded in first so one move carries everything; if the move fails the old file is still the log.
 - **Migrations are explicit and append-only** (`AppDatabase`). The database is never erased to change its schema.
 - **Days are integers.** `DayKey` is days since 1970 with pure civil-date arithmetic; each entry stores the day it counted towards when logged, so timezones don't move old nights.
 - `ScaleTests` loads three years at 20 drinks a day of one drink in one transaction, then times taps, a screen's worth of reads, and a full rebuild.
@@ -47,6 +48,8 @@ Setup › Data exports:
 - **JSON backup** — everything, re-importable. Import merges: existing drinks, pours and days with drinks are never touched, so re-importing is safe.
 
 The JSON import is lenient enough to hand-convert other apps' data — see [docs/IMPORT.md](docs/IMPORT.md).
+
+Setup › **Copy to Health** mirrors drinks and calories into Apple Health as they're logged. Health counts standard drinks, not UK units — 17.7 ml of alcohol against 10 — so the figures are converted rather than handed over. It's a mirror and never a source: a changed day is rewritten whole from the log, so edits, undos and corrected strengths carry across and the copy can't drift; turning it off takes GrogLog's entries back out.
 
 Sync (iCloud via `CKSyncEngine`, or a server) is future work; every change already goes through `Logbook` as a transaction, which is where a change log would hook in.
 

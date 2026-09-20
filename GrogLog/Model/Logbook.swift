@@ -1,6 +1,7 @@
 import Foundation
 import GRDB
 import GRDBQuery
+import WidgetKit
 import os
 
 /// Every change to the log goes through here, each as one transaction. After a change the affected days' totals are
@@ -9,10 +10,14 @@ import os
 nonisolated struct Logbook: Sendable {
     let writer: any DatabaseWriter
     let clock: DayClock
+    /// Whether changed days are copied into Health afterwards. Off for demo data and in tests, which keep their
+    /// own settings, so neither can write sample drinks into someone's health record.
+    var mirrorsToHealth = false
 
     // MARK: Entries
 
     func log(_ serve: Serve, at times: [Date]) {
+        defer { mirror(Set(times.map { clock.day(for: $0) })) }
         write { db in
             for time in times {
                 try Pour(drinkId: serve.drink.id, timestamp: time, day: clock.day(for: time).number, vessel: serve.vessel, volumeMl: serve.volumeMl, price: serve.price).insert(db)
@@ -27,6 +32,7 @@ nonisolated struct Logbook: Sendable {
     }
 
     func logUnits(_ units: Double, at time: Date) {
+        defer { mirror([clock.day(for: time)]) }
         write { db in
             let drink = try unitsDrink(db)
             try Pour(drinkId: drink.id, timestamp: time, day: clock.day(for: time).number, vessel: .shot, volumeMl: units * 10, price: 0).insert(db)
@@ -35,6 +41,7 @@ nonisolated struct Logbook: Sendable {
     }
 
     func delete(_ pour: Pour) {
+        defer { mirror([pour.dayKey]) }
         write { db in
             try pour.delete(db)
             try retotal([pour.dayKey], db)
@@ -42,6 +49,7 @@ nonisolated struct Logbook: Sendable {
     }
 
     func update(_ pour: Pour, time: Date, vessel: Vessel, volumeMl: Double, price: Double) {
+        defer { mirror([pour.dayKey, clock.day(for: time)]) }
         write { db in
             var updated = pour
             updated.timestamp = time
@@ -75,14 +83,16 @@ nonisolated struct Logbook: Sendable {
 
     /// Saves a drink. If its strength or type changed, every day it was had on is re-totted.
     func save(_ drink: Drink) {
-        write { db in
+        let touched = write { db -> Set<DayKey> in
             let before = try Drink.fetchOne(db, key: drink.id)
             try drink.save(db)
-            if let before, before.abv != drink.abv || before.category != drink.category {
-                let days = try Pour.select(Column("day"), as: Int.self).filter(Column("drinkId") == drink.id).distinct().fetchAll(db)
-                try retotal(Set(days.map(DayKey.init(number:))), db)
-            }
+            guard let before, before.abv != drink.abv || before.category != drink.category else { return [] }
+            let days = try Pour.select(Column("day"), as: Int.self).filter(Column("drinkId") == drink.id).distinct().fetchAll(db)
+            let touched = Set(days.map(DayKey.init(number:)))
+            try retotal(touched, db)
+            return touched
         }
+        mirror(touched ?? [])
     }
 
     /// Adds a new drink, pinned to the Log grid at its usual size.
@@ -116,6 +126,7 @@ nonisolated struct Logbook: Sendable {
     /// Recomputes every day from scratch — after an import, or when the hour days end at changes (which moves
     /// entries between days). The same arithmetic as for a single change, over everything, in one transaction.
     func rebuild(reassigningDays: Bool = false) {
+        defer { if mirrorsToHealth { Task { await Health.shared.mirrorEverything(self) } } }
         write { db in
             if reassigningDays {
                 for var pour in try Pour.fetchAll(db) {
@@ -192,10 +203,20 @@ nonisolated struct Logbook: Sendable {
         }
     }
 
+    /// Health gets the changed days after the transaction, never inside it: it's a copy for other apps to read,
+    /// and the log shouldn't wait on it or fail with it.
+    private func mirror(_ days: Set<DayKey>) {
+        guard mirrorsToHealth, !days.isEmpty else { return }
+        Task { await Health.shared.mirror(days, self) }
+    }
+
     @discardableResult
     private func write<T>(_ body: (Database) throws -> T) -> T? {
         do {
-            return try writer.write(body)
+            let result = try writer.write(body)
+            // Widgets are a separate process watching the same file, and nothing tells them a write landed.
+            WidgetCenter.shared.reloadAllTimelines()
+            return result
         } catch {
             Logger(subsystem: "cc.blit.groglog", category: "logbook").fault("Write failed: \(error)")
             assertionFailure("Write failed: \(error)")
@@ -221,6 +242,6 @@ nonisolated extension Day {
 extension DatabaseContext {
     /// Writes for views, which find the database in the environment.
     func logbook(_ prefs: Prefs) -> Logbook {
-        Logbook(writer: try! writer, clock: prefs.clock)
+        Logbook(writer: try! writer, clock: prefs.clock, mirrorsToHealth: prefs.mirrorsToHealth)
     }
 }
