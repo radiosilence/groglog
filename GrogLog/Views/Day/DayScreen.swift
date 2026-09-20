@@ -45,10 +45,16 @@ struct DayScreen: View {
         let spendOverride = ledger.spendOverride(on: day)
 
         List {
+            // The totals float with no background of their own, so sharing a section with the chart left the
+            // chart as the section's second row — square across the top, cut off rather than rounded.
             Section {
                 TotalsHeader(totals: totals, budget: budget, currency: prefs.currency)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 8, trailing: 4))
+            }
+            .listSectionSpacing(0)
+
+            Section {
                 TimelineView(.everyMinute) { timeline in
                     DayChart(day: day, ledger: ledger, budget: budget, tick: timeline.date)
                 }
