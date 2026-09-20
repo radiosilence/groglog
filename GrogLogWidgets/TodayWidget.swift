@@ -44,14 +44,14 @@ struct TodayProvider: TimelineProvider {
     /// One entry, good until the day ends — the app reloads the timeline itself whenever anything is logged.
     func getTimeline(in context: Context, completion: @escaping (Timeline<TodayEntry>) -> Void) {
         Task {
-            let clock = await Store.logbook.clock
+            let clock = Store.logbook.clock
             completion(Timeline(entries: [await today()], policy: .after(clock.end(of: clock.today))))
         }
     }
 
     private func today() async -> TodayEntry {
-        let logbook = await Store.logbook
-        let goal = await Store.goal
+        let logbook = Store.logbook
+        let goal = Store.goal
         let days = (try? await logbook.writer.read { try Day.fetchAll($0) }) ?? []
         let ledger = Ledger(days: days, clock: logbook.clock)
         let day = logbook.clock.today

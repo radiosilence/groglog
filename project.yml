@@ -67,6 +67,9 @@ targets:
     info:
       path: GrogLogWidgets/Info.plist
       properties:
+        # An extension whose version drifts from its app's is refused at install.
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:

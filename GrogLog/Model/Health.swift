@@ -18,18 +18,19 @@ import os
 
     static var isAvailable: Bool { HKHealthStore.isHealthDataAvailable() }
 
-    /// Asks for permission, and copies everything across if it's granted. Health can't tell us whether sharing was
-    /// actually allowed, only that the sheet was answered, so the mirror is attempted either way.
+    /// Asks for permission and copies the whole log across if it's given. Returns what was actually granted, not
+    /// that the sheet was answered, so a refusal leaves the switch off rather than pretending to mirror.
     func enable(_ logbook: Logbook) async -> Bool {
         guard Self.isAvailable else { return false }
         do {
             try await store.requestAuthorization(toShare: [beverages, energy], read: [])
-            await mirrorEverything(logbook)
-            return true
         } catch {
             log.error("Health wouldn't authorise: \(error)")
             return false
         }
+        guard store.authorizationStatus(for: beverages) == .sharingAuthorized else { return false }
+        await mirrorEverything(logbook)
+        return true
     }
 
     /// Takes GrogLog's samples back out. Health keeps its own copy of everything until told otherwise, and a log
