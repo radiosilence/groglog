@@ -283,9 +283,11 @@ private struct DaySummaryBar: View {
                     if let last = pours.last { logbook.delete(last.pour) }
                 }
                 .labelStyle(.iconOnly)
-                // A full-size target, or a near miss lands on the tile behind the bar.
+                // A full-size target, or a near miss lands on the tile behind the bar. It spills into the
+                // bar's own padding rather than setting its height, so the capsule sits under the tab bar.
                 .frame(width: 44, height: 44)
                 .contentShape(.rect)
+                .padding(.vertical, -6)
             case .alcoholFree:
                 Label("Alcohol-free", systemImage: "leaf.fill").foregroundStyle(Color.dry)
                 Spacer()
@@ -302,7 +304,7 @@ private struct DaySummaryBar: View {
         .font(.subheadline.monospacedDigit())
         .contentTransition(.numericText())
         .animation(.snappy, value: totals.units)
-        .frame(minHeight: 44)
+        .frame(minHeight: 32)
         .padding(.leading, 18)
         .padding(.trailing, trailingInset)
         .padding(.vertical, 6)
