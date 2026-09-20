@@ -69,9 +69,8 @@ private struct ProgressCard: View {
         // Never show more days than there are; a window wider than the data leaves it stranded at the left.
         let days = min(Int((window / pinch).rounded()), start.distance(to: today + 15))
         let past = start...today
-        // The budget is a trend and sits at the moment it's read, so today's lands on the "now" rule.
         let now = Date.now
-        let at = { (day: DayKey) in day == today ? now : day.date(in: calendar).addingTimeInterval(12 * 3600) }
+        let noon = { (day: DayKey) in day.date(in: calendar).addingTimeInterval(12 * 3600) }
         // What was drunk is a bar over its own day, not a line through it — a day's drinking is a
         // quantity, and a mean of the days around it reads 25 on a day you drank 16. Each bar takes
         // its heat against that day's own budget, so it reads as the same colour as its calendar tile.
@@ -84,14 +83,23 @@ private struct ProgressCard: View {
             let units = ledger.totals(on: day).units
             return (noon, units, false, heat(units))
         }
-        // The budget as it stands each day, unsmoothed: a scheduled taper is already a smooth curve, and
-        // running a trailing mean over it only lifted the whole line and flattened its first few days,
-        // where the window had fewer days to average. A dynamic taper does step, because your drinking does.
-        let budgets = { (days: ClosedRange<DayKey>) in
-            days.compactMap { day in ledger.dailyBudget(on: day, goal: goal).map { (at(day), $0) } }
+        // Every day's budget sits at its own noon, so a day's decay always spans the same width. Today's
+        // used to sit on the "now" rule instead, which stretched the segment before it and squashed the
+        // one after — both still carrying one day's worth of cut, so the line kinked at today and kinked
+        // harder the later it got. The rule is met by a point interpolated along the line instead, which
+        // is where the line already was. Unsmoothed: a scheduled taper is a smooth curve to begin with,
+        // and a dynamic one steps because your drinking does.
+        let curve = (start...(today + 14)).compactMap { day in
+            ledger.dailyBudget(on: day, goal: goal).map { (noon(day), $0) }
         }
-        let behind = budgets(past)
-        let ahead = budgets(today...(today + 14))
+        let onTheRule = { () -> (Date, Double)? in
+            let day = now >= noon(today) ? today : today - 1
+            guard let here = ledger.dailyBudget(on: day, goal: goal),
+                  let next = ledger.dailyBudget(on: day + 1, goal: goal) else { return nil }
+            return (now, here + (next - here) * now.timeIntervalSince(noon(day)) / 86_400)
+        }()
+        let behind = curve.filter { $0.0 <= now } + [onTheRule].compactMap(\.self)
+        let ahead = [onTheRule].compactMap(\.self) + curve.filter { $0.0 > now }
         // Scale to the window in view, so an old binge doesn't flatten the recent weeks.
         let shown = drank.filter { $0.date >= ledger.clock.start(of: today - days) }
         let top = max(10, sofar, shown.map(\.units).max() ?? 0, ahead.map(\.1).max() ?? 0) * 1.15

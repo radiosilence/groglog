@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The budget line stops kinking at today. Every day's point sat at its own noon except today's, which was moved onto the "now" rule to meet it — so the segment before today stretched to thirty-odd hours and the one after squashed to a dozen, while both still carried exactly one day of the cut. At half nine at night that halved the slope going in and doubled it coming out, from a taper that is a smooth curve. Today's point goes back to noon with the rest, and the rule is met by a point interpolated along the line, where the line already was.
+
 - Long drink names shrink to fit the tile before they give up, and give up in the middle rather than the end. Naming a beer after its brewery means the half that tells two beers apart is the half at the back: six Westons ciders all read "Henry Westons Vi…" and could not be told apart at all. A seventh of the catalogue is over twenty-two characters now, so this was most of a brewery's range at a time.
 
 - Cocktails, with the strength worked out from the measures rather than guessed at: alcohol in the glass over liquid in the glass, ice melt included. The IBA's Unforgettables and Contemporary Classics, plus the ones British bars pour that the IBA ignores — Passionfruit Martini, White Russian, Woo Woo, Snowball, Hugo and Limoncello spritzes, Snakebite, and the shots. The spread is the point: a Zombie is five units and a Bellini is under one, so a flat guess at "a cocktail" would be wrong at both ends by a factor of five. Glass volumes are a bartender's estimate of the pour as drunk, because nobody publishes dilution figures per drink. A tenner each, which is roughly London and exactly nowhere; the shots and the Snakebite aren't, because they never were.
