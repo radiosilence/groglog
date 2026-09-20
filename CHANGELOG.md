@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Craft beers carry a pint as well as a can — 134 of them — because that's how most of them get drunk. Pub draught is priced by tier rather than by brand and pubs barely publish it, so these are banded by strength off the pints that are published: Camden Pale at £6.30, Hepcat and Gamma Ray at £6.90, Camden Hells and Punk IPA at £7.05, Elvis Juice at £7.50. Your pub will be a pound either way; it's a starting price, and the drink becomes yours the moment you log it. Seasonals, sours and the big double IPAs are left as cans, because a third is what they're poured in.
+
 - London's breweries, as comprehensively as they can be got: the Kernel, Drop Project, Bianca Road, Partizan, Small Beer and the rest of Anspach & Hobday; Sambrook's, Mondo, Belleville, Wimbledon and the rest of Brixton; Two Tribes, Jubel and Hiver; Camden's stout and Week Nite, Orbit's core, Portobello, Fuller's porter. Plus the out-of-town craft that's on every London tap — Verdant, Lost & Grounded, Burning Sky, Wiper and True, Left Handed Giant, Vocation, Cloudwater, Thornbridge, Arbor, Duration, Donzoko and the rest.
 - Big Smoke and Belleville, once their own shops gave up the numbers a listing page wouldn't: Big Smoke sell by the six and nothing smaller, and Belleville's Patriot and Savannah Sour are 440 ml cans rather than the 330s they were first read as — a third of a unit each way.
 - East London and the rest: Hackney Church, Crate, 40FT, Wild Card, Hammerton, Bohem, Signature Brew's Backstage, Beavertown's Bloody 'Ell and Nanobot, Meantime's Anytime IPA. Nanobot is Beavertown's low-alcohol beer but 2.8% is still drink; the 0.3% Lazer Crush isn't, so it stays out.
