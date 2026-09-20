@@ -120,11 +120,12 @@ private struct ProgressCard: View {
                         .foregroundStyle(Color.dry)
                         .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
                 }
+                // Straight between days, like the solid half: a spline through a decaying curve leaves its
+                // first point steeper than the chord, which kinked the line downwards at today.
                 ForEach(ahead, id: \.0) { date, units in
                     LineMark(x: .value("Day", date), y: .value("Units", units), series: .value("Line", "Ahead"))
                         .foregroundStyle(Color.dry)
-                        .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, dash: [4, 4]))
-                        .interpolationMethod(.monotone)
+                        .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round, dash: [4, 4]))
                 }
                 RuleMark(x: .value("Today", now))
                     .foregroundStyle(Color.secondary.opacity(0.7))
