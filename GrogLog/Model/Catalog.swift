@@ -326,8 +326,16 @@ nonisolated enum Catalog {
         ("Inch's", .cider, 4.5, [(pint, 5.6), (bottle500, 2.85)]),
         ("Aspall", .cider, 5.5, [(pint, 6.6), (bottle500, 2.9)]),
         ("Stowford Press", .cider, 4.5, [(pint, 4.4), (can568, 1.8)]),
+        ("Stowford Press Mixed Berries", .cider, 4.0, [(can440, 1.25)]),
         ("Cornish Orchards Gold", .cider, 5.0, [(pint, 6.4), (bottle500, 2.95)]),
-        ("Henry Westons Vintage", .cider, 8.2, [(bottle500, 2.3)]),
+        // Westons. "Perry" went in February 2024 — Country Perry is Vintage Pear now, and 6% where it
+        // was 7.4%. Old Rosie has been 6.8% since 2019, whatever the pub chalkboard says.
+        ("Henry Westons Vintage", .cider, 8.2, [(pint, 6.9), (bottle500, 2.3)]),
+        ("Henry Westons Cloudy Vintage", .cider, 7.3, [(bottle500, 2.04)]),
+        ("Henry Westons 1880 Vintage", .cider, 6.2, [(bottle500, 2.5)]),
+        ("Henry Westons Vintage Pear", .cider, 6.0, [(bottle500, 2.6)]),
+        ("Henry Westons Organic Medium Dry", .cider, 6.0, [(bottle500, 2.38)]),
+        ("Westons Wyld Wood Organic", .cider, 6.0, [(bottle500, 2.29)]),
         ("Westons Old Rosie", .cider, 6.8, [(pint, 6.2), (bottle500, 2.99)]),
         ("Kopparberg Strawberry & Lime", .cider, 4.0, [(bottle500, 2.19)]),
         ("Kopparberg Mixed Fruit", .cider, 4.0, [(bottle500, 2.34)]),
