@@ -14,6 +14,8 @@ nonisolated struct ServeEntity: AppEntity {
     var id: String
     var name: String
     var size: String
+    /// The same size where there's no room to spell it out — a widget tile.
+    var shortSize: String
     var units: Double
 
     var displayRepresentation: DisplayRepresentation {
@@ -24,6 +26,7 @@ nonisolated struct ServeEntity: AppEntity {
         id = serve.id
         name = serve.drink.name
         size = serve.vessel.label(ml: serve.volumeMl)
+        shortSize = serve.vessel.shortLabel(ml: serve.volumeMl)
         units = serve.units
     }
 }
@@ -49,6 +52,11 @@ struct LogDrinkIntent: AppIntent {
     @Parameter(title: "Drink") var serve: ServeEntity
 
     init() {}
+
+    /// What a widget's tile is: this drink, logged now.
+    init(serve: ServeEntity) {
+        self.serve = serve
+    }
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let logbook = await Store.logbook

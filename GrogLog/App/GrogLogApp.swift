@@ -25,51 +25,9 @@ struct GrogLogApp: App {
     }
 }
 
-struct Store {
-    let id = UUID()
-    let database: AppDatabase
-    let prefs: Prefs
-
-    /// One handle to the real log per process. Intents run outside the view hierarchy, with no environment to read
-    /// the database from, so they come here for it — and share the app's handle when it's already running.
-    static let real = live()
-
-    /// Writes for intents.
-    static var logbook: Logbook { real.logbook }
-
-    static var goal: Goal { real.prefs.goal }
-
-    var logbook: Logbook { Logbook(writer: database.writer, clock: prefs.clock) }
-
-    private static func live() -> Store {
-        let prefs = Prefs()
-        let database = try! AppDatabase.onDisk()
-        let logbook = Logbook(writer: database.writer, clock: prefs.clock)
-        try! Seed.drinksIfNeeded(logbook)
-        #if DEBUG
-        // `-importBackup <path>` merges a backup file on launch, for moving data between builds.
-        if let path = UserDefaults.standard.string(forKey: "importBackup"), let data = FileManager.default.contents(atPath: path) {
-            _ = try? Exporter.restore(data, writer: database.writer, prefs: prefs)
-        }
-        #endif
-        return Store(database: database, prefs: prefs)
-    }
-
-    #if DEBUG
-    static func demo() -> Store {
-        let prefs = Prefs(store: UserDefaults(suiteName: "demo")!)
-        prefs.goal = Goal(isEnabled: true, reductionPercent: 10, periodDays: 7)
-        let database = try! AppDatabase.inMemory()
-        let logbook = Logbook(writer: database.writer, clock: prefs.clock)
-        try! Seed.drinksIfNeeded(logbook)
-        try! Seed.sample(logbook)
-        return Store(database: database, prefs: prefs)
-    }
-    #endif
-}
-
 struct RootView: View {
     @Environment(Prefs.self) private var prefs
+    @Environment(\.databaseContext) private var database
     @Environment(\.scenePhase) private var scenePhase
     /// Opens on Log; `-tab <name>` picks another, for screenshots.
     @State private var tab = UserDefaults.standard.string(forKey: "tab") ?? "log"
@@ -93,7 +51,16 @@ struct RootView: View {
                 NavigationStack { LedgerReader { SetupScreen(ledger: $0) } }
             }
         }
-        // Reading scenePhase re-evaluates `today` when the app comes back the next morning.
-        .onChange(of: scenePhase) {}
+        // Reading scenePhase re-evaluates `today` when the app comes back the next morning, and picks up anything
+        // the widget logged while we were away: observations only see writes made through this process, and a
+        // widget is another one. A widget can only be tapped with the app in the background, so coming back is the
+        // moment to ask. The database is told its region changed rather than written to — there's nothing to write,
+        // the drink is already there; the screens just don't know yet.
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active, let writer = try? database.writer else { return }
+            try? writer.write { try $0.notifyChanges(in: .fullDatabase) }
+        }
+        // The Lock Screen widget: two taps from a locked phone to a logged drink.
+        .onOpenURL { if $0.host() == "log" { tab = "log" } }
     }
 }

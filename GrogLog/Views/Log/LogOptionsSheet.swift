@@ -20,6 +20,9 @@ struct LogOptionsSheet: View {
     @State private var time: Date
     @State private var search = ""
     @State private var editing: Drink?
+    /// What this round actually cost, when it isn't what the drink usually goes for. Nil follows the drink and
+    /// the size, so picking a different one doesn't leave the last one's price sitting there.
+    @State private var price: Double?
 
     init(base: Serve, day: DayKey, ledger: Ledger, after last: Date?, onLog: @escaping (String) -> Void) {
         self.base = base
@@ -34,11 +37,16 @@ struct LogOptionsSheet: View {
     var body: some View {
         let choices = self.choices
         let choice = choices.first { $0.id == selected } ?? choices[0]
+        let usualPrice = usualPrice(for: choice)
 
         NavigationStack {
             Form {
                 Section {
                     ChipRow(options: base.drink.category.sizes(including: ServeSize(base.vessel, base.volumeMl)), selection: $size) { $0.label }
+                    // Priced under the size it's for, since that's what changes it. Re-created when either the
+                    // drink or the size does, so it shows the new one's usual price rather than the old one's.
+                    MoneyField(label: "Price", value: Binding(get: { price ?? usualPrice }, set: { price = $0 }), currency: prefs.currency)
+                        .id("\(choice.id)|\(Int(size.ml))")
                     Stepper("How many: \(count)", value: $count, in: 1...12)
                     if day == ledger.today {
                         ChipRow(options: [0, 15, 30, 60, 120, 180], selection: minutesAgo) {
@@ -70,7 +78,12 @@ struct LogOptionsSheet: View {
                     Text("Which one?")
                 }
             }
+            // The search field sits in the bar above; a headerless first section would otherwise open a hand's
+            // width of nothing under it.
+            .contentMargins(.top, 8, for: .scrollContent)
             .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Find a drink")
+            .onChange(of: selected) { price = nil }
+            .onChange(of: size) { price = nil }
             .navigationTitle(base.drink.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -80,7 +93,7 @@ struct LogOptionsSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Log \(count > 1 ? "\(count) " : "")· \((Units.of(ml: size.ml, abv: choice.abv) * Double(count)).unitsText) u", role: .confirm) {
                         guard let drink = resolve(choice) else { return }
-                        let serve = Serve(drink, size.vessel, size.ml, price: favourite(for: choice)?.price)
+                        let serve = Serve(drink, size.vessel, size.ml, price: price ?? usualPrice)
                         database.logbook(prefs).log(serve, at: spreadTimes)
                         onLog(serve.id)
                         dismiss()
@@ -105,6 +118,14 @@ struct LogOptionsSheet: View {
             brand.category == kind && matches(brand.name) && !drinks.contains { $0.name == brand.name && $0.category == brand.category }
         }
         return [Choice(base.drink)] + yours.map(Choice.init) + catalog.map(Choice.init)
+    }
+
+    /// What this drink at this size normally costs: the price it's pinned at, else its own scaled to the size,
+    /// else the catalogue's for a brand you haven't adopted yet.
+    private func usualPrice(for choice: Choice) -> Double {
+        if let pinned = favourite(for: choice)?.price { return pinned }
+        if let drink = choice.drink { return drink.price(forMl: size.ml) }
+        return choice.brand.map { Catalog.price($0, size.vessel, size.ml) } ?? 0
     }
 
     private func favourite(for choice: Choice) -> Favourite? {
