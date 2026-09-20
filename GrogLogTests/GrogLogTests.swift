@@ -328,16 +328,16 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
 /// The catalogue is a hand-written table, so guard the mistakes hand-writing makes: a stray decimal point,
 /// a brand listed twice, a serve with no size.
 @Suite struct CatalogTests {
-    /// What a strength can plausibly be for each kind of drink — wide enough for Old Rosie and Duvel,
-    /// tight enough to catch 45% where 4.5% was meant.
+    /// What a strength can plausibly be for each kind of drink — wide enough for Żywiec Porter and
+    /// Wray & Nephew, tight enough to catch 45% where 4.5% was meant.
     private func band(_ category: DrinkCategory) -> ClosedRange<Double> {
         switch category {
         case .beer, .stout: 2...13
         case .cider: 2...9
         case .redWine, .whiteWine, .rose: 8...16
         case .bubbles: 5...14
-        case .fortified: 14...22
-        case .spirit: 10...60
+        case .fortified: 12...22
+        case .spirit: 10...85
         case .alcopop: 3...8
         case .cocktail: 3...35
         case .units: 100...100
@@ -354,7 +354,8 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(Set(Catalog.brands.map(\.name)).count == Catalog.brands.count)
         #expect(Set(Catalog.items.map(\.id)).count == Catalog.items.count)
         #expect(Catalog.brands.allSatisfy { !$0.serves.isEmpty })
-        #expect(Catalog.items.allSatisfy { $0.volumeMl >= 10 && $0.volumeMl <= 750 })
+        // The ceiling is a white cider bottle, the one serve that isn't a glassful.
+        #expect(Catalog.items.allSatisfy { $0.volumeMl >= 10 && $0.volumeMl <= 2500 })
     }
 
     @Test func searchFindsBrandsAndKinds() {

@@ -39,6 +39,7 @@ nonisolated enum Catalog {
     private static let can330 = ServeSize(.can, 330)
     private static let can355 = ServeSize(.can, 355)
     private static let can440 = ServeSize(.can, 440)
+    private static let can480 = ServeSize(.can, 480)
     private static let can500 = ServeSize(.can, 500)
     private static let can568 = ServeSize(.can, 568)
     private static let bottle275 = ServeSize(.bottle, 275)
@@ -51,6 +52,7 @@ nonisolated enum Catalog {
     private static let bottle620 = ServeSize(.bottle, 620)
     private static let bottle650 = ServeSize(.bottle, 650)
     private static let bottle660 = ServeSize(.bottle, 660)
+    private static let bottle2500 = ServeSize(.bottle, 2500)
     private static let glass125 = ServeSize(.wineGlass, 125)
     private static let glass175 = ServeSize(.wineGlass, 175)
     private static let glass250 = ServeSize(.wineGlass, 250)
@@ -111,6 +113,47 @@ nonisolated enum Catalog {
         ("Tsingtao", .beer, 4.7, [(bottle330, 1.42)]),
         ("Singha", .beer, 5.0, [(bottle330, 1.67)]),
         ("Red Stripe", .beer, 4.7, [(can440, 1.5), (bottle330, 1.25)]),
+        // Polish. "Mocne" is the strong version of a beer and a separate entry, not a rounding of
+        // the standard one — Perła Chmielowa is 6%, Perła Mocna 7.1%.
+        ("Tyskie Gronie", .beer, 5.2, [(can500, 1.29), (bottle650, 2.55)]),
+        ("Żywiec", .beer, 5.6, [(can500, 1.99)]),
+        ("Żywiec Białe", .beer, 4.9, [(bottle500, 1.54)]),
+        ("Żywiec Porter", .beer, 9.5, [(bottle500, 2.7)]),
+        ("Lech Premium", .beer, 4.8, [(can500, 1.79)]),
+        ("Okocim Jasne", .beer, 5.1, [(can500, 2.04)]),
+        ("Okocim Mocne", .beer, 6.5, [(can500, 2.29)]),
+        ("Warka Classic", .beer, 5.2, [(can500, 1.99)]),
+        ("Warka Strong", .beer, 6.5, [(can500, 1.67)]),
+        ("Perła Chmielowa", .beer, 6.0, [(bottle500, 2.1)]),
+        ("Perła Mocna", .beer, 7.1, [(can500, 1.89)]),
+        ("Łomża Export", .beer, 5.7, [(can500, 1.99)]),
+        ("Harnaś", .beer, 6.0, [(can500, 1.99)]),
+        ("Dębowe Mocne", .beer, 7.0, [(can500, 1.74)]),
+        ("Żubr", .beer, 6.0, [(can500, 1.99)]),
+        ("Tatra", .beer, 6.0, [(can500, 1.83)]),
+        ("Namysłów Pils", .beer, 5.8, [(can500, 1.83), (bottle500, 2)]),
+        ("Kasztelan Jasne Pełne", .beer, 5.7, [(can500, 2.19)]),
+        ("Książęce Złote Pszeniczne", .beer, 4.9, [(bottle500, 2.96)]),
+        // Czech, Baltic & the Balkans. No Russian beer: the UK bans importing it, so what's still listed
+        // is old stock. Ukrainian is another matter — Chernigivske is an AB InBev relief import, in Asda.
+        ("Pilsner Urquell", .beer, 4.4, [(pint, 6.05), (bottle500, 2.7)]),
+        ("Budweiser Budvar", .beer, 5.0, [(bottle500, 2.5)]),
+        ("Velkopopovický Kozel", .beer, 4.6, [(can500, 2.25)]),
+        ("Velkopopovický Kozel Černý", .beer, 3.8, [(can500, 2.18)]),
+        ("Krušovice Original", .beer, 4.2, [(can500, 2.5)]),
+        ("Utenos", .beer, 5.0, [(bottle500, 2.44)]),
+        ("Kalnapilis Original", .beer, 5.4, [(can568, 2.87)]),
+        ("Volfas Engelman Rinktinis", .beer, 5.2, [(can568, 2.5)]),
+        ("Lvivske 1715", .beer, 4.5, [(can480, 2.46)]),
+        ("Chernigivske", .beer, 4.8, [(can440, 1)]),
+        ("Ožujsko", .beer, 5.0, [(bottle330, 3.29)]),
+        ("Nikšićko", .beer, 5.0, [(bottle330, 2.71), (can500, 2.88)]),
+        ("Timișoreana", .beer, 5.0, [(bottle500, 1.89)]),
+        ("Ciucaș", .beer, 4.6, [(bottle330, 1.45), (can500, 2.5)]),
+        ("Kamenitza", .beer, 4.4, [(bottle500, 2.49)]),
+        ("Dreher Gold", .beer, 4.8, [(bottle500, 3.5)]),
+        ("Soproni Classic", .beer, 4.5, [(bottle500, 3.5)]),
+        ("Borsodi", .beer, 4.5, [(bottle500, 3.5)]),
         // Craft pale & IPA
         ("Camden Hells", .beer, 4.6, [(pint, 7.05), (can330, 2.25)]),
         ("Camden Pale Ale", .beer, 4.0, [(pint, 6.3), (can330, 2.25)]),
@@ -182,6 +225,20 @@ nonisolated enum Catalog {
         ("Kopparberg Mixed Fruit", .cider, 4.0, [(bottle500, 2.34)]),
         ("Rekorderlig Strawberry & Lime", .cider, 4.0, [(bottle500, 2.6)]),
         ("Old Mout Kiwi & Lime", .cider, 4.0, [(bottle500, 2.4)]),
+        // Super-strength — the corner-shop singles. Most were cut to 7.5% in the mid-2010s, years before
+        // the 2023 duty reform set its higher rate at 8.5%; Kestrel and Karpackie Super Mocne are the
+        // holdouts still brewed above the cliff and paying for it. Special Brew is two beers: the 500 ml
+        // single is 7.5%, the supermarket 4×440 is 8%, and only the single is priced here. Tennent's
+        // Super and Skol Super are the pack rate — nowhere indexes what a shop charges for one can.
+        ("Carlsberg Special Brew", .beer, 7.5, [(can500, 3.38)]),
+        ("Tennent's Super", .beer, 7.5, [(can500, 2.25)]),
+        ("Skol Super", .beer, 8.0, [(can500, 2.25)]),
+        ("Kestrel Super Premium", .beer, 9.0, [(can500, 3.33)]),
+        ("Karpackie Super Mocne", .beer, 9.0, [(can500, 2.71)]),
+        ("K Cider", .cider, 7.5, [(can500, 2.25)]),
+        // White cider is sold by the 2.5 litre bottle, which is 18 units — the pint is what gets poured.
+        ("Frosty Jack's", .cider, 7.5, [(pint, 1.47), (bottle2500, 6.49)]),
+        ("Omega White", .cider, 7.5, [(pint, 1.14), (bottle2500, 5)]),
         // Fizz
         ("Prosecco", .bubbles, 11.0, [(flute, 9), (wineBottle, 8.5)]),
         ("Champagne", .bubbles, 12.0, [(flute, 10.2), (wineBottle, 26)]),
@@ -190,6 +247,7 @@ nonisolated enum Catalog {
         ("English sparkling", .bubbles, 12.0, [(flute, 12.75), (wineBottle, 30)]),
         ("Lambrusco", .bubbles, 8.0, [(flute, 8.5), (wineBottle, 3.25)]),
         ("Asti", .bubbles, 7.5, [(flute, 8.5), (wineBottle, 8.75)]),
+        ("Lambrini", .bubbles, 6.0, [(flute, 0.5), (wineBottle, 2.99)]),
         // Champagne worth the name
         ("Moët & Chandon Impérial", .bubbles, 12.0, [(flute, 19.5), (wineBottle, 45)]),
         ("Veuve Clicquot Yellow Label", .bubbles, 12.0, [(flute, 20), (wineBottle, 55)]),
@@ -258,6 +316,15 @@ nonisolated enum Catalog {
         ("Cream sherry", .fortified, 17.5, [(schooner, 5.2)]),
         ("Vermouth", .fortified, 15.0, [(port, 3.5), (schooner, 4.9)]),
         ("Buckfast", .fortified, 15.0, [(glass175, 3.03), (halfBottle, 5.5), (wineBottle, 12.99)]),
+        // Tonic wine and the cheap fortified end, priced by the bottle with the glass pro-rata.
+        // MD 20/20 is 13% in every UK flavour; the 13-18% range you'll read is the American line.
+        ("MD 20/20", .fortified, 13.0, [(glass175, 2.28), (wineBottle, 9.79)]),
+        ("Sanatogen Tonic Wine", .fortified, 15.0, [(glass175, 1.25), (bottle70cl, 4.99)]),
+        ("QC Sherry", .fortified, 17.5, [(schooner, 0.9), (bottle70cl, 8.99)]),
+        ("Emva Cream", .fortified, 15.0, [(schooner, 0.65), (bottle70cl, 6.49)]),
+        ("Harveys Bristol Cream", .fortified, 17.5, [(schooner, 0.88), (wineBottle, 9.38)]),
+        ("Stone's Green Ginger Wine", .fortified, 13.5, [(port, 0.57), (bottle70cl, 7.99)]),
+        ("Crabbie's Green Ginger Wine", .fortified, 13.5, [(port, 0.51), (bottle70cl, 7.15)]),
         // Gin
         ("Gordon's Gin", .spirit, 37.5, [(single, 6.8), (single35, 9.5), (bottle70cl, 19.5)]),
         ("Gordon's Pink", .spirit, 37.5, [(single, 6.8), (single35, 9.5), (bottle70cl, 27)]),
@@ -288,6 +355,17 @@ nonisolated enum Catalog {
         ("Captain Morgan Spiced", .spirit, 35.0, [(single, 6.8), (single35, 9.5), (bottle70cl, 27)]),
         ("The Kraken", .spirit, 40.0, [(single, 7.4), (single35, 10.35), (bottle70cl, 26.5)]),
         ("Havana Club 3", .spirit, 40.0, [(single, 6.8), (single35, 9.5), (bottle70cl, 21)]),
+        ("Appleton Estate Signature", .spirit, 40.0, [(single, 6.8), (single35, 9.5), (bottle70cl, 25.95)]),
+        ("Lamb's Navy Rum", .spirit, 40.0, [(single, 6.8), (single35, 9.5), (bottle70cl, 19.5)]),
+        ("Koko Kanu", .spirit, 37.5, [(single, 6.8), (single35, 9.5), (bottle70cl, 21.5)]),
+        // Overproof. A 25 ml single of Wray & Nephew carries three times the alcohol of one of Malibu,
+        // which is the whole reason to log it as itself rather than as "rum". The two nobody pours by
+        // the measure are bottle-only; a shot from your own bottle prices pro-rata.
+        ("Wray & Nephew White Overproof", .spirit, 63.0, [(single, 7.4), (single35, 10.35), (bottle70cl, 27)]),
+        ("Wood's Old Navy Rum", .spirit, 57.0, [(single, 7.4), (single35, 10.35), (bottle70cl, 29.95)]),
+        ("Pusser's Gunpowder Proof", .spirit, 54.5, [(single, 7.4), (single35, 10.35), (bottle70cl, 39.5)]),
+        ("Rum Fire", .spirit, 63.0, [(bottle70cl, 49.99)]),
+        ("Sunset Very Strong Rum", .spirit, 84.5, [(bottle70cl, 48.65)]),
         ("Malibu", .spirit, 18.0, [(single, 6.8), (single35, 9.5), (bottle70cl, 12.5)]),
         ("Tequila", .spirit, 38.0, [(single, 6.8), (single35, 9.5)]),
         // Liqueurs & aperitifs
