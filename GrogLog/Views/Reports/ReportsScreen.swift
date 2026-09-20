@@ -19,8 +19,8 @@ struct ReportsScreen: View {
 
         ScrollView {
             VStack(spacing: 16) {
-                ProgressCard(title: "Weekly progress", days: 10, history: 60, smoothing: 3, ledger: ledger, goal: prefs.goal) { settingGoal = true }
-                ProgressCard(title: "Monthly progress", days: 35, history: 120, smoothing: 7, ledger: ledger, goal: prefs.goal) { settingGoal = true }
+                ProgressCard(title: "Weekly progress", days: 10, history: 60, ledger: ledger, goal: prefs.goal) { settingGoal = true }
+                ProgressCard(title: "Monthly progress", days: 35, history: 120, ledger: ledger, goal: prefs.goal) { settingGoal = true }
                 WeekCard(ledger: ledger, goal: prefs.goal)
                 MonthCard(ledger: ledger)
                 WeeksCard(stats: stats, weeks: $weeks)
@@ -40,13 +40,11 @@ struct ReportsScreen: View {
 }
 
 /// What was drunk each day as bars, against the daily budget as a line that runs on from today as the
-/// dashed plan. The bars are the days themselves; only the budget is smoothed.
+/// dashed plan. Both are the days themselves: nothing here is averaged.
 private struct ProgressCard: View {
     let title: String
     /// As far back as the chart scrolls; the drinks themselves are only fetched for this window.
     let history: Int
-    /// Days the budget line is averaged over, so it reads as a trend rather than a step.
-    let smoothing: Int
     let ledger: Ledger
     let goal: Goal
     let onSetGoal: () -> Void
@@ -54,10 +52,9 @@ private struct ProgressCard: View {
     @State private var window: Double
     @GestureState private var pinch = 1.0
 
-    init(title: String, days: Double, history: Int, smoothing: Int, ledger: Ledger, goal: Goal, onSetGoal: @escaping () -> Void) {
+    init(title: String, days: Double, history: Int, ledger: Ledger, goal: Goal, onSetGoal: @escaping () -> Void) {
         self.title = title
         self.history = history
-        self.smoothing = smoothing
         self.ledger = ledger
         self.goal = goal
         self.onSetGoal = onSetGoal
@@ -83,11 +80,12 @@ private struct ProgressCard: View {
             if day == today { return (noon, sofar, true) }
             return ledger.isLogged(day) ? (noon, ledger.totals(on: day).units, false) : nil
         }
-        // Each day's budget worked out once, not once per window it's averaged into — this runs every frame of a pinch.
-        let daily = Dictionary(uniqueKeysWithValues: ((start - smoothing)...(today + 14)).compactMap { day in
-            ledger.dailyBudget(on: day, goal: goal).map { (day, $0) }
-        })
-        let budgets = { (days: ClosedRange<DayKey>) in days.compactMap { day in self.average(to: day) { daily[$0] }.map { (at(day), $0) } } }
+        // The budget as it stands each day, unsmoothed: a scheduled taper is already a smooth curve, and
+        // running a trailing mean over it only lifted the whole line and flattened its first few days,
+        // where the window had fewer days to average. A dynamic taper does step, because your drinking does.
+        let budgets = { (days: ClosedRange<DayKey>) in
+            days.compactMap { day in ledger.dailyBudget(on: day, goal: goal).map { (at(day), $0) } }
+        }
         let behind = budgets(past)
         let ahead = budgets(today...(today + 14))
         // Scale to the window in view, so an old binge doesn't flatten the recent weeks.
@@ -160,13 +158,6 @@ private struct ProgressCard: View {
         }
     }
 
-    /// Mean of `value` over the days it's known for, in the window ending `day`. Days it isn't known for
-    /// are left out rather than counted as nought, which is right for a budget: no goal set is not a
-    /// budget of zero.
-    private func average(to day: DayKey, _ value: (DayKey) -> Double?) -> Double? {
-        let values = ((day - smoothing + 1)...day).compactMap(value)
-        return values.isEmpty ? nil : values.reduce(0, +) / Double(values.count)
-    }
 }
 
 
