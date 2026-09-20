@@ -173,12 +173,12 @@ nonisolated enum Catalog {
         // London craft, by the can. No pint prices: these breweries are all over London taps but almost
         // none of those menus are published, so a pint of one falls back to the can's rate by volume
         // rather than to a made-up bar figure. Fourpure and Magic Rock are gone — both shut in the
-        // craft shakeout, Fourpure's brewing moved to Magic Rock and then Magic Rock closed too.
+        // craft shakeout, Fourpure's brewing moved to Magic Rock and then Magic Rock closed too, and
+        // Brick went with them — dissolved June 2025, which is why Peckham Pils isn't here either.
         ("Meantime Yakima Red", .beer, 4.5, [(can440, 2)]),
         ("Camden Off Menu IPA", .beer, 5.8, [(can330, 1.8)]),
         ("Brixton Reliance Pale Ale", .beer, 4.2, [(can330, 1.5)]),
         ("Brixton Coldharbour Lager", .beer, 4.4, [(can330, 1.18)]),
-        ("Brick Peckham Pils", .beer, 4.8, [(can330, 2.8)]),
         ("Anspach & Hobday The London Black", .beer, 4.4, [(can440, 4.6)]),
         ("Signature Brew Studio Lager", .beer, 4.0, [(can330, 1.58)]),
         ("Villages Rodeo", .beer, 4.6, [(can330, 2.8)]),
@@ -187,7 +187,7 @@ nonisolated enum Catalog {
         ("Pressure Drop Pale Fire", .beer, 4.8, [(can440, 4.8)]),
         ("Howling Hops Tropical Deluxe", .beer, 3.8, [(can440, 3.2)]),
         ("Howling Hops Barley Pop", .beer, 4.4, [(can440, 3.1)]),
-        ("Deya Steady Rolling Man", .beer, 5.2, [(can500, 6.15)]),
+        ("Deya Steady Rolling Man", .beer, 5.2, [(can500, 4.5)]),
         ("Cloudwater DDH Pale", .beer, 5.0, [(can440, 4.75)]),
         ("Northern Monk Faith", .beer, 5.0, [(can440, 3)]),
         ("Track Sonoma", .beer, 3.8, [(can440, 4)]),
