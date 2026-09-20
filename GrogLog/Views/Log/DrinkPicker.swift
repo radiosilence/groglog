@@ -197,9 +197,14 @@ private struct DrinkTile: View {
                 .rotationEffect(.degrees(pour.tilt), anchor: .bottom)
                 .frame(height: 58)
                 .padding(.bottom, 4)
+            // A seventh of the catalogue is a brewery's name plus a beer's, and the beer's is the half that
+            // tells them apart — six Westons ciders all read "Henry Westons Vi…" otherwise. So it shrinks
+            // to fit before it gives up, and gives up in the middle, where the least is lost.
             Text(name)
                 .font(.subheadline.weight(.semibold))
                 .lineLimit(2, reservesSpace: true)
+                .minimumScaleFactor(0.7)
+                .truncationMode(.middle)
                 .multilineTextAlignment(.center)
             Text(category.serving(vessel, ml: volumeMl, abv: abv))
                 .font(.caption2)
