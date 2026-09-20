@@ -170,24 +170,30 @@ nonisolated enum Catalog {
         ("Sierra Nevada Pale Ale", .beer, 5.6, [(pint, 7), (bottle350, 1.39)]),
         ("Sierra Nevada Pale Ale (can)", .beer, 5.0, [(can355, 2.32)]),
         ("Goose Island IPA", .beer, 5.9, [(pint, 7), (bottle330, 1.5)]),
-        // London craft, by the can. No pint prices: these breweries are all over London taps but almost
-        // none of those menus are published, so a pint of one falls back to the can's rate by volume
-        // rather than to a made-up bar figure. Fourpure and Magic Rock are gone — both shut in the
-        // craft shakeout, Fourpure's brewing moved to Magic Rock and then Magic Rock closed too, and
-        // Brick went with them — dissolved June 2025, which is why Peckham Pils isn't here either.
+        // London craft, mostly by the can: these breweries are all over London taps but hardly any of
+        // those menus are published, so only the three taprooms that post a price carry one and the
+        // rest fall back to the can's rate by volume rather than to a made-up bar figure. Fourpure,
+        // Magic Rock and Brick are all gone — Fourpure's brewing moved to Magic Rock shortly before
+        // Magic Rock shut, and Brick dissolved in June 2025, which is why there's no Peckham Pils.
+        // Meantime renamed two of these: London Lager is Greenwich Lager, London Pale Ale is Prime Pale.
+        ("Meantime Greenwich Lager", .beer, 4.5, [(bottle330, 1.58)]),
+        ("Meantime Prime Pale", .beer, 4.3, [(can330, 1.63)]),
         ("Meantime Yakima Red", .beer, 4.5, [(can440, 2)]),
         ("Camden Off Menu IPA", .beer, 5.8, [(can330, 1.8)]),
         ("Brixton Reliance Pale Ale", .beer, 4.2, [(can330, 1.5)]),
         ("Brixton Coldharbour Lager", .beer, 4.4, [(can330, 1.18)]),
         ("Anspach & Hobday The London Black", .beer, 4.4, [(can440, 4.6)]),
+        ("Anspach & Hobday Table Beer", .beer, 2.7, [(can440, 2.95)]),
+        ("Five Points XPA", .beer, 4.0, [(can330, 2.99)]),
+        ("Five Points Railway Porter", .beer, 4.8, [(can330, 2.95)]),
         ("Signature Brew Studio Lager", .beer, 4.0, [(can330, 1.58)]),
-        ("Villages Rodeo", .beer, 4.6, [(can330, 2.8)]),
+        ("Villages Rodeo", .beer, 4.6, [(pint, 4), (can330, 2.8)]),
         ("Villages Rafiki", .beer, 4.3, [(can330, 3.2)]),
         ("Orbit Peel", .beer, 4.9, [(bottle330, 2.63)]),
-        ("Pressure Drop Pale Fire", .beer, 4.8, [(can440, 4.8)]),
-        ("Howling Hops Tropical Deluxe", .beer, 3.8, [(can440, 3.2)]),
+        ("Pressure Drop Pale Fire", .beer, 4.8, [(can440, 3.85)]),
+        ("Howling Hops Tropical Deluxe", .beer, 3.8, [(pint, 5.9), (can440, 3.2)]),
         ("Howling Hops Barley Pop", .beer, 4.4, [(can440, 3.1)]),
-        ("Deya Steady Rolling Man", .beer, 5.2, [(can500, 4.5)]),
+        ("Deya Steady Rolling Man", .beer, 5.2, [(half, 3), (can500, 4.5)]),
         ("Cloudwater DDH Pale", .beer, 5.0, [(can440, 4.75)]),
         ("Northern Monk Faith", .beer, 5.0, [(can440, 3)]),
         ("Track Sonoma", .beer, 3.8, [(can440, 4)]),
