@@ -122,8 +122,15 @@ struct DrinksScreen: View {
     @State private var creating = false
 
     var body: some View {
+        // Logging a brand copies it in, so everything ever picked from the catalogue landed under "Yours" and
+        // buried the handful of drinks that actually are. Untouched copies sit below, under their own heading.
+        let mine = drinks.filter { !$0.isGeneric }
+        let adopted = mine.filter { Catalog.holds(name: $0.name, category: $0.category, abv: $0.abv) }
+        let customised = mine.filter { !Catalog.holds(name: $0.name, category: $0.category, abv: $0.abv) }
+
         List {
-            section("Yours", drinks.filter { !$0.isGeneric })
+            section("Yours", customised)
+            section("From the catalogue", adopted, footer: "Brands copied in as you logged them, exactly as the catalogue has them. Change one — its strength, say — and it moves up to yours.")
             section("Generic", drinks.filter(\.isGeneric))
         }
         .navigationTitle("Drinks")
@@ -134,8 +141,10 @@ struct DrinksScreen: View {
         .sheet(isPresented: $creating) { DrinkEditor(drink: nil) }
     }
 
-    private func section(_ title: String, _ drinks: [Drink]) -> some View {
-        Section(title) {
+    @ViewBuilder
+    private func section(_ title: String, _ drinks: [Drink], footer: String? = nil) -> some View {
+        if !drinks.isEmpty {
+            Section {
             ForEach(drinks) { drink in
                 Button { editing = drink } label: {
                     HStack(spacing: 12) {
@@ -162,6 +171,11 @@ struct DrinksScreen: View {
                         database.logbook(prefs).save(toggled)
                     }
                 }
+            }
+            } header: {
+                Text(title)
+            } footer: {
+                if let footer { Text(footer) }
             }
         }
     }

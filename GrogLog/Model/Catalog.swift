@@ -352,6 +352,12 @@ nonisolated enum Catalog {
 
     /// What a brand costs in a size it may not be listed in — its own price for that size, else the
     /// first serve scaled by volume, the same way a drink's own price scales.
+    /// Whether a drink is still exactly as the catalogue has it — copied in when it was logged and never touched.
+    /// Change its name, kind or strength and it stops matching, which is the point: it's yours from then on.
+    static func holds(name: String, category: DrinkCategory, abv: Double) -> Bool {
+        brands.contains { $0.name == name && $0.category == category && $0.abv == abv }
+    }
+
     /// What a drink of this name in this size normally costs: a brand's own price, else a generic's starting one.
     /// Nil where nothing is known, so a caller can tell "we don't price this" from "this is free".
     static func price(name: String, category: DrinkCategory, vessel: Vessel, ml: Double) -> Double? {

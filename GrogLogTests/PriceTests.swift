@@ -41,3 +41,34 @@ import Testing
         #expect(Catalog.price(stella, .can, 568) > 0)
     }
 }
+
+/// What separates a brand you copied in and left alone from one you've made your own. The Drinks screen sorts on
+/// it, so a night of logging brands doesn't bury the drinks you actually wrote.
+@Suite struct AdoptedDrinkTests {
+    private func stella() throws -> CatalogBrand {
+        try #require(Catalog.brands.first { $0.name == "Stella Artois" })
+    }
+
+    @Test func aBrandCopiedInAndLeftAloneIsStillTheCatalogues() throws {
+        let brand = try stella()
+        #expect(Catalog.holds(name: brand.name, category: brand.category, abv: brand.abv))
+    }
+
+    @Test func changingTheStrengthMakesItYours() throws {
+        let brand = try stella()
+        #expect(!Catalog.holds(name: brand.name, category: brand.category, abv: brand.abv + 0.1))
+    }
+
+    @Test func renamingItMakesItYours() throws {
+        let brand = try stella()
+        #expect(!Catalog.holds(name: "\(brand.name) (the good one)", category: brand.category, abv: brand.abv))
+    }
+
+    @Test func aDrinkYouInventedWasNeverTheCatalogues() {
+        #expect(!Catalog.holds(name: "Dave's shed cider", category: .cider, abv: 7))
+    }
+
+    @Test func aGenericIsNotACatalogueBrand() {
+        #expect(!Catalog.holds(name: "Beer", category: .beer, abv: DrinkCategory.beer.defaultABV))
+    }
+}
