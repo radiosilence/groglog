@@ -837,10 +837,15 @@ nonisolated enum Catalog {
         return Seed.price(name: name, vessel: vessel, ml: ml)
     }
 
+    /// A size the brand isn't listed in scales from the nearest serve of the same vessel before any other:
+    /// a 440 ml bottle is the 330's price and a third, not a pint's less a fifth. Draught and packaged are
+    /// different trades and their prices don't divide into one another.
     static func price(_ brand: CatalogBrand, _ vessel: Vessel, _ ml: Double) -> Double {
         if let exact = brand.serves.first(where: { $0.size.vessel == vessel && $0.size.ml == ml }) { return exact.price }
-        guard let first = brand.serves.first else { return 0 }
-        return first.price * ml / first.size.ml
+        let alike = brand.serves.filter { $0.size.vessel == vessel }
+        guard let nearest = alike.min(by: { abs($0.size.ml - ml) < abs($1.size.ml - ml) }) ?? brand.serves.first
+        else { return 0 }
+        return nearest.price * ml / nearest.size.ml
     }
 
     static func search(_ query: String) -> [CatalogItem] {

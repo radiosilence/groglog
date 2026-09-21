@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- A drink in a size other than the one you added it in takes the catalogue's price for that size, rather than its own divided by volume. Asahi is £7.40 a pint and £1.63 for the 330 ml bottle — a fifth of the liquid, not four-tenths of the price — so a bottle logged against an adopted pint was coming out at £4.30. Draught and packaged are different trades and their prices don't divide into each other. A price you've set yourself still scales, because it's yours; and a size nobody lists scales from the nearest serve of the same kind rather than from whatever the brand happened to be listed in first.
+
 - Each drink on the Day screen says what it cost, beside the time it was drunk, so a round reads as both at a glance and an expensive night shows you where it went. A drink with no price says nothing rather than £0.00, which reads as free rather than unpriced.
 - The week-average line is smoothed far harder, and differently. It was a three-hour blur of the curve itself, which left one heavy night standing as a near-vertical wall between six and nine. Blurring a running total can only drag its ends inwards, though, so instead the drinks get spread out and added back up: each one smeared over a few hours, then scaled so the total it finishes on is the one it started with. The sharpest quarter-hour is nine times flatter and the line still starts at nothing, only rises, and ends on the week's mean exactly.
 

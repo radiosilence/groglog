@@ -124,7 +124,7 @@ struct LogOptionsSheet: View {
     /// else the catalogue's for a brand you haven't adopted yet.
     private func usualPrice(for choice: Choice) -> Double {
         if let pinned = favourite(for: choice)?.price { return pinned }
-        if let drink = choice.drink { return drink.price(forMl: size.ml) }
+        if let drink = choice.drink { return drink.price(for: size.vessel, ml: size.ml) }
         return choice.brand.map { Catalog.price($0, size.vessel, size.ml) } ?? 0
     }
 

@@ -117,7 +117,7 @@ nonisolated struct AppDatabase: Sendable {
             for var favourite in try Favourite.filter(Column("price") == 0).fetchAll(db) {
                 guard let drink = try Drink.fetchOne(db, key: favourite.drinkId) else { continue }
                 let found = Catalog.price(name: drink.name, category: drink.category, vessel: favourite.vessel, ml: favourite.volumeMl)
-                    ?? drink.price(forMl: favourite.volumeMl)
+                    ?? drink.price(for: favourite.vessel, ml: favourite.volumeMl)
                 guard found > 0 else { continue }
                 favourite.price = found
                 try favourite.update(db)
