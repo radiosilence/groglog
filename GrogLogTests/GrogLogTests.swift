@@ -276,7 +276,9 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(logged.allSatisfy { $0.name == "Staropramen Premium" && $0.abv == 4 })
         #expect(logged.map(\.vessel) == [.can, .pint])
         #expect(logged[0].price == 2)
-        #expect(abs(logged[1].price - 2 * 568 / 440) < 0.0001)
+        // The can was priced by hand at £2 and keeps it. The pint was never priced by hand, so it took
+        // the catalogue's pint price rather than £2 stretched to a pint's worth of volume.
+        #expect(abs(logged[1].price - Catalog.price(name: "Staropramen", category: .beer, vessel: .pint, ml: 568)!) < 0.0001)
     }
 }
 

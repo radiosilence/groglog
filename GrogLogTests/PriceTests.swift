@@ -80,12 +80,20 @@ import Testing
         #expect(pint.price(for: .pint, ml: 568) == pint.price)
     }
 
-    /// Priced it yourself and the catalogue stops arguing — your figure scales, because it's yours.
-    @Test func aPriceYouSetYourselfIsTheOneThatScales() throws {
+    /// A price you set is a price for the size you set it on. Ask for another size and it's another
+    /// product, looked up rather than stretched out of this one.
+    @Test func yourOwnPriceHoldsForYourOwnSizeAndNoOther() throws {
         let asahi = try #require(Catalog.brands.first { $0.name == "Asahi Super Dry" })
         let mine = Drink(name: asahi.name, category: asahi.category, abv: asahi.abv,
                          vessel: .pint, volumeMl: 568, price: 5)
-        #expect(abs(mine.price(for: .bottle, ml: 330) - 5 * 330 / 568) < 0.001)
+        #expect(mine.price(for: .pint, ml: 568) == 5)
+        #expect(abs(mine.price(for: .bottle, ml: 330) - Catalog.price(asahi, .bottle, 330)) < 0.001)
+    }
+
+    /// A drink of your own invention has nothing to look up, so its price is all there is to go on.
+    @Test func aDrinkOfYourOwnIsTheOneThingStillScaled() {
+        let shed = Drink(name: "Dave's shed cider", category: .cider, abv: 7, vessel: .bottle, volumeMl: 500, price: 3)
+        #expect(abs(shed.price(for: .bottle, ml: 250) - 1.5) < 0.001)
     }
 
     /// A size nobody lists scales from the nearest serve of the same kind, not from whatever came first.

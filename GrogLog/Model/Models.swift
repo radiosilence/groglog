@@ -15,18 +15,14 @@ nonisolated struct Drink: Codable, Hashable, Identifiable, Sendable, FetchableRe
     var isHidden = false
     var sortOrder = 0
 
-    /// What this costs in a size. Its own price belongs to its own size, so any other size can only be
-    /// scaled by volume — and volume is the wrong ruler wherever the shelf disagrees with the arithmetic.
-    /// Asahi is £7.40 a pint and £1.63 for the 330 ml bottle, not the £4.30 a pint divides into. So a
-    /// drink still priced exactly as the catalogue has it takes the catalogue's figure for the size
-    /// asked for, and only a drink you've put your own price on gets scaled.
+    /// What this costs in a size. The price it carries belongs to the size it was added in; another size
+    /// is another product at another price, so that one gets looked up rather than worked out from this
+    /// one. Asahi is £7.40 a pint and £1.63 for the 330 ml bottle, and dividing the pint by volume says
+    /// £4.30. Only a drink of your own invention, which the catalogue has never heard of, gets scaled —
+    /// there being nothing else to go on.
     func price(for vessel: Vessel, ml: Double) -> Double {
         if vessel == self.vessel && ml == volumeMl { return price }
-        if let mine = Catalog.price(name: name, category: category, vessel: self.vessel, ml: volumeMl),
-           abs(price - mine) < 0.005,
-           let known = Catalog.price(name: name, category: category, vessel: vessel, ml: ml) {
-            return known
-        }
+        if let known = Catalog.price(name: name, category: category, vessel: vessel, ml: ml) { return known }
         return price * ml / volumeMl
     }
 }
