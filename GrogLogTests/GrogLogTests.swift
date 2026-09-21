@@ -205,6 +205,31 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
     }
 }
 
+/// The picker used to offer the same four cuts whatever the period, so "−50%" and "day" together meant
+/// halving your drinking daily — well past the rate the same screen warns is a withdrawal risk.
+@Suite struct TaperOfferTests {
+    @Test func nothingYouCanPickIsFasterThanIsSafe() {
+        for period in Goal.periods {
+            for cut in Goal.cuts(perDays: period.days) {
+                let goal = Goal(isEnabled: true, reductionPercent: cut, periodDays: period.days)
+                #expect(!goal.isFasterThanSafe, "−\(Int(cut))% every \(period.label) is \(goal.dailyCut) a day")
+            }
+        }
+    }
+
+    @Test func aDayIsOfferedGentlerCutsThanALongerPeriod() {
+        #expect(Goal.cuts(perDays: 1).max()! <= Goal.cuts(perDays: 7).max()!)
+        #expect(Goal.cuts(perDays: 1).contains(5))
+        #expect(!Goal.cuts(perDays: 1).contains(50))
+    }
+
+    @Test func changingThePeriodKeepsTheNearestCutItOffers() {
+        #expect(Goal.nearestCut(to: 50, perDays: 1) == 10)
+        #expect(Goal.nearestCut(to: 2, perDays: 7) == 10)
+        #expect(Goal.nearestCut(to: 10, perDays: 1) == 10)
+    }
+}
+
 @Suite struct DynamicBudgetTests {
     @Test func isTheCutOffTheRecentAverage() throws {
         let (logbook, drink) = try logbook(drink: beer(abv: 20, ml: 1000))

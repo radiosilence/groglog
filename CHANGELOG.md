@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- A daily taper is offered gentler cuts than a longer one: 2, 5 or 10% rather than the 10, 25, 33 and 50% that made sense over a week. The same four were offered whatever the period, so "−50%" with "day" selected meant halving your drinking every day — four times the rate the same screen warns is a withdrawal risk, two lines further down. −50% over a week is 9% a day and inside the limit; over a day it is not. Every pairing the picker now offers is under it, which a test holds to. Changing the period moves the chosen cut to the nearest that period still offers.
+
 - A drink's price is no longer stretched to fit another size. The price it carries belongs to the size it was added in; another size is another product at another price, so that one gets looked up instead. Asahi is £7.40 a pint and £1.63 for the 330 ml bottle — a fifth of the liquid, nowhere near four-tenths of the price — so a bottle logged against an adopted pint had been coming out at £4.30. That holds even where you've priced a drink yourself: your figure is for your size, and the catalogue answers for the rest. Only a drink of your own invention still scales, there being nothing to look up. A size nobody lists scales from the nearest serve of the same kind rather than from whatever the brand was listed in first, so a 440 ml bottle comes from the 330 rather than from a pint.
 
 - Each drink on the Day screen says what it cost, beside the time it was drunk, so a round reads as both at a glance and an expensive night shows you where it went. A drink with no price says nothing rather than £0.00, which reads as free rather than unpriced.

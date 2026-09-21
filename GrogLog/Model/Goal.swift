@@ -20,6 +20,19 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
     /// Around 15 units a day, stopping suddenly can be dangerous and assisted withdrawal is advised.
     static let withdrawalRiskWeekly = 105.0
 
+    /// How often the cut lands, and the cuts worth offering over that long. A percentage means something
+    /// very different over a day than over twelve weeks: −50% in a week is 9% a day and inside what's
+    /// safe, while −50% in a day is half your drinking gone by tomorrow and most of it gone by Friday.
+    /// So over a day the offer stops where the safe limit does, and every pairing here is under it.
+    static let periods: [(days: Int, label: String)] = [(1, "day"), (7, "week"), (28, "4 wk"), (56, "8 wk"), (84, "12 wk")]
+
+    static func cuts(perDays days: Int) -> [Double] { days == 1 ? [2, 5, 10] : [10, 25, 33, 50] }
+
+    /// The nearest cut this period does offer, for when the period changes under a chosen one.
+    static func nearestCut(to percent: Double, perDays days: Int) -> Double {
+        cuts(perDays: days).min { abs($0 - percent) < abs($1 - percent) } ?? percent
+    }
+
     /// The equivalent cut per day, for comparing plans on the same footing.
     var dailyCut: Double { 1 - pow(1 - reductionPercent / 100, 1 / Double(max(1, periodDays))) }
 

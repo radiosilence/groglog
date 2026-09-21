@@ -19,13 +19,18 @@ struct GoalEditor: View {
             Toggle("Cut down", isOn: $goal.isEnabled)
             if goal.isEnabled {
                 Picker("Cut", selection: $goal.reductionPercent) {
-                    ForEach([10.0, 25, 33, 50], id: \.self) { Text("−\(Int($0))%") }
+                    ForEach(Goal.cuts(perDays: goal.periodDays), id: \.self) { Text("−\(Int($0))%") }
                 }
                 .pickerStyle(.segmented)
                 Picker("Every", selection: $goal.periodDays) {
-                    ForEach([(1, "day"), (7, "week"), (28, "4 wk"), (56, "8 wk"), (84, "12 wk")], id: \.0) { Text($0.1).tag($0.0) }
+                    ForEach(Goal.periods, id: \.days) { Text($0.label).tag($0.days) }
                 }
                 .pickerStyle(.segmented)
+                // A day offers gentler cuts than a quarter does, so changing the period moves the chosen
+                // one to the nearest it still offers rather than leaving the picker showing nothing.
+                .onChange(of: goal.periodDays) { _, days in
+                    goal.reductionPercent = Goal.nearestCut(to: goal.reductionPercent, perDays: days)
+                }
                 Toggle("Dynamic tapering", isOn: $goal.isDynamic)
                 if !goal.isDynamic {
                     NumberRow(label: "From", value: perPeriod(\.baselineWeekly), suffix: per)
