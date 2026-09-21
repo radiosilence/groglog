@@ -94,7 +94,7 @@ struct DayScreen: View {
             case .drank:
                 Section("Drinks") {
                     ForEach(entries.reversed()) { entry in
-                        Button { editing = entry } label: { PourRow(entry: entry) }
+                        Button { editing = entry } label: { PourRow(entry: entry, currency: prefs.currency) }
                             .tint(.primary)
                     }
                     .onDelete { offsets in
@@ -285,6 +285,7 @@ struct BudgetBar: View {
 
 struct PourRow: View {
     let entry: Entry
+    var currency = "GBP"
 
     var body: some View {
         HStack(spacing: 12) {
@@ -299,9 +300,17 @@ struct PourRow: View {
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
                 Text("\(entry.units.unitsText) u").font(.body.weight(.semibold).monospacedDigit())
-                Text(entry.timestamp, format: .dateTime.hour().minute())
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                // What it cost sits beside when it was drunk, so a round reads as both at a glance. A drink
+                // with no price says nothing rather than £0.00, which reads as free rather than unpriced.
+                HStack(spacing: 4) {
+                    if entry.price > 0 {
+                        Text(entry.price.money(currency))
+                        Text("·")
+                    }
+                    Text(entry.timestamp, format: .dateTime.hour().minute())
+                }
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
             }
         }
     }

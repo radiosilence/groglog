@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Each drink on the Day screen says what it cost, beside the time it was drunk, so a round reads as both at a glance and an expensive night shows you where it went. A drink with no price says nothing rather than £0.00, which reads as free rather than unpriced.
+- The week-average line is smoothed far harder, and differently. It was a three-hour blur of the curve itself, which left one heavy night standing as a near-vertical wall between six and nine. Blurring a running total can only drag its ends inwards, though, so instead the drinks get spread out and added back up: each one smeared over a few hours, then scaled so the total it finishes on is the one it started with. The sharpest quarter-hour is nine times flatter and the line still starts at nothing, only rises, and ends on the week's mean exactly.
+
 - The budget line stops kinking at today. Every day's point sat at its own noon except today's, which was moved onto the "now" rule to meet it — so the segment before today stretched to thirty-odd hours and the one after squashed to a dozen, while both still carried exactly one day of the cut. At half nine at night that halved the slope going in and doubled it coming out, from a taper that is a smooth curve. Today's point goes back to noon with the rest, and the rule is met by a point interpolated along the line, where the line already was.
 
 - Long drink names shrink to fit the tile before they give up, and give up in the middle rather than the end. Naming a beer after its brewery means the half that tells two beers apart is the half at the back: six Westons ciders all read "Henry Westons Vi…" and could not be told apart at all. A seventh of the catalogue is over twenty-two characters now, so this was most of a brewery's range at a time.

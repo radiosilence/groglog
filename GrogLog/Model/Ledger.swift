@@ -236,12 +236,32 @@ nonisolated struct Ledger {
             }
             return CurvePoint(x: hour, units: total / Double(logged.count))
         }
-        // Six quarter-hours either side.
-        let span = 6
-        let units = { (i: Int) in raw[min(max(i, 0), raw.count - 1)].units }
-        return raw.indices.map { i in
-            let window = (i - span)...(i + span)
-            return CurvePoint(x: raw[i].x, units: window.map(units).reduce(0, +) / Double(window.count))
+        // Smoothing a running total has to leave it a running total — starting at nothing, only ever
+        // rising, ending on the week's mean. So it's the drinks that get spread out rather than the
+        // curve: each one smeared over a few hours, added back up, and scaled so the total it finishes
+        // on is the one it started with. Blurring the curve itself can only drag its ends inwards.
+        var previous = 0.0
+        let pours = raw.map { point -> Double in
+            defer { previous = point.units }
+            return point.units - previous
+        }
+        let week = pours.reduce(0, +)
+        guard week > 0 else { return raw }
+        // Twelve quarter-hours either side, twice over: a three-hour blur of a three-hour blur, which
+        // falls away at the edges rather than stopping dead like a single pass would.
+        let span = 12
+        let blur = { (xs: [Double]) in
+            xs.indices.map { i in
+                (max(0, i - span)...min(xs.count - 1, i + span)).reduce(0) { $0 + xs[$1] } / Double(2 * span + 1)
+            }
+        }
+        let spread = blur(blur(pours))
+        // The blur pushes a little past midnight, where it's lost; scaling puts it back.
+        let scale = week / spread.reduce(0, +)
+        var running = 0.0
+        return zip(raw, spread).map { point, poured in
+            running += poured * scale
+            return CurvePoint(x: point.x, units: running)
         }
     }
 }
