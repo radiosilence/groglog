@@ -261,6 +261,40 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(Goal().periodDays == 4 && Goal().reductionPercent == 10)
     }
 
+    /// A share is self-limiting: ten per cent is ten per cent of whatever's being drunk, so no period
+    /// can breach the ceiling. A fixed number of units can, and does — at the bottom, not the top.
+    @Test func nothingOfferedStartsSteeperThanTheCeiling() {
+        for daily in stride(from: 4.0, through: 80, by: 2) {
+            let weekly = daily * 7
+            for period in Goal.periods(drinking: weekly) {
+                let share = Goal(periodDays: period.days)
+                #expect(!share.isFasterThanSafe)
+                for units in Goal.unitCuts(drinking: weekly, perDays: period.days) {
+                    let opening = units / Double(period.days) / daily
+                    // The smallest cut always stands, even where a tenth of the drinking is less than it.
+                    guard units > Goal.unitCuts.min()! else { continue }
+                    #expect(opening <= Goal.safeDailyCut + 0.0001,
+                            "−\(units) u every \(period.label) on \(daily) u/day opens at \(opening)")
+                }
+            }
+        }
+    }
+
+    @Test func aFastTaperIsWithheldFromWhoeverIsDrinkingMost() {
+        // DHSC names 25 a day as the point to go slower, and says every four days rather than every day.
+        #expect(Goal.periods(drinking: 20 * 7).map(\.days) == [1, 3, 4, 7])
+        #expect(Goal.periods(drinking: 40 * 7).map(\.days) == [4, 7])
+        #expect(Goal.periods(drinking: Goal.slowerAboveWeekly).map(\.days).contains(1), "at 25 exactly, not over it")
+    }
+
+    @Test func aLinearCutIsWithheldFromWhoeverIsDrinkingLeast() {
+        // Two a day off ten a day is a fifth of it gone by morning.
+        #expect(Goal.unitCuts(drinking: 10 * 7, perDays: 1) == [0.5, 1.0])
+        #expect(Goal.unitCuts(drinking: 40 * 7, perDays: 1) == Goal.unitCuts)
+        // Spread over four days the same two units is gentle again, so it comes back.
+        #expect(Goal.unitCuts(drinking: 10 * 7, perDays: 4) == Goal.unitCuts)
+    }
+
     @Test func aLinearCutStopsAtTwoUnits() {
         #expect(Goal.unitCuts.max() == 2)
         #expect(Goal.unitCuts.contains(0.5) && Goal.unitCuts.contains(1))

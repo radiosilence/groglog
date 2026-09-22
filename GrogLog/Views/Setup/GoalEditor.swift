@@ -24,17 +24,26 @@ struct GoalEditor: View {
                     ForEach(Taper.allCases, id: \.self) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.segmented)
+                let periods = Goal.periods(drinking: drinking)
+                let units = Goal.unitCuts(drinking: drinking, perDays: goal.periodDays)
                 if goal.taper == .linear {
                     Picker("Cut by", selection: $goal.reductionUnits) {
-                        ForEach(Goal.unitCuts, id: \.self) { Text("−\($0.formatted(.number.precision(.fractionLength(0...1)))) u") }
+                        ForEach(units, id: \.self) { Text("−\($0.formatted(.number.precision(.fractionLength(0...1)))) u") }
                     }
                     .pickerStyle(.segmented)
                 }
                 // The share is fixed at the fastest that's safe, so how often it lands is the whole pace.
                 Picker(goal.taper == .linear ? "Every" : "Cut \(Int(Goal.standardCut))% every", selection: $goal.periodDays) {
-                    ForEach(Goal.periods, id: \.days) { Text($0.label).tag($0.days) }
+                    ForEach(periods, id: \.days) { Text($0.label).tag($0.days) }
                 }
                 .pickerStyle(.segmented)
+                // Whatever's withdrawn, land on something that is offered rather than showing nothing.
+                .onChange(of: periods.map(\.days)) { _, days in
+                    if !days.contains(goal.periodDays) { goal.periodDays = days.min() ?? 4 }
+                }
+                .onChange(of: units) { _, amounts in
+                    if !amounts.contains(goal.reductionUnits) { goal.reductionUnits = amounts.max() ?? 0.5 }
+                }
                 if goal.taper != .dynamic {
                     NumberRow(label: "From", value: perPeriod(\.baselineWeekly), suffix: per)
                     if let recent, abs(recent - goal.baselineWeekly) > 0.5 {
@@ -62,8 +71,8 @@ struct GoalEditor: View {
                     Label("Over 15 units a day. NICE says to consider medically assisted withdrawal at this level — worth speaking to your GP or an alcohol service about support alongside this.", systemImage: "cross.case")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                } else if drinking >= Goal.slowerAboveWeekly, goal.periodDays == 1 {
-                    Label("Over 25 units a day, guidance suggests cutting 10% every four days rather than every day.", systemImage: "info.circle")
+                } else if drinking > Goal.slowerAboveWeekly {
+                    Label("Over 25 units a day, guidance suggests cutting no faster than 10% every four days — so the quicker two aren't offered here.", systemImage: "info.circle")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }

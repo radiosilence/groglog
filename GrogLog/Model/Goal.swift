@@ -71,6 +71,23 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
     /// is already taking more than a tenth of what's left below 20 u/day.
     static let unitCuts = [0.5, 1.0, 1.5, 2.0]
 
+    /// Which periods to offer somebody drinking this much. Over 25 units a day the guidance names a
+    /// slower pace for exactly that reason — no more than 10% every four days — so the quicker two
+    /// aren't on the table. A taper still is, at the pace the guidance gives for that much drinking.
+    static func periods(drinking weekly: Double) -> [(days: Int, label: String)] {
+        weekly > slowerAboveWeekly ? periods.filter { $0.days >= 4 } : periods
+    }
+
+    /// And which linear amounts. A share is self-limiting — ten per cent is ten per cent of whatever
+    /// you drink — but a fixed number of units isn't: two a day off a ten-a-day budget is twenty per
+    /// cent, twice the ceiling, on the first morning. So the amounts on offer are the ones that start
+    /// inside it. If nothing does, the smallest stands: at that little the taper isn't the risk.
+    static func unitCuts(drinking weekly: Double, perDays days: Int) -> [Double] {
+        let ceiling = weekly / 7 * safeDailyCut * Double(max(1, days))
+        let offered = unitCuts.filter { $0 <= ceiling + 0.0001 }
+        return offered.isEmpty ? [unitCuts.min() ?? 0.5] : offered
+    }
+
     /// The offered period closest in pace to a rate, for a goal saved when the picker offered others.
     /// It's the daily rate that's matched, not the number of days — snapping an eight-week taper to the
     /// nearest period it still has would quietly make it several times faster.
