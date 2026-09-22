@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- A tap does one tile's worth of work rather than the whole app's. Every screen hung off the day totals, which change on every commit, and nothing downstream noticed when its own inputs hadn't: each chart was laid out again on every drink logged from any tab, every calendar cell re-evaluated, every entries query in the app re-fetched and re-delivered the same rows. Charts now sit on plain values and are only laid out when those change, calendar cells take the handful of numbers they show, and a query whose fetch comes back the same says nothing.
+- The stepped taper is solved rather than walked. It was stepped forward a day at a time from the start date for every calendar cell, week and chart point that asked, so a year into a goal the Calendar and Reports each spent a tenth of a second on budget maths per commit, and twice that a year later. Within a rung the fall is geometric, so the day it reaches the next one is a logarithm; a test holds the solution to the walk for every baseline the picker allows, 900 days out. The scale test's goal is a year old now so it feels this; started today, the maths was free.
+- The pour plays before the write lands, not after the disk has acknowledged it.
+- Changing when the day ends re-days every entry off the main thread. It's the full rebuild, seconds on a long log, and it ran while the picker was still settling.
+- Catalogue search folds names once rather than per keystroke per serve, and the long-press sheet looks brands up by kind instead of scanning the lot against every drink you own.
+
 - The pace a stepped taper picks is a link now, and behind it is where that figure came from: the 10%-a-day ceiling and which guideline it's in, the boundaries at 25 and 15 and which of the two is ours, the levels NICE says to ask for help at, and links to both documents. It also says the thing the screen can't: a stepped taper always takes the quickest pace its level allows, so there's no way to make it slower — that's what Proportional is for.
 
 - The preview marks where a stepped taper changes pace. It changes twice on the way down from 30 units a day — at 25 and at 15 — but the first is a 29% steepening against the second's threefold one, so the curve alone reads as though only one thing happened. Now each change is a line on the chart saying what the pace becomes.

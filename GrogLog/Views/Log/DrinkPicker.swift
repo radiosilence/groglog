@@ -130,15 +130,16 @@ struct DrinkPicker: View {
     }
 
     private var catalogMatches: [CatalogItem] {
-        Catalog.search(search).filter { item in
-            !drinks.contains { $0.name == item.name && $0.category == item.category }
-        }
+        let owned = Set(drinks.map { Catalog.key($0.name, $0.category) })
+        return Catalog.search(search).filter { !owned.contains(Catalog.key($0.name, $0.category)) }
     }
 
+    /// The pour plays and the tap lands before the write: the write is a transaction on the main thread, and the
+    /// grid shouldn't wait on the disk to acknowledge a tap.
     private func log(_ serve: Serve) {
-        database.logbook(prefs).log(serve, at: [ledger.clock.suggestedTime(for: day, after: pours.last?.timestamp)])
         pulses[serve.id, default: 0] += 1
         logged += 1
+        database.logbook(prefs).log(serve, at: [ledger.clock.suggestedTime(for: day, after: pours.last?.timestamp)])
     }
 
     /// A catalogue pick becomes one of your drinks, first had at this size.

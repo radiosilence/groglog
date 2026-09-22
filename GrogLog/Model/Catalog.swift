@@ -819,6 +819,15 @@ nonisolated enum Catalog {
         brand.serves.map { CatalogItem(name: brand.name, category: brand.category, vessel: $0.size.vessel, volumeMl: $0.size.ml, abv: brand.abv, price: $0.price) }
     }
 
+    static let brandsByCategory: [DrinkCategory: [CatalogBrand]] = Dictionary(grouping: brands, by: \.category)
+
+    /// What a brand is searched by, folded once — searching is per keystroke over a couple of thousand
+    /// serves, and folding each on the way is most of what a keystroke cost.
+    private static let searchKeys: [String] = items.map { "\($0.name) \($0.category.label)".searchFolded }
+
+    /// A drink's identity as the catalogue sees it: same name, same kind.
+    static func key(_ name: String, _ category: DrinkCategory) -> String { "\(name)|\(category.rawValue)" }
+
     /// What a brand costs in a size it may not be listed in — its own price for that size, else the
     /// first serve scaled by volume, the same way a drink's own price scales.
     /// Whether a drink is still exactly as the catalogue has it — copied in when it was logged and never touched.
@@ -849,8 +858,13 @@ nonisolated enum Catalog {
     }
 
     static func search(_ query: String) -> [CatalogItem] {
-        let query = query.trimmingCharacters(in: .whitespaces)
+        let query = query.trimmingCharacters(in: .whitespaces).searchFolded
         guard !query.isEmpty else { return [] }
-        return items.filter { $0.name.localizedStandardContains(query) || $0.category.label.localizedStandardContains(query) }
+        return zip(items, searchKeys).filter { $0.1.contains(query) }.map(\.0)
     }
+}
+
+nonisolated extension String {
+    /// Case and accents folded, so "stella" finds Stella and "kolsch" finds Kölsch.
+    var searchFolded: String { folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current) }
 }

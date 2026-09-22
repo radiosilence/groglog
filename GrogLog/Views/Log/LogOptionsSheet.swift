@@ -38,6 +38,7 @@ struct LogOptionsSheet: View {
         let choices = self.choices
         let choice = choices.first { $0.id == selected } ?? choices[0]
         let usualPrice = usualPrice(for: choice)
+        let pinned = Set(favourites.filter { $0.favourite.vessel == size.vessel && $0.favourite.volumeMl == size.ml }.map(\.drink.id))
 
         NavigationStack {
             Form {
@@ -63,7 +64,7 @@ struct LogOptionsSheet: View {
 
                 Section {
                     ForEach(choices) { option in
-                        ChoiceRow(choice: option, ml: size.ml, isSelected: option.id == choice.id, isPinned: favourite(for: option) != nil) {
+                        ChoiceRow(choice: option, ml: size.ml, isSelected: option.id == choice.id, isPinned: option.drink.map { pinned.contains($0.id) } ?? false) {
                             selected = option.id
                         } onStar: {
                             togglePin(option)
@@ -114,8 +115,9 @@ struct LogOptionsSheet: View {
         let yours = drinks
             .filter { $0.id != base.drink.id && $0.category == kind && !$0.isHidden && matches($0.name) }
             .sorted { $0.isGeneric != $1.isGeneric ? $0.isGeneric : $0.name < $1.name }
-        let catalog = Catalog.brands.filter { brand in
-            brand.category == kind && matches(brand.name) && !drinks.contains { $0.name == brand.name && $0.category == brand.category }
+        let owned = Set(drinks.map { Catalog.key($0.name, $0.category) })
+        let catalog = (Catalog.brandsByCategory[kind] ?? []).filter { brand in
+            matches(brand.name) && !owned.contains(Catalog.key(brand.name, brand.category))
         }
         return [Choice(base.drink)] + yours.map(Choice.init) + catalog.map(Choice.init)
     }

@@ -42,7 +42,11 @@ struct SetupScreen: View {
             } footer: {
                 Text("Drinks after midnight count towards the night before, until the day ends.")
             }
-            .onChange(of: prefs.rolloverHour) { database.logbook(prefs).rebuild(reassigningDays: true) }
+            // Every entry re-dayed and every day re-totted: seconds on a long log, and not while a picker settles.
+            .onChange(of: prefs.rolloverHour) {
+                let logbook = database.logbook(prefs)
+                Task.detached { logbook.rebuild(reassigningDays: true) }
+            }
 
             if Health.isAvailable {
                 Section {
@@ -79,7 +83,10 @@ struct SetupScreen: View {
             #if DEBUG
             Section {
                 Toggle("Demo mode", isOn: $demoMode)
-                Button("Rebuild daily totals") { database.logbook(prefs).rebuild() }
+                Button("Rebuild daily totals") {
+                    let logbook = database.logbook(prefs)
+                    Task.detached { logbook.rebuild() }
+                }
             } header: {
                 Text("Developer")
             } footer: {
@@ -90,7 +97,10 @@ struct SetupScreen: View {
         .navigationTitle("Setup")
         .sheet(isPresented: $settingGoal) { GoalSheet(goal: prefs.goal) }
         .confirmationDialog("Reset prices to the catalogue?", isPresented: $resettingPrices, titleVisibility: .visible) {
-            Button("Reset prices", role: .destructive) { pricesReset = database.logbook(prefs).resetPrices() }
+            Button("Reset prices", role: .destructive) {
+                let logbook = database.logbook(prefs)
+                Task { pricesReset = await Task.detached { logbook.resetPrices() }.value }
+            }
         } message: {
             Text("Every drink and Log tile goes back to what the catalogue charges, losing any price you set yourself. Drinks already logged keep what they cost at the time.")
         }
