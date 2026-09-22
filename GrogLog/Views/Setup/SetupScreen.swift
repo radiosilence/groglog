@@ -116,8 +116,10 @@ struct SetupScreen: View {
         guard goal.isEnabled else { return "Off" }
         let every = goal.periodDays == 1 ? "a day" : goal.periodDays == 7 ? "a week" : "every \(goal.periodDays / 7) weeks"
         // A linear taper comes off in units, not in shares, and this row could only ever say a share.
+        // The amount is units off the daily budget, but writing it "u/day a day" collides with the
+        // period, so the row says what you'd say out loud: two units a day.
         return goal.taper == .linear
-            ? "−\(goal.reductionUnits.unitsText) u/day \(every)"
+            ? "−\(goal.reductionUnits.unitsText) u \(every)"
             : "−\(Int(goal.reductionPercent))% \(every)"
     }
 }
