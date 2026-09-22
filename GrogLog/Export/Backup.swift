@@ -140,10 +140,15 @@ nonisolated enum Exporter {
             "",
         ]
         if let goal = backup.goal, goal.isEnabled {
-            let schedule = goal.isDynamic
-                ? "dynamic: each day's budget is the cut applied to the average over the previous period, so there is no schedule to fall behind"
-                : "on a fixed schedule from \(goal.baselineWeekly.unitsText) units/week starting \(goal.start.formatted(date: .abbreviated, time: .omitted))"
-            lines.append("Goal: cut \(Int(goal.reductionPercent))% every \(goal.periodDays) day(s), compounding daily, down to \(goal.targetWeekly.unitsText) units/week — \(schedule).")
+            let from = "from \(goal.baselineWeekly.unitsText) units/week starting \(goal.start.formatted(date: .abbreviated, time: .omitted))"
+            switch goal.taper {
+            case .dynamic:
+                lines.append("Goal: cut \(Int(goal.reductionPercent))% every \(goal.periodDays) day(s), compounding daily, down to \(goal.targetWeekly.unitsText) units/week — dynamic: each day's budget is the cut applied to the average over the previous period, so there is no schedule to fall behind.")
+            case .proportional:
+                lines.append("Goal: cut \(Int(goal.reductionPercent))% every \(goal.periodDays) day(s), compounding daily, down to \(goal.targetWeekly.unitsText) units/week — on a fixed schedule \(from).")
+            case .linear:
+                lines.append("Goal: cut \(goal.reductionUnits.unitsText) units/day off the daily budget every \(goal.periodDays) day(s), down to \(goal.targetWeekly.unitsText) units/week — on a fixed schedule \(from).")
+            }
             if let stop = backup.projectedUnderOneUnit {
                 lines.append("At this rate: under 1 unit/day by \(stop).")
             }

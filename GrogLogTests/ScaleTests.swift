@@ -43,7 +43,7 @@ import Testing
         // A full screen's worth of reads and maths: every day's totals, budgets, weeks, the day chart's month.
         let screens = try ContinuousClock().measure {
             let ledger = Ledger(days: try database.reader.read { try DaysRequest().fetch($0) }, clock: clock)
-            let goal = Goal(isEnabled: true, isDynamic: true, reductionPercent: 10, periodDays: 7)
+            let goal = Goal(isEnabled: true, taper: .dynamic, reductionPercent: 10, periodDays: 7)
             for offset in 0..<120 { _ = ledger.dailyBudget(on: today - offset, goal: goal) }
             for offset in 0..<28 { for back in 0..<7 { _ = ledger.dailyBudget(on: today - offset - back, goal: goal) } }
             for week in 0..<52 { _ = ledger.week(starting: clock.weekStart(of: today) - 7 * week, goal: goal) }

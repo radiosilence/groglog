@@ -171,26 +171,37 @@ nonisolated struct Ledger {
 
     /// When today's taper, carried on, reaches the target — and drops under a unit a day, the point where stopping is a small step.
     func projection(goal: Goal) -> (target: DayKey?, underOneUnit: DayKey?) {
-        guard let now = taper(on: today, goal: goal), goal.dailyCut > 0 else { return (nil, nil) }
+        guard let now = taper(on: today, goal: goal) else { return (nil, nil) }
+        guard goal.taper == .linear ? goal.dailyUnitCut > 0 : goal.dailyCut > 0 else { return (nil, nil) }
         func day(reaching level: Double) -> DayKey? {
-            guard level > 0 else { return nil }
-            let days = now.budget <= level ? 0 : log(level / now.budget) / log(1 - goal.dailyCut)
+            // A proportional taper approaches a level and never arrives, so the day it passes one is a
+            // logarithm. A linear one walks down at a fixed pace, and can reach nothing — which is the
+            // one level the proportional one can't, so nought is a question only this taper can answer.
+            guard goal.taper == .linear ? level >= 0 : level > 0 else { return nil }
+            if now.budget <= level { return today }
+            let days = goal.taper == .linear
+                ? (now.budget - level) / goal.dailyUnitCut
+                : log(level / now.budget) / log(1 - goal.dailyCut)
             return today + Int(days.rounded(.up))
         }
         return (day(reaching: goal.targetWeekly / 7), day(reaching: 1))
     }
 
-    /// The unfloored budget for `day` and the level it tapers from. Scheduled: from the baseline on the start date.
-    /// Dynamic: the cut applied to your average over the previous period (dry days count as zero, unlogged days are
-    /// left out) — after a gap, the period ending at the last logged day within four weeks — continuing the taper
-    /// daily for future days. No history to go on means no budget.
+    /// The unfloored budget for `day` and the level it tapers from. Proportional and linear both run from the
+    /// baseline on the start date, one taking a share off and the other a fixed number of units, so the linear
+    /// one can land on nothing and does. Dynamic: the cut applied to your average over the previous period (dry
+    /// days count as zero, unlogged days are left out) — after a gap, the period ending at the last logged day
+    /// within four weeks — continuing the taper daily for future days. No history to go on means no budget.
     private func taper(on day: DayKey, goal: Goal) -> (budget: Double, reference: Double)? {
         guard goal.isEnabled else { return nil }
-        guard goal.isDynamic else {
+        if goal.taper != .dynamic {
             let elapsed = DayKey(goal.start, in: clock.calendar).distance(to: day)
             guard elapsed >= 0 else { return nil }
             let reference = goal.baselineWeekly / 7
-            return (reference * pow(1 - goal.dailyCut, Double(elapsed)), reference)
+            let budget = goal.taper == .linear
+                ? max(0, reference - goal.dailyUnitCut * Double(elapsed))
+                : reference * pow(1 - goal.dailyCut, Double(elapsed))
+            return (budget, reference)
         }
         let anchor = min(day, today)
         guard let lastLogged = (1...28).lazy.map({ anchor - $0 }).first(where: isLogged) else { return nil }

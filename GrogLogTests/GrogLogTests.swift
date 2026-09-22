@@ -175,7 +175,7 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
 
 @Suite struct TaperTests {
     let empty = Ledger(days: [], clock: clock)
-    let weekly = Goal(isEnabled: true, isDynamic: false, baselineWeekly: 70, reductionPercent: 10, periodDays: 7, start: date(2026, 9, 1), targetWeekly: 14)
+    let weekly = Goal(isEnabled: true, taper: .proportional, baselineWeekly: 70, reductionPercent: 10, periodDays: 7, start: date(2026, 9, 1), targetWeekly: 14)
 
     @Test func scheduleCompoundsSmoothlyPerPeriod() throws {
         let start = DayKey(year: 2026, month: 9, day: 1)
@@ -230,7 +230,7 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(abs(goal.dailyCut - 0.10) < 0.0001)
         #expect(!goal.isFasterThanSafe)
         // No target to reach, so no date for one — but there's still a date it drops under a unit a day.
-        let projection = Ledger(days: [], clock: clock).projection(goal: Goal(isEnabled: true, isDynamic: false, baselineWeekly: 70, start: clock.start(of: clock.today)))
+        let projection = Ledger(days: [], clock: clock).projection(goal: Goal(isEnabled: true, taper: .proportional, baselineWeekly: 70, start: clock.start(of: clock.today)))
         #expect(projection.target == nil)
         #expect(projection.underOneUnit != nil)
     }
@@ -242,6 +242,73 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
     }
 }
 
+/// A linear taper takes the same units off every day rather than the same share, so unlike a proportional
+/// one it actually lands on nothing — and takes a bigger bite the lower it gets.
+@Suite struct LinearTaperTests {
+    private let start = DayKey(year: 2026, month: 9, day: 1)
+    private var goal: Goal {
+        Goal(isEnabled: true, taper: .linear, baselineWeekly: 70, reductionUnits: 1, periodDays: 7,
+             start: date(2026, 9, 1), targetWeekly: 0)
+    }
+
+    @Test func comesDownByTheSameAmountEveryDay() throws {
+        let ledger = Ledger(days: [], clock: clock)
+        // 70 a week is 10 a day; 1 u/day off per week is a seventh of a unit a day.
+        let day = { try #require(ledger.dailyBudget(on: self.start + $0, goal: self.goal)) }
+        #expect(abs(try day(0) - 10) < 0.0001)
+        #expect(abs(try day(7) - 9) < 0.0001)
+        #expect(abs(try day(70) - 0) < 0.0001)
+        let steps = try (0..<30).map { try day($0 + 1) - day($0) }
+        #expect(steps.allSatisfy { abs($0 - steps[0]) < 0.0001 }, "\(steps.prefix(5))")
+    }
+
+    @Test func landsOnNothingAndStaysThere() throws {
+        let ledger = Ledger(days: [], clock: clock)
+        #expect(try #require(ledger.dailyBudget(on: start + 140, goal: goal)) == 0)
+    }
+
+    /// The proportional taper can only approach nought; the linear one arrives, which is the whole point.
+    @Test func hasAdateForNothingWhereProportionalNeverDoes() {
+        let today = clock.today
+        let landing = Goal(isEnabled: true, taper: .linear, baselineWeekly: 70, reductionUnits: 1,
+                           periodDays: 7, start: clock.start(of: today), targetWeekly: 0)
+        let easing = Goal(isEnabled: true, taper: .proportional, baselineWeekly: 70,
+                          periodDays: 7, start: clock.start(of: today), targetWeekly: 0)
+        let ledger = Ledger(days: [], clock: clock)
+        #expect(ledger.projection(goal: landing).target != nil)
+        #expect(ledger.projection(goal: easing).target == nil)
+    }
+
+    /// Its share of what's left climbs as the budget falls, which is the risk a proportional taper doesn't carry.
+    @Test func saysWhereItStartsCuttingFasterThanIsSafe() {
+        // A seventh of a unit a day is 10% of 1.43 u/day, and sharper than that below it.
+        #expect(abs(goal.sharpensBelow - (1.0 / 7) / Goal.safeDailyCut) < 0.0001)
+        #expect(!goal.isFasterThanSafe)
+    }
+}
+
+/// `Prefs` reads the goal with `try?` and falls back to a fresh one, so a goal that won't decode is a
+/// goal silently thrown away. Every field has to be optional on the way in.
+@Suite struct GoalDecodingTests {
+    @Test func aGoalSavedBeforeAFieldExistedKeepsWhatItDidSet() throws {
+        let old = #"{"isEnabled":true,"isDynamic":false,"baselineWeekly":70,"reductionPercent":25,"periodDays":7,"targetWeekly":14}"#
+        let goal = try JSONDecoder().decode(Goal.self, from: Data(old.utf8))
+        #expect(goal.isEnabled && goal.baselineWeekly == 70 && goal.reductionPercent == 25)
+        #expect(goal.taper == .proportional, "isDynamic:false was the proportional taper")
+        #expect(goal.reductionUnits == Goal().reductionUnits, "a field it never knew about takes the default")
+    }
+
+    @Test func theOldDynamicFlagBecomesTheDynamicTaper() throws {
+        let old = #"{"isEnabled":true,"isDynamic":true}"#
+        #expect(try JSONDecoder().decode(Goal.self, from: Data(old.utf8)).taper == .dynamic)
+    }
+
+    @Test func aGoalSurvivesTheRoundTrip() throws {
+        let goal = Goal(isEnabled: true, taper: .linear, baselineWeekly: 63, reductionUnits: 2, periodDays: 28)
+        #expect(try JSONDecoder().decode(Goal.self, from: JSONEncoder().encode(goal)) == goal)
+    }
+}
+
 @Suite struct DynamicBudgetTests {
     @Test func isTheCutOffTheRecentAverage() throws {
         let (logbook, drink) = try logbook(drink: beer(abv: 20, ml: 1000))
@@ -249,14 +316,14 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         // Last week: two 20 u days and a dry day; the rest unlogged and left out. Average 13.33, less 10%.
         logbook.log(Serve(drink), at: [clock.start(of: today - 2).addingTimeInterval(15 * 3600), clock.start(of: today - 5).addingTimeInterval(15 * 3600)])
         logbook.setAlcoholFree(true, on: today - 1)
-        let goal = Goal(isEnabled: true, isDynamic: true, reductionPercent: 10, periodDays: 7)
+        let goal = Goal(isEnabled: true, taper: .dynamic, reductionPercent: 10, periodDays: 7)
         #expect(abs(try #require(try ledger(logbook).dailyBudget(on: today, goal: goal)) - 12) < 0.0001)
     }
 
     @Test func looksPastGapsButNotForever() throws {
         let (logbook, drink) = try logbook(drink: beer(abv: 10, ml: 1000))
         let today = clock.today
-        let goal = Goal(isEnabled: true, isDynamic: true, reductionPercent: 10, periodDays: 1)
+        let goal = Goal(isEnabled: true, taper: .dynamic, reductionPercent: 10, periodDays: 1)
         #expect(try ledger(logbook).dailyBudget(on: today, goal: goal) == nil)
         logbook.log(Serve(drink), at: [clock.start(of: today - 40).addingTimeInterval(15 * 3600)])
         #expect(try ledger(logbook).dailyBudget(on: today, goal: goal) == nil)

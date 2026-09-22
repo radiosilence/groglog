@@ -18,10 +18,18 @@ struct GoalEditor: View {
         Section {
             Toggle("Cut down", isOn: $goal.isEnabled)
             if goal.isEnabled {
-                Picker("Cut", selection: $goal.reductionPercent) {
-                    ForEach(Goal.cuts(perDays: goal.periodDays), id: \.self) { Text("−\(Int($0))%") }
+                Picker("Taper", selection: $goal.taper) {
+                    ForEach(Taper.allCases, id: \.self) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.segmented)
+                if goal.taper == .linear {
+                    NumberRow(label: "Cut by", value: $goal.reductionUnits, suffix: per)
+                } else {
+                    Picker("Cut", selection: $goal.reductionPercent) {
+                        ForEach(Goal.cuts(perDays: goal.periodDays), id: \.self) { Text("−\(Int($0))%") }
+                    }
+                    .pickerStyle(.segmented)
+                }
                 Picker("Every", selection: $goal.periodDays) {
                     ForEach(Goal.periods, id: \.days) { Text($0.label).tag($0.days) }
                 }
@@ -31,8 +39,7 @@ struct GoalEditor: View {
                 .onChange(of: goal.periodDays) { _, days in
                     goal.reductionPercent = Goal.nearestCut(to: goal.reductionPercent, perDays: days)
                 }
-                Toggle("Dynamic tapering", isOn: $goal.isDynamic)
-                if !goal.isDynamic {
+                if goal.taper != .dynamic {
                     NumberRow(label: "From", value: perPeriod(\.baselineWeekly), suffix: per)
                     if let recent, abs(recent - goal.baselineWeekly) > 0.5 {
                         Button("Use my last 4 weeks (\(amount(recent)))") {
@@ -49,6 +56,13 @@ struct GoalEditor: View {
                         .font(.subheadline)
                         .foregroundStyle(Color.over)
                 }
+                // A linear taper's share grows as the budget shrinks, so the warning isn't yes or no —
+                // it's a level. Below it the same units a day are coming off faster than 10% of what's left.
+                if goal.taper == .linear, goal.dailyUnitCut > 0 {
+                    Label("Steady all the way down, so it takes a bigger share the lower it gets: under \(goal.sharpensBelow.unitsText) u/day it's cutting faster than 10% a day. Proportional eases off instead.", systemImage: "exclamationmark.triangle.fill")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.over)
+                }
                 if (recent ?? goal.baselineWeekly) >= Goal.withdrawalRiskWeekly {
                     Label("Around 15+ units a day, stopping suddenly can be dangerous. Taper, and consider asking your GP or a local alcohol service about support.", systemImage: "cross.case")
                         .font(.subheadline)
@@ -60,11 +74,15 @@ struct GoalEditor: View {
         } footer: {
             if goal.isEnabled {
                 let perDay = (goal.dailyCut * 100).formatted(.number.precision(.fractionLength(0...1)))
-                if goal.isDynamic {
+                let guideline = "The UK low-risk guideline is \(amount(Units.weeklyGuideline))."
+                switch goal.taper {
+                case .dynamic:
                     let window = goal.periodDays == 1 ? "yesterday" : "your average over the last \(goal.periodDays) days"
-                    Text("Each day's budget is \(Int(goal.reductionPercent))% under \(window), down to \(amount(goal.targetWeekly)). Go over and it simply carries on from there — no schedule to catch up with. The UK low-risk guideline is \(amount(Units.weeklyGuideline)).")
-                } else {
-                    Text("\(amount(goal.baselineWeekly)) → \(amount(goal.targetWeekly)) from \(goal.start.formatted(date: .abbreviated, time: .omitted)), about \(perDay)% less each day. The UK low-risk guideline is \(amount(Units.weeklyGuideline)).")
+                    Text("Each day's budget is \(Int(goal.reductionPercent))% under \(window), down to \(amount(goal.targetWeekly)). Go over and it simply carries on from there — no schedule to catch up with. \(guideline)")
+                case .proportional:
+                    Text("\(amount(goal.baselineWeekly)) → \(amount(goal.targetWeekly)) from \(goal.start.formatted(date: .abbreviated, time: .omitted)), about \(perDay)% less each day. Takes a smaller cut as it goes, so it nears the target without quite landing on it. \(guideline)")
+                case .linear:
+                    Text("\(amount(goal.baselineWeekly)) → \(amount(goal.targetWeekly)) from \(goal.start.formatted(date: .abbreviated, time: .omitted)), \(goal.dailyUnitCut.unitsText) u/day less every day. The same amount off each time, so it lands on the target on a day you can name. \(guideline)")
                 }
             } else {
                 Text("Pick how fast to cut down and get a daily and weekly unit budget.")
@@ -136,7 +154,7 @@ private struct BurndownPreview: View {
 
     var body: some View {
         let calendar = ledger.clock.calendar
-        let start = goal.isDynamic ? ledger.today : DayKey(goal.start, in: calendar)
+        let start = goal.taper == .dynamic ? ledger.today : DayKey(goal.start, in: calendar)
         let points = stride(from: 0, through: 84, by: 3).map { start + $0 }
         Chart {
             ForEach(points, id: \.self) { day in
