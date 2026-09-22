@@ -4,6 +4,9 @@ import SwiftUI
 struct ChipRow<Value: Hashable>: View {
     let options: [Value]
     @Binding var selection: Value
+    /// An option that isn't on offer stays on the row, greyed. Withdrawing it outright leaves a gap
+    /// that reads as a missing feature rather than a decision, and there's no telling what was there.
+    var isEnabled: (Value) -> Bool = { _ in true }
     let label: (Value) -> String
 
     var body: some View {
@@ -14,6 +17,7 @@ struct ChipRow<Value: Hashable>: View {
                         .buttonStyle(.bordered)
                         .tint(option == selection ? .grog : .secondary)
                         .fontWeight(option == selection ? .semibold : .regular)
+                        .disabled(!isEnabled(option))
                 }
             }
         }

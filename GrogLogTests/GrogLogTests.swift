@@ -266,10 +266,10 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
     @Test func nothingOfferedStartsSteeperThanTheCeiling() {
         for daily in stride(from: 4.0, through: 80, by: 2) {
             let weekly = daily * 7
-            for period in Goal.periods(drinking: weekly) {
+            for period in Goal.periods(from: weekly) {
                 let share = Goal(periodDays: period.days)
                 #expect(!share.isFasterThanSafe)
-                for units in Goal.unitCuts(drinking: weekly, perDays: period.days) {
+                for units in Goal.unitCuts(from: weekly, perDays: period.days) {
                     let opening = units / Double(period.days) / daily
                     // The smallest cut always stands, even where a tenth of the drinking is less than it.
                     guard units > Goal.unitCuts.min()!, weekly >= Goal.assistedWithdrawalWeekly else { continue }
@@ -282,17 +282,17 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
 
     @Test func aFastTaperIsWithheldFromWhoeverIsDrinkingMost() {
         // DHSC names 25 a day as the point to go slower, and says every four days rather than every day.
-        #expect(Goal.periods(drinking: 20 * 7).map(\.days) == [1, 3, 4, 7])
-        #expect(Goal.periods(drinking: 40 * 7).map(\.days) == [4, 7])
+        #expect(Goal.periods(from: 20 * 7).map(\.days) == [1, 3, 4, 7])
+        #expect(Goal.periods(from: 40 * 7).map(\.days) == [4, 7])
     }
 
     /// Whatever's left after that, nothing whose first morning takes more than two units off.
     @Test func nothingOfferedTakesMoreThanTwoUnitsOnItsFirstDay() {
         for daily in stride(from: 4.0, through: 140, by: 1) {
-            let offered = Goal.periods(drinking: daily * 7)
+            let offered = Goal.periods(from: daily * 7)
             #expect(!offered.isEmpty, "there's always some pace on offer")
             for period in offered.dropLast() {
-                let opening = Goal(periodDays: period.days).openingDrop(drinking: daily * 7)
+                let opening = Goal(periodDays: period.days).openingDrop(from: daily * 7)
                 #expect(opening <= Goal.maxOpeningDrop + 0.0001,
                         "\(period.label) on \(daily) u/day opens at \(opening) u")
             }
@@ -301,31 +301,31 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
 
     @Test func theTwoGapsThePeriodGateLeftAreClosed() {
         // A tenth of 24 is 2.4 units overnight, which the 25-a-day rule let through.
-        #expect(!Goal.periods(drinking: 24 * 7).map(\.days).contains(1))
-        #expect(Goal.periods(drinking: 20 * 7).map(\.days).contains(1), "and a tenth of 20 is exactly two")
+        #expect(!Goal.periods(from: 24 * 7).map(\.days).contains(1))
+        #expect(Goal.periods(from: 20 * 7).map(\.days).contains(1), "and a tenth of 20 is exactly two")
         // A tenth every four days is 2.08 at eighty, which it also let through.
-        #expect(Goal.periods(drinking: 80 * 7).map(\.days) == [7])
+        #expect(Goal.periods(from: 80 * 7).map(\.days) == [7])
         // However much someone drinks, the gentlest stands rather than leaving nothing.
-        #expect(Goal.periods(drinking: 200 * 7).map(\.days) == [7])
+        #expect(Goal.periods(from: 200 * 7).map(\.days) == [7])
     }
 
     @Test func theOpeningStepIsWhatThePercentageHides() {
-        #expect(abs(Goal(periodDays: 1).openingDrop(drinking: 60 * 7) - 6) < 0.0001, "a tenth of sixty")
-        #expect(abs(Goal(taper: .linear, reductionUnits: 2, periodDays: 4).openingDrop(drinking: 60 * 7) - 0.5) < 0.0001)
+        #expect(abs(Goal(periodDays: 1).openingDrop(from: 60 * 7) - 6) < 0.0001, "a tenth of sixty")
+        #expect(abs(Goal(taper: .linear, reductionUnits: 2, periodDays: 4).openingDrop(from: 60 * 7) - 0.5) < 0.0001)
     }
 
     /// Only where withdrawal is a consideration at all — NICE puts that at over 15 units a day, and
     /// under it a rate ceiling meant for withdrawal has nothing to bite on.
     @Test func aLinearCutIsWithheldOnlyWhereWithdrawalIsTheRisk() {
         // Two a day off twenty a day is a tenth of it, right on the ceiling; off eighteen it's over.
-        #expect(Goal.unitCuts(drinking: 18 * 7, perDays: 1) == [0.5, 1.0, 1.5])
-        #expect(Goal.unitCuts(drinking: 40 * 7, perDays: 1) == Goal.unitCuts)
+        #expect(Goal.unitCuts(from: 18 * 7, perDays: 1) == [0.5, 1.0, 1.5])
+        #expect(Goal.unitCuts(from: 40 * 7, perDays: 1) == Goal.unitCuts)
         // Ten a day would be a fifth gone by morning, but at ten a day that isn't what's dangerous.
-        #expect(Goal.unitCuts(drinking: 10 * 7, perDays: 1) == Goal.unitCuts)
+        #expect(Goal.unitCuts(from: 10 * 7, perDays: 1) == Goal.unitCuts)
         // Fifteen a day is where it starts applying, and a tenth of fifteen is one and a half.
-        #expect(Goal.unitCuts(drinking: Goal.assistedWithdrawalWeekly, perDays: 1) == [0.5, 1.0, 1.5])
+        #expect(Goal.unitCuts(from: Goal.assistedWithdrawalWeekly, perDays: 1) == [0.5, 1.0, 1.5])
         // Spread over four days the same two units is gentle again, so it comes back either way.
-        #expect(Goal.unitCuts(drinking: 18 * 7, perDays: 4) == Goal.unitCuts)
+        #expect(Goal.unitCuts(from: 18 * 7, perDays: 4) == Goal.unitCuts)
     }
 
     @Test func aLinearCutStopsAtTwoUnits() {
@@ -385,17 +385,17 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
     /// turns sharp below 1.4 u/day would be warning about the very level the same screen recommends.
     @Test func saysNothingWhereTheGuidelineWouldContradictIt() {
         #expect(goal.sharpensBelow < Units.weeklyGuideline / 7)
-        #expect(!goal.sharpensWhileItMatters(drinking: 40 * 7))
+        #expect(!goal.sharpensWhileItMatters(from: 40 * 7))
         // A unit a day off every day sharpens from ten a day down, which is worth knowing about.
         var brisk = goal
         brisk.periodDays = 1
         #expect(brisk.sharpensBelow == 10)
-        #expect(brisk.sharpensWhileItMatters(drinking: 40 * 7))
-        #expect(!brisk.sharpensWhileItMatters(drinking: 10 * 7), "nothing to warn about at ten a day")
+        #expect(brisk.sharpensWhileItMatters(from: 40 * 7))
+        #expect(!brisk.sharpensWhileItMatters(from: 10 * 7), "nothing to warn about at ten a day")
         // Nothing to say about a taper that isn't linear, whatever its numbers.
         var easing = brisk
         easing.taper = .proportional
-        #expect(!easing.sharpensWhileItMatters(drinking: 40 * 7))
+        #expect(!easing.sharpensWhileItMatters(from: 40 * 7))
     }
 }
 

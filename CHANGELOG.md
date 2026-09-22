@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Editing where a taper starts from changes what it can do, which it didn't before. The pace options were gated on what you'd been drinking lately whatever the plan said, so setting the baseline to twenty did nothing at all — but a scheduled taper counts down from its baseline, and that's what decides the size of its steps. Drinking lately is still what the NICE thresholds read, since those are about you rather than the plan.
+- A pace that isn't on offer stays on the row, greyed, rather than vanishing. A gap reads as a missing feature and leaves no way to tell what used to be there.
+- "Use my last 4 weeks" rounds to the nearest unit a day. It was handing over 30.486.
+
 - No taper starts by taking more than two units a day off, and where that rules one out the screen says so. The 25-a-day rule left two gaps: a tenth of twenty-four units is 2.4 gone overnight and sat under the threshold, while a tenth every four days is 2.08 at eighty a day and sat above it. Both are closed by the same rule, applied the way the guidance applies its own — by withholding the pace, not by bending the curve. Whatever the drinking, some pace is always on offer; at eighty a day it's the weekly one.
 - The goal screen says what the taper takes off on its first morning, in units. That's the figure a percentage hides, and the one that moves with how much is being drunk: ten per cent is ten per cent, but a tenth of sixty units is six of them.
 

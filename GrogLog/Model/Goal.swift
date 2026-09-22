@@ -83,7 +83,9 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
     /// slower pace for exactly that reason — no more than 10% every four days — so the quicker two
     /// aren't on the table. On top of that, nothing whose first step is over two units. A taper is
     /// still on offer either way, at a pace that suits how much is being drunk.
-    static func periods(drinking weekly: Double) -> [(days: Int, label: String)] {
+    /// `from` is what the taper counts down from — the baseline for a scheduled plan, recent drinking
+    /// for a dynamic one — because that's what decides how big its steps are.
+    static func periods(from weekly: Double) -> [(days: Int, label: String)] {
         let offered = periods.filter { period in
             guard weekly <= slowerAboveWeekly || period.days >= 4 else { return false }
             return weekly / 7 * Goal(periodDays: period.days).dailyCut <= maxOpeningDrop + 0.0001
@@ -93,7 +95,7 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
 
     /// What this takes off the budget on its first day — the steepest step a proportional taper makes,
     /// and every step a linear one makes.
-    func openingDrop(drinking weekly: Double) -> Double {
+    func openingDrop(from weekly: Double) -> Double {
         taper == .linear ? dailyUnitCut : weekly / 7 * dailyCut
     }
 
@@ -105,7 +107,7 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
     /// and calls milder dependence than that no case for it, so under the same figure the ceiling has
     /// nothing to bite on and every amount stands. A rate limit meant for withdrawal, applied where
     /// withdrawal isn't the risk, is the same mistake as warning somebody off the guideline.
-    static func unitCuts(drinking weekly: Double, perDays days: Int) -> [Double] {
+    static func unitCuts(from weekly: Double, perDays days: Int) -> [Double] {
         guard weekly >= assistedWithdrawalWeekly else { return unitCuts }
         let ceiling = weekly / 7 * safeDailyCut * Double(max(1, days))
         let offered = unitCuts.filter { $0 <= ceiling + 0.0001 }
@@ -135,7 +137,7 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
     /// stops meaning anything as the budget nears the guideline — cutting from a unit and a half to none
     /// carries no risk, and warning about it would contradict the guideline the same screen recommends.
     /// Worth a word only where the taper sharpens while there's still enough drinking for it to matter.
-    func sharpensWhileItMatters(drinking weekly: Double) -> Bool {
+    func sharpensWhileItMatters(from weekly: Double) -> Bool {
         taper == .linear && weekly >= Self.assistedWithdrawalWeekly && sharpensBelow > Units.weeklyGuideline / 7
     }
 

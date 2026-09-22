@@ -8,8 +8,11 @@ struct GoalEditor: View {
 
     var body: some View {
         let recent = ledger.recentWeeklyAverage()
-        // What they're actually drinking, which is what the thresholds are about — not the plan.
+        // Two different questions. What they're actually drinking is what the NICE thresholds are
+        // about. What the taper counts down from is what decides the size of its steps, and that's
+        // the baseline for a scheduled plan — which is why editing it changes what's on offer.
         let drinking = recent ?? goal.baselineWeekly
+        let from = goal.taper == .dynamic ? drinking : goal.baselineWeekly
         // Amounts are stored per week but people think in a day's drinking, whatever the taper's pace.
         let per = "u/day"
         let amount = { (weekly: Double) in "\((weekly / 7).unitsText) u/day" }
@@ -24,31 +27,33 @@ struct GoalEditor: View {
                     ForEach(Taper.allCases, id: \.self) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.segmented)
-                let periods = Goal.periods(drinking: drinking)
-                let units = Goal.unitCuts(drinking: drinking, perDays: goal.periodDays)
+                let offeredPeriods = Goal.periods(from: from).map(\.days)
+                let offeredUnits = Goal.unitCuts(from: from, perDays: goal.periodDays)
                 if goal.taper == .linear {
-                    Picker("Cut by", selection: $goal.reductionUnits) {
-                        ForEach(units, id: \.self) { Text("−\($0.formatted(.number.precision(.fractionLength(0...1)))) u") }
-                    }
-                    .pickerStyle(.segmented)
+                    LabeledContent("Cut by") { EmptyView() }
+                    ChipRow(options: Goal.unitCuts, selection: $goal.reductionUnits,
+                            isEnabled: offeredUnits.contains) { "−\($0.formatted(.number.precision(.fractionLength(0...1)))) u" }
                 }
                 // The share is fixed at the fastest that's safe, so how often it lands is the whole pace.
-                Picker(goal.taper == .linear ? "Every" : "Cut \(Int(Goal.standardCut))% every", selection: $goal.periodDays) {
-                    ForEach(periods, id: \.days) { Text($0.label).tag($0.days) }
+                LabeledContent(goal.taper == .linear ? "Every" : "Cut \(Int(Goal.standardCut))% every") { EmptyView() }
+                ChipRow(options: Goal.periods.map(\.days), selection: $goal.periodDays,
+                        isEnabled: offeredPeriods.contains) { days in
+                    Goal.periods.first { $0.days == days }?.label ?? "\(days) days"
                 }
-                .pickerStyle(.segmented)
-                // Whatever's withdrawn, land on something that is offered rather than showing nothing.
-                .onChange(of: periods.map(\.days)) { _, days in
+                // Whatever's greyed, land on something that isn't rather than sitting on a dead choice.
+                .onChange(of: offeredPeriods) { _, days in
                     if !days.contains(goal.periodDays) { goal.periodDays = days.min() ?? 4 }
                 }
-                .onChange(of: units) { _, amounts in
+                .onChange(of: offeredUnits) { _, amounts in
                     if !amounts.contains(goal.reductionUnits) { goal.reductionUnits = amounts.max() ?? 0.5 }
                 }
                 if goal.taper != .dynamic {
                     NumberRow(label: "From", value: perPeriod(\.baselineWeekly), suffix: per)
-                    if let recent, abs(recent - goal.baselineWeekly) > 0.5 {
-                        Button("Use my last 4 weeks (\(amount(recent)))") {
-                            goal.baselineWeekly = recent
+                    // To the nearest unit a day. The average is 30.486 a day and nobody plans from that.
+                    if let recent {
+                        let rounded = (recent / 7).rounded() * 7
+                        if abs(rounded - goal.baselineWeekly) > 0.5 {
+                            Button("Use my last 4 weeks (\(amount(rounded)))") { goal.baselineWeekly = rounded }
                         }
                     }
                     DatePicker("Starting", selection: $goal.start, displayedComponents: .date)
@@ -78,9 +83,9 @@ struct GoalEditor: View {
                 }
                 // The pace in units, which is the thing the percentage hides: a tenth of sixty is six.
                 // And when that's why an option has gone, say so rather than leaving a gap.
-                let opening = goal.openingDrop(drinking: drinking)
+                let opening = goal.openingDrop(from: from)
                 if opening > 0 {
-                    let withheld = periods.count < Goal.periods.count && drinking <= Goal.slowerAboveWeekly
+                    let withheld = offeredPeriods.count < Goal.periods.count && from <= Goal.slowerAboveWeekly
                     Label(withheld
                           ? "That's \(opening.unitsText) u/day off to start with. Quicker options aren't offered — they'd take more than \(Goal.maxOpeningDrop.unitsText) u/day off at this much drinking."
                           : "That's \(opening.unitsText) u/day off to start with.",
@@ -91,7 +96,7 @@ struct GoalEditor: View {
                 // A linear taper's share grows as the budget shrinks, so the warning isn't yes or no — it's
                 // a level, and only one worth naming while it's still above the guideline. It's the size of
                 // the cut being warned about, never the amount left, which is the guideline's business.
-                if goal.sharpensWhileItMatters(drinking: drinking) {
+                if goal.sharpensWhileItMatters(from: from) {
                     Label("The same amount comes off whatever's left, so the cut deepens as a share: below \(goal.sharpensBelow.unitsText) u/day it's taking more than 10% of what remains each day. Proportional eases off instead.", systemImage: "exclamationmark.triangle.fill")
                         .font(.subheadline)
                         .foregroundStyle(Color.over)
