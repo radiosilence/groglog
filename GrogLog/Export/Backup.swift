@@ -75,6 +75,12 @@ nonisolated enum Exporter {
         var currency: String
         var goal: Goal
 
+        init(rolloverHour: Int = 5, currency: String = "GBP", goal: Goal = Goal()) {
+            self.rolloverHour = rolloverHour
+            self.currency = currency
+            self.goal = goal
+        }
+
         @MainActor init(_ prefs: Prefs) {
             rolloverHour = prefs.rolloverHour
             currency = prefs.currency
@@ -270,26 +276,45 @@ nonisolated struct ExportFile: Transferable {
         settings = Exporter.Settings(prefs)
     }
 
+    /// `UTType.markdown` is iOS 27 and this ships to 26, but the identifier behind it is the same.
+    private static let markdown = UTType("net.daringfireball.markdown") ?? .plainText
+
+    /// A file representation each, so a receiver gets the bytes and a filename — and the contents behind
+    /// them, because a receiver that asks for something not offered here gets handed the auto-registered
+    /// file URL instead, and a URL into this app's sandbox is no use to anything outside it.
     static var transferRepresentation: some TransferRepresentation {
         FileRepresentation(exportedContentType: .json) { file in
             try await file.write()
         }
         .exportingCondition { $0.kind == .json }
-        FileRepresentation(exportedContentType: .plainText) { file in
+
+        FileRepresentation(exportedContentType: markdown) { file in
             try await file.write()
         }
         .exportingCondition { $0.kind == .markdown }
+
+        DataRepresentation(exportedContentType: .plainText) { file in
+            try await file.contents()
+        }
+        .exportingCondition { $0.kind == .markdown }
+
+        DataRepresentation(exportedContentType: .json) { file in
+            try await file.contents()
+        }
+        .exportingCondition { $0.kind == .json }
+    }
+
+    /// The bytes themselves, for a receiver that would rather have the contents than a file.
+    private func contents() async throws -> Data {
+        let settings = settings
+        let backup = try await reader.read { try Exporter.backup($0, settings: settings) }
+        return kind == .json ? try Exporter.json(backup) : Data(Exporter.markdown(backup).utf8)
     }
 
     private func write() async throws -> SentTransferredFile {
-        let settings = settings
-        let backup = try await reader.read { try Exporter.backup($0, settings: settings) }
         let stamp = DayClock(rolloverHour: settings.rolloverHour).today.description
-        let (data, name) = kind == .json
-            ? (try Exporter.json(backup), "groglog-\(stamp).json")
-            : (Data(Exporter.markdown(backup).utf8), "groglog-\(stamp).md")
-        let url = URL.temporaryDirectory.appending(path: name)
-        try data.write(to: url)
+        let url = URL.temporaryDirectory.appending(path: "groglog-\(stamp).\(kind == .json ? "json" : "md")")
+        try await contents().write(to: url)
         return SentTransferredFile(url)
     }
 }

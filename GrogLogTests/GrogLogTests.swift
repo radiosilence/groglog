@@ -1,6 +1,7 @@
 import Foundation
 import GRDB
 import Testing
+import UniformTypeIdentifiers
 @testable import GrogLog
 
 private let london: Calendar = {
@@ -305,6 +306,26 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
 
 /// `Prefs` reads the goal with `try?` and falls back to a fresh one, so a goal that won't decode is a
 /// goal silently thrown away. Every field has to be optional on the way in.
+/// A share that offers a type the receiver can't read gets the auto-registered file URL instead, which
+/// is a path into this app's sandbox and no use to anything outside it — 170 bytes of nothing.
+@Suite struct ExportTypeTests {
+    @Test func markdownIsOfferedAsMarkdownNotJustAsAFileNamedMd() throws {
+        let markdown = try #require(UTType("net.daringfireball.markdown"))
+        #expect(markdown.preferredFilenameExtension == "md")
+        // What the file is written as has to be what it's offered as, or the two disagree.
+        #expect(markdown.conforms(to: .plainText), "a receiver asking for text should still match")
+    }
+
+    @Test func theExportIsWorthSharing() throws {
+        let (logbook, drink) = try logbook()
+        logbook.log(Serve(drink), at: [.now])
+        let backup = try logbook.writer.read { try Exporter.backup($0, settings: .init()) }
+        let text = Exporter.markdown(backup)
+        #expect(text.count > 170, "the bug shipped 170 bytes of file path instead of this")
+        #expect(text.contains(drink.name))
+    }
+}
+
 @Suite struct GoalDecodingTests {
     @Test func aGoalSavedBeforeAFieldExistedKeepsWhatItDidSet() throws {
         let old = #"{"isEnabled":true,"isDynamic":false,"baselineWeekly":70,"reductionPercent":25,"periodDays":7,"targetWeekly":14}"#
