@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The preview marks where a stepped taper changes pace. It changes twice on the way down from 30 units a day — at 25 and at 15 — but the first is a 29% steepening against the second's threefold one, so the curve alone reads as though only one thing happened. Now each change is a line on the chart saying what the pace becomes.
+
 - The dynamic taper is a plan again, and is called Stepped. It used to take its cut off a rolling average of what had actually been drunk, which made it unpredictable in exactly the wrong direction: a quiet day dragged the average down and the next day's budget with it, by three quarters on the shortest setting, and the effective pace ran half again faster than the label. It reads nothing now. It starts at the quickest pace allowed for where the budget begins and quickens each time the budget crosses a threshold — every four days over 25 units, every three under that, every day under 15 — so the curve is a run of progressively steeper eases rather than one shape. There is nothing to set: the pace is whatever the ladder gives.
 - That ladder is the same list the picker offers, so the automatic pace can never be gentler than the quickest you could have chosen by hand at the same level. Which means the picker narrows in the same three steps, and the middle one is ours rather than the guidance's: NICE considers assisted withdrawal over 15 units a day, and running at the outright ceiling unsupervised while still drinking that much isn't what the ceiling was written for.
 - Each taper says in a line what it does, under the choice rather than three paragraphs below it, and the preview draws every day instead of every third — sampling past a corner rounded it off into something that looked like a mistake.

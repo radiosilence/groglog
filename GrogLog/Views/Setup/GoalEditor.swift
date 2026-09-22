@@ -231,7 +231,22 @@ private struct BurndownPreview: View {
         let points = (0...84).compactMap { step -> (Date, Double)? in
             ledger.dailyBudget(on: start + step, goal: goal).map { ((start + step).date(in: calendar), $0) }
         }
+        // Where the pace changes, marked. The first change is a 29% steepening and the second nearly
+        // threefold, so left to the curve alone the first one reads as nothing happening.
+        let steps = zip(points, points.dropFirst()).filter {
+            Goal.pace(drinking: $0.1 * 7) != Goal.pace(drinking: $1.1 * 7)
+        }
         Chart {
+            ForEach(steps, id: \.1.0) { _, step in
+                RuleMark(x: .value("Date", step.0))
+                    .foregroundStyle(Color.dry.opacity(0.35))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                    .annotation(position: .top, alignment: .center, spacing: 0) {
+                        Text("10%/\(Goal.pace(drinking: step.1 * 7))d")
+                            .font(.caption2)
+                            .foregroundStyle(Color.dry)
+                    }
+            }
             ForEach(points, id: \.0) { date, amount in
                 AreaMark(x: .value("Date", date), y: .value("Budget", amount))
                     .foregroundStyle(LinearGradient(colors: [Color.dry.opacity(0.4), Color.dry.opacity(0.05)], startPoint: .top, endPoint: .bottom))
