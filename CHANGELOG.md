@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The date on the charts is the day you get low enough to stop, not the day you get under a unit. A taper that takes a share off what's left never reaches nothing, so the old figure sat at the thin end of a curve nobody walks down a hundredth of a unit at a time — months of tail that meant nothing. Alcohol services put the point you can simply stop at around ten units a day, which is under the level NICE considers assisted withdrawal at, so that's the date now. It isn't a figure from the written guidance, and the code says so.
+
 - A tap does one tile's worth of work rather than the whole app's. Every screen hung off the day totals, which change on every commit, and nothing downstream noticed when its own inputs hadn't: each chart was laid out again on every drink logged from any tab, every calendar cell re-evaluated, every entries query in the app re-fetched and re-delivered the same rows. Charts now sit on plain values and are only laid out when those change, calendar cells take the handful of numbers they show, and a query whose fetch comes back the same says nothing.
 - The stepped taper is solved rather than walked. It was stepped forward a day at a time from the start date for every calendar cell, week and chart point that asked, so a year into a goal the Calendar and Reports each spent a tenth of a second on budget maths per commit, and twice that a year later. Within a rung the fall is geometric, so the day it reaches the next one is a logarithm; a test holds the solution to the walk for every baseline the picker allows, 900 days out. The scale test's goal is a year old now so it feels this; started today, the maths was free.
 - The pour plays before the write lands, not after the disk has acknowledged it.

@@ -202,7 +202,9 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         goal.start = clock.start(of: empty.today)
         let projection = empty.projection(goal: goal)
         #expect((105...109).contains(empty.today.distance(to: try #require(projection.target))))
-        #expect((150...156).contains(empty.today.distance(to: try #require(projection.underOneUnit))))
+        // It starts at ten a day, which is already low enough to stop from — so that's today, not a
+        // date months out at the thin end of a curve nobody walks down.
+        #expect(try #require(projection.stoppable) == empty.today)
     }
 }
 
@@ -235,7 +237,7 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(!goal.isFasterThanSafe)
         let projection = Ledger(days: [], clock: clock).projection(goal: Goal(isEnabled: true, taper: .proportional, baselineWeekly: 70, start: clock.start(of: clock.today)))
         #expect(projection.target == nil, "a share never reaches nothing")
-        #expect(projection.underOneUnit != nil)
+        #expect(projection.stoppable != nil, "and it always reaches a level it can be stopped from")
     }
 
     /// A goal saved when the picker offered other periods keeps its pace, not its number of days.

@@ -181,8 +181,8 @@ struct ProjectionRow: View {
             if let target = projection.target {
                 LabeledContent("\((goal.targetWeekly / 7).unitsText) u/day by", value: format(target))
             }
-            if let stop = projection.underOneUnit {
-                LabeledContent("Under 1 u/day by", value: format(stop))
+            if let stop = projection.stoppable {
+                LabeledContent("Low enough to stop by", value: format(stop))
                     .foregroundStyle(Color.dry)
             }
         }

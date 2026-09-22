@@ -110,8 +110,8 @@ private struct ProgressCard: View {
             if let todays = ledger.dailyBudget(on: today, goal: goal) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Today's budget \(todays.unitsText) u")
-                    if let stop = ledger.projection(goal: goal).underOneUnit {
-                        Text("Under 1 u/day by \(stop.date(in: calendar).formatted(date: .abbreviated, time: .omitted)) at this rate")
+                    if let stop = ledger.projection(goal: goal).stoppable {
+                        Text("Low enough to stop by \(stop.date(in: calendar).formatted(date: .abbreviated, time: .omitted)) at this rate")
                             .foregroundStyle(Color.dry)
                     }
                 }

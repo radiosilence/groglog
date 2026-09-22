@@ -14,7 +14,7 @@ nonisolated struct Backup: Codable, Sendable {
     var currency: String?
     var goal: Goal?
     /// `yyyy-MM-dd` the taper drops under a unit a day, if kept to.
-    var projectedUnderOneUnit: String?
+    var projectedStop: String?
     var drinks: [DrinkRecord]?
     /// The Log grid: drinks in the sizes and at the prices you usually have them.
     var favourites: [FavouriteRecord]?
@@ -100,7 +100,7 @@ nonisolated enum Exporter {
             dayStartsAtHour: settings.rolloverHour,
             currency: settings.currency,
             goal: settings.goal,
-            projectedUnderOneUnit: ledger.projection(goal: settings.goal).underOneUnit?.description,
+            projectedStop: ledger.projection(goal: settings.goal).stoppable?.description,
             drinks: try Drink.order(Column("name")).fetchAll(db).map {
                 .init(id: $0.id, name: $0.name, category: $0.category, abv: $0.abv, vessel: $0.vessel, volumeMl: $0.volumeMl, price: $0.price, isGeneric: $0.isGeneric, isHidden: $0.isHidden)
             },
@@ -155,8 +155,8 @@ nonisolated enum Exporter {
             case .linear:
                 lines.append("Goal: cut \(goal.reductionUnits.unitsText) units/day off the daily budget every \(goal.periodDays) day(s), down to \(goal.targetWeekly.unitsText) units/week — on a fixed schedule \(from).")
             }
-            if let stop = backup.projectedUnderOneUnit {
-                lines.append("At this rate: under 1 unit/day by \(stop).")
+            if let stop = backup.projectedStop {
+                lines.append("At this rate: down to \(Goal.stopFrom.unitsText) units/week, low enough to stop, by \(stop).")
             }
             lines.append("")
         }

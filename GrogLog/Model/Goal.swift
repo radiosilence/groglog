@@ -64,6 +64,12 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
     /// NICE CG115 recommendation 1.3.4.1: over 15 units a day, consider assisted withdrawal.
     static let assistedWithdrawalWeekly = 15 * 7.0
 
+    /// The level a taper stops being worth finishing. A share of what's left never reaches nothing, so
+    /// a plan aimed at nought has a tail months long that nobody walks down a hundredth of a unit at a
+    /// time. Alcohol services put the point you can simply stop at around ten a day, which is under
+    /// the level NICE considers assisted withdrawal at. Not a figure from the written guidance.
+    static let stopFrom = 10 * 7.0
+
     /// NICE CG115 recommendation 1.3.4.5: over 30 units a day, consider inpatient or residential.
     static let inpatientWeekly = 30 * 7.0
 

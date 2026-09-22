@@ -171,7 +171,7 @@ nonisolated struct Ledger: Equatable {
     }
 
     /// When today's taper, carried on, reaches the target — and drops under a unit a day, the point where stopping is a small step.
-    func projection(goal: Goal) -> (target: DayKey?, underOneUnit: DayKey?) {
+    func projection(goal: Goal) -> (target: DayKey?, stoppable: DayKey?) {
         guard let now = taper(on: today, goal: goal) else { return (nil, nil) }
         guard goal.taper == .linear ? goal.dailyUnitCut > 0 : goal.dailyCut > 0 else { return (nil, nil) }
         func day(reaching level: Double) -> DayKey? {
@@ -185,7 +185,7 @@ nonisolated struct Ledger: Equatable {
                 : log(level / now.budget) / log(1 - goal.dailyCut)
             return today + Int(days.rounded(.up))
         }
-        return (day(reaching: goal.targetWeekly / 7), day(reaching: 1))
+        return (day(reaching: goal.targetWeekly / 7), day(reaching: Goal.stopFrom / 7))
     }
 
     /// The unfloored budget for `day` and the level it tapers from. All three run from the baseline on the
