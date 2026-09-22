@@ -309,6 +309,29 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(Goal.periods(from: 200 * 7).map(\.days) == [7])
     }
 
+    /// Raising where a taper starts from can take its pace off the table. It steps to the quickest
+    /// that's still there rather than all the way to the gentlest.
+    @Test func raisingTheStartMovesToTheNextPaceStillOffered() {
+        // Every day is fine from 20 a day. From 24 it isn't, and three days is the next one along.
+        #expect(Goal.nearestOffered(period: 1, from: 20 * 7) == 1)
+        #expect(Goal.nearestOffered(period: 1, from: 24 * 7) == 3)
+        // Past 25 the guidance takes the three-day one too, so four days is what's left.
+        #expect(Goal.nearestOffered(period: 1, from: 30 * 7) == 4)
+        #expect(Goal.nearestOffered(period: 3, from: 30 * 7) == 4)
+        // And at eighty a day, only the weekly one.
+        #expect(Goal.nearestOffered(period: 4, from: 80 * 7) == 7)
+        // A pace that's still offered is left where it is.
+        #expect(Goal.nearestOffered(period: 7, from: 80 * 7) == 7)
+    }
+
+    @Test func raisingTheStartKeepsALinearCutIfItCan() {
+        // Two a day is fine from forty. From eighteen it's over a tenth, so it drops to one and a half.
+        #expect(Goal.nearestOffered(units: 2, from: 40 * 7, perDays: 1) == 2)
+        #expect(Goal.nearestOffered(units: 2, from: 18 * 7, perDays: 1) == 1.5)
+        // Spread over four days the same two units is gentle again.
+        #expect(Goal.nearestOffered(units: 2, from: 18 * 7, perDays: 4) == 2)
+    }
+
     @Test func theOpeningStepIsWhatThePercentageHides() {
         #expect(abs(Goal(periodDays: 1).openingDrop(from: 60 * 7) - 6) < 0.0001, "a tenth of sixty")
         #expect(abs(Goal(taper: .linear, reductionUnits: 2, periodDays: 4).openingDrop(from: 60 * 7) - 0.5) < 0.0001)

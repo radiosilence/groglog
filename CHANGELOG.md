@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Raise where a taper starts from and it moves to the next pace still open to it, rather than sitting on one that's no longer there. It steps to the quickest that's left rather than all the way to the gentlest, so putting the starting figure up costs as little pace as it has to.
+- That happens when you let go of the field, not as you type it. Halfway through typing 30 the number is 3, and a screen that re-plans on every keystroke fights whoever is typing. The chips still grey and ungrey live, because watching the choices narrow is the point; it's only the choice itself that waits.
+
 - Editing where a taper starts from changes what it can do, which it didn't before. The pace options were gated on what you'd been drinking lately whatever the plan said, so setting the baseline to twenty did nothing at all — but a scheduled taper counts down from its baseline, and that's what decides the size of its steps. Drinking lately is still what the NICE thresholds read, since those are about you rather than the plan.
 - A pace that isn't on offer stays on the row, greyed, rather than vanishing. A gap reads as a missing feature and leaves no way to tell what used to be there.
 - "Use my last 4 weeks" rounds to the nearest unit a day. It was handing over 30.486.

@@ -6,6 +6,15 @@ struct GoalEditor: View {
     let ledger: Ledger
     @Binding var goal: Goal
 
+    /// Put the plan back on a pace that's on offer, after something moved that changes which are.
+    /// Steps to the quickest still allowed rather than the gentlest, so raising the starting figure
+    /// costs as little pace as it has to.
+    private func settle() {
+        let from = goal.taper == .dynamic ? (ledger.recentWeeklyAverage() ?? goal.baselineWeekly) : goal.baselineWeekly
+        goal.periodDays = Goal.nearestOffered(period: goal.periodDays, from: from)
+        goal.reductionUnits = Goal.nearestOffered(units: goal.reductionUnits, from: from, perDays: goal.periodDays)
+    }
+
     var body: some View {
         let recent = ledger.recentWeeklyAverage()
         // Two different questions. What they're actually drinking is what the NICE thresholds are
@@ -40,15 +49,13 @@ struct GoalEditor: View {
                         isEnabled: offeredPeriods.contains) { days in
                     Goal.periods.first { $0.days == days }?.label ?? "\(days) days"
                 }
-                // Whatever's greyed, land on something that isn't rather than sitting on a dead choice.
-                .onChange(of: offeredPeriods) { _, days in
-                    if !days.contains(goal.periodDays) { goal.periodDays = days.min() ?? 4 }
-                }
-                .onChange(of: offeredUnits) { _, amounts in
-                    if !amounts.contains(goal.reductionUnits) { goal.reductionUnits = amounts.max() ?? 0.5 }
-                }
+                // Greying happens as you type, because seeing it narrow is the point. Moving the
+                // selection doesn't: that waits for the field to be let go of, or for a change that
+                // isn't typing at all. See `settle`.
+                .onChange(of: goal.taper, initial: true) { settle() }
+                .onChange(of: goal.periodDays) { settle() }
                 if goal.taper != .dynamic {
-                    NumberRow(label: "From", value: perPeriod(\.baselineWeekly), suffix: per)
+                    NumberRow(label: "From", value: perPeriod(\.baselineWeekly), suffix: per, onEditingEnded: settle)
                     // To the nearest unit a day. The average is 30.486 a day and nobody plans from that.
                     if let recent {
                         let rounded = (recent / 7).rounded() * 7

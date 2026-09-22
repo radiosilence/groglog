@@ -30,6 +30,10 @@ struct NumberRow: View {
     let label: String
     @Binding var value: Double
     let suffix: String
+    /// Called when the field is done being typed into. Anything that reacts to the value by changing
+    /// something else belongs here rather than on the value itself — halfway through typing "30" the
+    /// value is 3, and acting on that fights whoever is typing.
+    var onEditingEnded: () -> Void = {}
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -40,6 +44,7 @@ struct NumberRow: View {
                     .keyboardType(.decimalPad)
                     .focused($focused)
                     .keypadDone($focused)
+                    .onChange(of: focused) { was, now in if was && !now { onEditingEnded() } }
                 Text(suffix).foregroundStyle(.secondary)
             }
         }

@@ -93,6 +93,18 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
         return offered.isEmpty ? [periods[periods.count - 1]] : offered
     }
 
+    /// The pace to fall back on when the baseline moves under the chosen one: the quickest that's still
+    /// offered, so raising where a taper starts from slows it by as little as it has to.
+    static func nearestOffered(period days: Int, from weekly: Double) -> Int {
+        let offered = periods(from: weekly).map(\.days)
+        return offered.contains(days) ? days : (offered.min() ?? periods[periods.count - 1].days)
+    }
+
+    static func nearestOffered(units: Double, from weekly: Double, perDays days: Int) -> Double {
+        let offered = unitCuts(from: weekly, perDays: days)
+        return offered.contains(units) ? units : (offered.max() ?? unitCuts[0])
+    }
+
     /// What this takes off the budget on its first day — the steepest step a proportional taper makes,
     /// and every step a linear one makes.
     func openingDrop(from weekly: Double) -> Double {
