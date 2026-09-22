@@ -6,8 +6,29 @@ import GRDBQuery
 /// Observed reads for SwiftUI's `@Query`. Each re-runs after any commit touching its tables, so screens update the
 /// moment a write lands — and each reads only what its screen shows.
 
+/// A request whose screen only hears about a fetch that came back different. Tracking is by table, not row:
+/// logging a drink today re-runs every entries request in the app, and without this each would hand its
+/// screen the same array again and have it redrawn for nothing. The tables read never change between fetches
+/// either, so the region is worked out once rather than per fetch.
+nonisolated protocol ObservedRequest: Queryable, Sendable where Context == DatabaseContext, ValuePublisher == AnyPublisher<Value, any Error>, Value: Sendable & Equatable {
+    func fetch(_ db: Database) throws -> Value
+}
+
+extension ObservedRequest {
+    @MainActor func publisher(in context: DatabaseContext) -> ValuePublisher {
+        do {
+            return ValueObservation.trackingConstantRegion { try self.fetch($0) }
+                .removeDuplicates()
+                .publisher(in: try context.reader, scheduling: .immediate)
+                .eraseToAnyPublisher()
+        } catch {
+            return Fail(error: error).eraseToAnyPublisher()
+        }
+    }
+}
+
 /// Every day's totals — the whole history in a few hundred rows a year.
-nonisolated struct DaysRequest: ValueObservationQueryable {
+nonisolated struct DaysRequest: ObservedRequest {
     static var defaultValue: [Day] { [] }
 
     func fetch(_ db: Database) throws -> [Day] {
@@ -16,7 +37,7 @@ nonisolated struct DaysRequest: ValueObservationQueryable {
 }
 
 /// Log entries with their drinks for a range of days, oldest first.
-nonisolated struct EntriesRequest: ValueObservationQueryable {
+nonisolated struct EntriesRequest: ObservedRequest {
     static var defaultValue: [Entry] { [] }
     var days: ClosedRange<DayKey>
 
@@ -31,7 +52,7 @@ nonisolated struct EntriesRequest: ValueObservationQueryable {
 }
 
 /// The Log grid's pinned drink-and-size tiles.
-nonisolated struct FavouritesRequest: ValueObservationQueryable {
+nonisolated struct FavouritesRequest: ObservedRequest {
     static var defaultValue: [FavouriteItem] { [] }
 
     func fetch(_ db: Database) throws -> [FavouriteItem] {
@@ -43,7 +64,7 @@ nonisolated struct FavouritesRequest: ValueObservationQueryable {
     }
 }
 
-nonisolated struct DrinksRequest: ValueObservationQueryable {
+nonisolated struct DrinksRequest: ObservedRequest {
     static var defaultValue: [Drink] { [] }
 
     func fetch(_ db: Database) throws -> [Drink] {
@@ -52,7 +73,7 @@ nonisolated struct DrinksRequest: ValueObservationQueryable {
 }
 
 /// How many times a drink has been logged — whether it can be deleted.
-nonisolated struct PourCountRequest: ValueObservationQueryable {
+nonisolated struct PourCountRequest: ObservedRequest {
     static var defaultValue: Int { 0 }
     var drinkId: UUID
 

@@ -69,19 +69,21 @@ private struct ProgressCard: View {
         // Never show more days than there are; a window wider than the data leaves it stranded at the left.
         let days = min(Int((window / pinch).rounded()), start.distance(to: today + 15))
         let past = start...today
-        let now = Date.now
+        // To the minute, so the chart's inputs read the same from one commit to the next and it isn't laid out
+        // again for a rule that hasn't visibly moved.
+        let now = Date(timeIntervalSinceReferenceDate: (Date.now.timeIntervalSinceReferenceDate / 60).rounded(.down) * 60)
         let noon = { (day: DayKey) in day.date(in: calendar).addingTimeInterval(12 * 3600) }
         // What was drunk is a bar over its own day, not a line through it — a day's drinking is a
         // quantity, and a mean of the days around it reads 25 on a day you drank 16. Each bar takes
         // its heat against that day's own budget, so it reads as the same colour as its calendar tile.
         let sofar = ledger.totals(on: today).units
-        let drank = past.compactMap { day -> (date: Date, units: Double, partial: Bool, heat: Color)? in
+        let drank = past.compactMap { day -> DayBar? in
             let noon = day.date(in: calendar).addingTimeInterval(12 * 3600)
             let heat = { Color.heat(units: $0, budget: ledger.dailyBudget(on: day, goal: goal)) }
-            if day == today { return (noon, sofar, true, heat(sofar)) }
+            if day == today { return DayBar(date: noon, units: sofar, partial: true, heat: heat(sofar)) }
             guard ledger.isLogged(day) else { return nil }
             let units = ledger.totals(on: day).units
-            return (noon, units, false, heat(units))
+            return DayBar(date: noon, units: units, partial: false, heat: heat(units))
         }
         // Every day's budget sits at its own noon, so a day's decay always spans the same width. Today's
         // used to sit on the "now" rule instead, which stretched the segment before it and squashed the
@@ -90,19 +92,19 @@ private struct ProgressCard: View {
         // is where the line already was. Unsmoothed: a scheduled taper is a smooth curve to begin with,
         // and a dynamic one steps because your drinking does.
         let curve = (start...(today + 14)).compactMap { day in
-            ledger.dailyBudget(on: day, goal: goal).map { (noon(day), $0) }
+            ledger.dailyBudget(on: day, goal: goal).map { BudgetPoint(date: noon(day), units: $0) }
         }
-        let onTheRule = { () -> (Date, Double)? in
+        let onTheRule = { () -> BudgetPoint? in
             let day = now >= noon(today) ? today : today - 1
             guard let here = ledger.dailyBudget(on: day, goal: goal),
                   let next = ledger.dailyBudget(on: day + 1, goal: goal) else { return nil }
-            return (now, here + (next - here) * now.timeIntervalSince(noon(day)) / 86_400)
+            return BudgetPoint(date: now, units: here + (next - here) * now.timeIntervalSince(noon(day)) / 86_400)
         }()
-        let behind = curve.filter { $0.0 <= now } + [onTheRule].compactMap(\.self)
-        let ahead = [onTheRule].compactMap(\.self) + curve.filter { $0.0 > now }
+        let behind = curve.filter { $0.date <= now } + [onTheRule].compactMap(\.self)
+        let ahead = [onTheRule].compactMap(\.self) + curve.filter { $0.date > now }
         // Scale to the window in view, so an old binge doesn't flatten the recent weeks.
         let shown = drank.filter { $0.date >= ledger.clock.start(of: today - days) }
-        let top = max(10, sofar, shown.map(\.units).max() ?? 0, ahead.map(\.1).max() ?? 0) * 1.15
+        let top = max(10, sofar, shown.map(\.units).max() ?? 0, ahead.map(\.units).max() ?? 0) * 1.15
 
         Card(title: title) {
             if let todays = ledger.dailyBudget(on: today, goal: goal) {
@@ -116,38 +118,7 @@ private struct ProgressCard: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             }
-            Chart {
-                // Today's bar is faded: the day isn't over, so the bar isn't its final height.
-                ForEach(drank, id: \.date) { point in
-                    BarMark(x: .value("When", point.date, unit: .day), y: .value("Units", point.units))
-                        .foregroundStyle(point.heat.opacity(point.partial ? 0.45 : 1))
-                        .cornerRadius(3)
-                }
-                ForEach(behind, id: \.0) { date, units in
-                    LineMark(x: .value("Day", date), y: .value("Units", units), series: .value("Line", "Budget"))
-                        .foregroundStyle(Color.dry)
-                        .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                }
-                // Straight between days, like the solid half: a spline through a decaying curve leaves its
-                // first point steeper than the chord, which kinked the line downwards at today.
-                ForEach(ahead, id: \.0) { date, units in
-                    LineMark(x: .value("Day", date), y: .value("Units", units), series: .value("Line", "Ahead"))
-                        .foregroundStyle(Color.dry)
-                        .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round, dash: [4, 4]))
-                }
-                RuleMark(x: .value("Today", now))
-                    .foregroundStyle(Color.secondary.opacity(0.7))
-                    .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
-            }
-            .chartYScale(domain: 0...top)
-            .clipped()
-            .chartXAxis {
-                AxisMarks(values: .stride(by: .day, count: max(1, days / 5))) { AxisGridLine(); AxisValueLabel(format: .dateTime.day().month(.abbreviated)) }
-            }
-            .chartScrollableAxes(.horizontal)
-            .chartXVisibleDomain(length: Double(days) * 86_400)
-            .chartScrollPosition(initialX: (today - (days - 4)).date(in: calendar))
-            .frame(height: 220)
+            ProgressPlot(drank: drank, behind: behind, ahead: ahead, now: now, top: top, days: days, initialX: (today - (days - 4)).date(in: calendar))
             // Simultaneous, or the chart's own scrolling swallows it and nothing zooms.
             .simultaneousGesture(
                 MagnifyGesture(minimumScaleDelta: 0.05)
@@ -170,9 +141,67 @@ private struct ProgressCard: View {
             }
         }
     }
-
 }
 
+private struct DayBar: Equatable {
+    let date: Date
+    let units: Double
+    let partial: Bool
+    let heat: Color
+}
+
+private struct BudgetPoint: Equatable {
+    let date: Date
+    let units: Double
+}
+
+/// The chart alone, on plain values, so it's laid out again only when one of them changes. Chart content is a
+/// closure, which can't be compared, so a chart built inside a card is rebuilt whenever the card is — and the
+/// cards are rebuilt on every commit, whichever tab it came from. The same shape below for each card.
+private struct ProgressPlot: View, Equatable {
+    let drank: [DayBar]
+    let behind: [BudgetPoint]
+    let ahead: [BudgetPoint]
+    let now: Date
+    let top: Double
+    let days: Int
+    let initialX: Date
+
+    var body: some View {
+        Chart {
+            // Today's bar is faded: the day isn't over, so the bar isn't its final height.
+            ForEach(drank, id: \.date) { point in
+                BarMark(x: .value("When", point.date, unit: .day), y: .value("Units", point.units))
+                    .foregroundStyle(point.heat.opacity(point.partial ? 0.45 : 1))
+                    .cornerRadius(3)
+            }
+            ForEach(behind, id: \.date) { point in
+                LineMark(x: .value("Day", point.date), y: .value("Units", point.units), series: .value("Line", "Budget"))
+                    .foregroundStyle(Color.dry)
+                    .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+            }
+            // Straight between days, like the solid half: a spline through a decaying curve leaves its
+            // first point steeper than the chord, which kinked the line downwards at today.
+            ForEach(ahead, id: \.date) { point in
+                LineMark(x: .value("Day", point.date), y: .value("Units", point.units), series: .value("Line", "Ahead"))
+                    .foregroundStyle(Color.dry)
+                    .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round, dash: [4, 4]))
+            }
+            RuleMark(x: .value("Today", now))
+                .foregroundStyle(Color.secondary.opacity(0.7))
+                .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
+        }
+        .chartYScale(domain: 0...top)
+        .clipped()
+        .chartXAxis {
+            AxisMarks(values: .stride(by: .day, count: max(1, days / 5))) { AxisGridLine(); AxisValueLabel(format: .dateTime.day().month(.abbreviated)) }
+        }
+        .chartScrollableAxes(.horizontal)
+        .chartXVisibleDomain(length: Double(days) * 86_400)
+        .chartScrollPosition(initialX: initialX)
+        .frame(height: 220)
+    }
+}
 
 /// This week's running total against the last few weeks, with the week's budget as a dashed line.
 private struct WeekCard: View {
@@ -217,42 +246,8 @@ private struct WeekCard: View {
                     .foregroundStyle(.secondary)
             }
 
-            Chart {
-                ForEach(Array(earlier.enumerated()), id: \.offset) { index, week in
-                    ForEach(week) { point in
-                        LineMark(x: .value("Day", point.x), y: .value("Units", point.units), series: .value("Week", "-\(index + 1)"))
-                            .foregroundStyle(Color.gray.opacity(0.5 - Double(index) * 0.12))
-                            .lineStyle(StrokeStyle(lineWidth: 1.5))
-                    }
-                }
-                ForEach(budget) { point in
-                    LineMark(x: .value("Day", point.x), y: .value("Units", point.units), series: .value("Week", "budget"))
-                        .foregroundStyle(Color.dry)
-                        .lineStyle(StrokeStyle(lineWidth: 2, dash: [4, 4]))
-                }
-                ForEach(current) { point in
-                    AreaMark(x: .value("Day", point.x), yStart: .value("Units", 0), yEnd: .value("Units", point.units))
-                        .foregroundStyle(LinearGradient(colors: [Color.grog.opacity(0.3), Color.grog.opacity(0.02)], startPoint: .top, endPoint: .bottom))
-                    LineMark(x: .value("Day", point.x), y: .value("Units", point.units), series: .value("Week", "this"))
-                        .foregroundStyle(Color.grog)
-                        .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
-                }
-                if let last = current.last {
-                    PointMark(x: .value("Day", last.x), y: .value("Units", last.units))
-                        .foregroundStyle(Color.grog)
-                        .symbolSize(80)
-                }
-            }
-            .chartXScale(domain: 0...7)
-            .chartXAxis {
-                AxisMarks(values: Array(0...6).map(Double.init)) { value in
-                    AxisGridLine()
-                    AxisValueLabel {
-                        Text((start + Int(value.as(Double.self) ?? 0)).date(in: clock.calendar).formatted(.dateTime.weekday(.abbreviated)))
-                    }
-                }
-            }
-            .frame(height: 200)
+            WeekPlot(earlier: earlier, budget: budget, current: current,
+                     weekdays: (0...6).map { (start + $0).date(in: clock.calendar).formatted(.dateTime.weekday(.abbreviated)) })
 
             HStack(spacing: 16) {
                 LegendKey(label: "This week", color: .grog)
@@ -260,6 +255,50 @@ private struct WeekCard: View {
                 if !budget.isEmpty { LegendKey(label: "Budget", color: .dry, dashed: true) }
             }
         }
+    }
+}
+
+private struct WeekPlot: View, Equatable {
+    let earlier: [[CurvePoint]]
+    let budget: [CurvePoint]
+    let current: [CurvePoint]
+    let weekdays: [String]
+
+    var body: some View {
+        Chart {
+            ForEach(Array(earlier.enumerated()), id: \.offset) { index, week in
+                ForEach(week) { point in
+                    LineMark(x: .value("Day", point.x), y: .value("Units", point.units), series: .value("Week", "-\(index + 1)"))
+                        .foregroundStyle(Color.gray.opacity(0.5 - Double(index) * 0.12))
+                        .lineStyle(StrokeStyle(lineWidth: 1.5))
+                }
+            }
+            ForEach(budget) { point in
+                LineMark(x: .value("Day", point.x), y: .value("Units", point.units), series: .value("Week", "budget"))
+                    .foregroundStyle(Color.dry)
+                    .lineStyle(StrokeStyle(lineWidth: 2, dash: [4, 4]))
+            }
+            ForEach(current) { point in
+                AreaMark(x: .value("Day", point.x), yStart: .value("Units", 0), yEnd: .value("Units", point.units))
+                    .foregroundStyle(LinearGradient(colors: [Color.grog.opacity(0.3), Color.grog.opacity(0.02)], startPoint: .top, endPoint: .bottom))
+                LineMark(x: .value("Day", point.x), y: .value("Units", point.units), series: .value("Week", "this"))
+                    .foregroundStyle(Color.grog)
+                    .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
+            }
+            if let last = current.last {
+                PointMark(x: .value("Day", last.x), y: .value("Units", last.units))
+                    .foregroundStyle(Color.grog)
+                    .symbolSize(80)
+            }
+        }
+        .chartXScale(domain: 0...7)
+        .chartXAxis {
+            AxisMarks(values: Array(0...6).map(Double.init)) { value in
+                AxisGridLine()
+                AxisValueLabel { Text(weekdays[Int(value.as(Double.self) ?? 0)]) }
+            }
+        }
+        .frame(height: 200)
     }
 }
 
@@ -304,33 +343,7 @@ private struct MonthCard: View {
                     .foregroundStyle(.secondary)
             }
 
-            Chart {
-                ForEach(hasLastMonth ? previous : []) {
-                    LineMark(x: .value("Day", $0.x), y: .value("Units", $0.units), series: .value("Month", "Last"))
-                        .foregroundStyle(Color.gray.opacity(0.6))
-                        .lineStyle(StrokeStyle(lineWidth: 2))
-                }
-                ForEach(current) {
-                    AreaMark(x: .value("Day", $0.x), yStart: .value("Units", 0), yEnd: .value("Units", $0.units))
-                        .foregroundStyle(LinearGradient(colors: [Color.grog.opacity(0.35), Color.grog.opacity(0.02)], startPoint: .top, endPoint: .bottom))
-                    LineMark(x: .value("Day", $0.x), y: .value("Units", $0.units), series: .value("Month", "This"))
-                        .foregroundStyle(Color.grog)
-                        .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
-                }
-                if let last = current.last {
-                    PointMark(x: .value("Day", last.x), y: .value("Units", last.units))
-                        .foregroundStyle(Color.grog)
-                        .symbolSize(80)
-                }
-                RuleMark(x: .value("Today", Double(dayOfMonth)))
-                    .foregroundStyle(Color.secondary.opacity(0.7))
-                    .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
-            }
-            .chartXScale(domain: 0...31)
-            .chartXAxis {
-                AxisMarks(values: [1, 8, 15, 22, 29]) { AxisGridLine(); AxisValueLabel() }
-            }
-            .frame(height: 200)
+            MonthPlot(previous: hasLastMonth ? previous : [], current: current, dayOfMonth: dayOfMonth)
 
             HStack(spacing: 16) {
                 LegendKey(label: thisMonth.date(in: calendar).formatted(.dateTime.month(.wide)), color: .grog)
@@ -339,6 +352,42 @@ private struct MonthCard: View {
                 }
             }
         }
+    }
+}
+
+private struct MonthPlot: View, Equatable {
+    let previous: [CurvePoint]
+    let current: [CurvePoint]
+    let dayOfMonth: Int
+
+    var body: some View {
+        Chart {
+            ForEach(previous) {
+                LineMark(x: .value("Day", $0.x), y: .value("Units", $0.units), series: .value("Month", "Last"))
+                    .foregroundStyle(Color.gray.opacity(0.6))
+                    .lineStyle(StrokeStyle(lineWidth: 2))
+            }
+            ForEach(current) {
+                AreaMark(x: .value("Day", $0.x), yStart: .value("Units", 0), yEnd: .value("Units", $0.units))
+                    .foregroundStyle(LinearGradient(colors: [Color.grog.opacity(0.35), Color.grog.opacity(0.02)], startPoint: .top, endPoint: .bottom))
+                LineMark(x: .value("Day", $0.x), y: .value("Units", $0.units), series: .value("Month", "This"))
+                    .foregroundStyle(Color.grog)
+                    .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
+            }
+            if let last = current.last {
+                PointMark(x: .value("Day", last.x), y: .value("Units", last.units))
+                    .foregroundStyle(Color.grog)
+                    .symbolSize(80)
+            }
+            RuleMark(x: .value("Today", Double(dayOfMonth)))
+                .foregroundStyle(Color.secondary.opacity(0.7))
+                .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
+        }
+        .chartXScale(domain: 0...31)
+        .chartXAxis {
+            AxisMarks(values: [1, 8, 15, 22, 29]) { AxisGridLine(); AxisValueLabel() }
+        }
+        .frame(height: 200)
     }
 }
 
@@ -359,34 +408,7 @@ private struct WeeksCard: View {
             }
             .pickerStyle(.segmented)
 
-            Chart {
-                ForEach(stats) { week in
-                    BarMark(x: .value("Week", week.start.date(in: calendar), unit: .weekOfYear), y: .value("Units", week.totals.units))
-                        .foregroundStyle(week.budget.map { week.totals.units > $0 } == true ? Color.over.gradient : Color.grog.gradient)
-                        .clipShape(.rect(cornerRadius: 4))
-                }
-                ForEach(stats.filter { $0.budget != nil }) { week in
-                    LineMark(x: .value("Week", week.start.date(in: calendar), unit: .weekOfYear), y: .value("Budget", week.budget!))
-                        .interpolationMethod(.stepCenter)
-                        .foregroundStyle(Color.dry)
-                        .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                }
-                if let thisWeek = stats.last?.start.date(in: calendar) {
-                    RuleMark(x: .value("This week", thisWeek.addingTimeInterval(3 * 24 * 3600)))
-                        .foregroundStyle(Color.secondary.opacity(0.7))
-                        .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
-                }
-                RuleMark(y: .value("Guideline", Units.weeklyGuideline))
-                    .foregroundStyle(.secondary.opacity(0.6))
-                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                    .annotation(position: .top, alignment: .trailing) {
-                        Text("14 u guideline").font(.caption2).foregroundStyle(.secondary)
-                    }
-            }
-            .chartScrollableAxes(.horizontal)
-            .chartXVisibleDomain(length: Double(weeks) * 7 * 86_400)
-            .chartScrollPosition(initialX: (stats.last!.start - 7 * (weeks - 1)).date(in: prefs.clock.calendar))
-            .frame(height: 220)
+            WeeksPlot(stats: stats, weeks: weeks, calendar: calendar)
 
             HStack(spacing: 16) {
                 LegendKey(label: "Units", color: .grog)
@@ -395,6 +417,43 @@ private struct WeeksCard: View {
                 Text("scroll back").font(.caption).foregroundStyle(.tertiary)
             }
         }
+    }
+}
+
+private struct WeeksPlot: View, Equatable {
+    let stats: [WeekStat]
+    let weeks: Int
+    let calendar: Calendar
+
+    var body: some View {
+        Chart {
+            ForEach(stats) { week in
+                BarMark(x: .value("Week", week.start.date(in: calendar), unit: .weekOfYear), y: .value("Units", week.totals.units))
+                    .foregroundStyle(week.budget.map { week.totals.units > $0 } == true ? Color.over.gradient : Color.grog.gradient)
+                    .clipShape(.rect(cornerRadius: 4))
+            }
+            ForEach(stats.filter { $0.budget != nil }) { week in
+                LineMark(x: .value("Week", week.start.date(in: calendar), unit: .weekOfYear), y: .value("Budget", week.budget!))
+                    .interpolationMethod(.stepCenter)
+                    .foregroundStyle(Color.dry)
+                    .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
+            }
+            if let thisWeek = stats.last?.start.date(in: calendar) {
+                RuleMark(x: .value("This week", thisWeek.addingTimeInterval(3 * 24 * 3600)))
+                    .foregroundStyle(Color.secondary.opacity(0.7))
+                    .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
+            }
+            RuleMark(y: .value("Guideline", Units.weeklyGuideline))
+                .foregroundStyle(.secondary.opacity(0.6))
+                .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                .annotation(position: .top, alignment: .trailing) {
+                    Text("14 u guideline").font(.caption2).foregroundStyle(.secondary)
+                }
+        }
+        .chartScrollableAxes(.horizontal)
+        .chartXVisibleDomain(length: Double(weeks) * 7 * 86_400)
+        .chartScrollPosition(initialX: (stats.last!.start - 7 * (weeks - 1)).date(in: calendar))
+        .frame(height: 220)
     }
 }
 
@@ -456,18 +515,35 @@ private struct WeekdayCard: View {
         let byWeekday = Dictionary(grouping: days.filter(ledger.isLogged), by: \.weekday)
         let order = (0..<7).map { ($0 + calendar.firstWeekday - 1) % 7 + 1 }
         let symbols = calendar.shortWeekdaySymbols
+        let bars = order.map { weekday -> WeekdayBar in
+            let days = byWeekday[weekday] ?? []
+            let average = days.isEmpty ? 0 : days.reduce(0) { $0 + ledger.totals(on: $1).units } / Double(days.count)
+            return WeekdayBar(label: symbols[weekday - 1], average: average, isToday: weekday == ledger.today.weekday)
+        }
 
         Card(title: "By weekday") {
-            Chart {
-                ForEach(order, id: \.self) { weekday in
-                    let days = byWeekday[weekday] ?? []
-                    let average = days.isEmpty ? 0 : days.reduce(0) { $0 + ledger.totals(on: $1).units } / Double(days.count)
-                    BarMark(x: .value("Day", symbols[weekday - 1]), y: .value("Units", average))
-                        .foregroundStyle(Color.grog.opacity(weekday == ledger.today.weekday ? 1 : 0.45).gradient)
-                        .clipShape(.rect(cornerRadius: 4))
-                }
-            }
-            .frame(height: 160)
+            WeekdayPlot(bars: bars)
         }
+    }
+}
+
+private struct WeekdayBar: Equatable {
+    let label: String
+    let average: Double
+    let isToday: Bool
+}
+
+private struct WeekdayPlot: View, Equatable {
+    let bars: [WeekdayBar]
+
+    var body: some View {
+        Chart {
+            ForEach(bars, id: \.label) { bar in
+                BarMark(x: .value("Day", bar.label), y: .value("Units", bar.average))
+                    .foregroundStyle(Color.grog.opacity(bar.isToday ? 1 : 0.45).gradient)
+                    .clipShape(.rect(cornerRadius: 4))
+            }
+        }
+        .frame(height: 160)
     }
 }

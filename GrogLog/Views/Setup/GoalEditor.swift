@@ -236,29 +236,49 @@ private struct BurndownPreview: View {
         // sampling past the corner rounds it off into something that looks like a mistake. A day with
         // no budget is left out rather than drawn as nought, which read as the plan hitting the floor.
         let start = DayKey(goal.start, in: calendar)
-        let points = (0...84).compactMap { step -> (Date, Double)? in
-            ledger.dailyBudget(on: start + step, goal: goal).map { ((start + step).date(in: calendar), $0) }
+        let points = (0...84).compactMap { step -> BudgetPoint? in
+            ledger.dailyBudget(on: start + step, goal: goal).map { BudgetPoint(date: (start + step).date(in: calendar), units: $0) }
         }
         // Where the pace changes, marked. The first change is a 29% steepening and the second nearly
         // threefold, so left to the curve alone the first one reads as nothing happening.
         let steps = zip(points, points.dropFirst()).filter {
-            Goal.pace(drinking: $0.1 * 7) != Goal.pace(drinking: $1.1 * 7)
-        }
+            Goal.pace(drinking: $0.units * 7) != Goal.pace(drinking: $1.units * 7)
+        }.map { PaceStep(date: $1.date, pace: Goal.pace(drinking: $1.units * 7)) }
+        BurndownPlot(points: points, steps: steps)
+    }
+}
+
+private struct BudgetPoint: Equatable {
+    let date: Date
+    let units: Double
+}
+
+private struct PaceStep: Equatable {
+    let date: Date
+    let pace: Int
+}
+
+/// The chart on plain values, so the ledger changing under the sheet doesn't lay it out again.
+private struct BurndownPlot: View, Equatable {
+    let points: [BudgetPoint]
+    let steps: [PaceStep]
+
+    var body: some View {
         Chart {
-            ForEach(steps, id: \.1.0) { _, step in
-                RuleMark(x: .value("Date", step.0))
+            ForEach(steps, id: \.date) { step in
+                RuleMark(x: .value("Date", step.date))
                     .foregroundStyle(Color.dry.opacity(0.35))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
                     .annotation(position: .top, alignment: .center, spacing: 0) {
-                        Text("10%/\(Goal.pace(drinking: step.1 * 7))d")
+                        Text("10%/\(step.pace)d")
                             .font(.caption2)
                             .foregroundStyle(Color.dry)
                     }
             }
-            ForEach(points, id: \.0) { date, amount in
-                AreaMark(x: .value("Date", date), y: .value("Budget", amount))
+            ForEach(points, id: \.date) { point in
+                AreaMark(x: .value("Date", point.date), y: .value("Budget", point.units))
                     .foregroundStyle(LinearGradient(colors: [Color.dry.opacity(0.4), Color.dry.opacity(0.05)], startPoint: .top, endPoint: .bottom))
-                LineMark(x: .value("Date", date), y: .value("Budget", amount))
+                LineMark(x: .value("Date", point.date), y: .value("Budget", point.units))
                     .foregroundStyle(Color.dry)
                     .lineStyle(StrokeStyle(lineWidth: 2, lineJoin: .round))
             }

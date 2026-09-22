@@ -86,24 +86,36 @@ private struct MonthGrid: View {
             LazyVGrid(columns: Array(repeating: GridItem(spacing: 5), count: 7), spacing: 5) {
                 ForEach(0..<offset, id: \.self) { _ in Color.clear }
                 ForEach(days, id: \.self) { day in
-                    DayCell(day: day, ledger: ledger, budget: ledger.dailyBudget(on: day, goal: goal))
+                    DayCell(
+                        day: day,
+                        status: ledger.status(on: day),
+                        units: ledger.totals(on: day).units,
+                        budget: ledger.dailyBudget(on: day, goal: goal),
+                        isToday: day == ledger.today
+                    )
                 }
             }
         }
     }
 }
 
-private struct DayCell: View {
+/// One day, on the handful of values it shows. The ledger changes on every commit, and a cell that took it would
+/// be re-evaluated on each — there are a thousand of these across a few years, and on a commit all but one read
+/// the same.
+private struct DayCell: View, Equatable {
     let day: DayKey
-    let ledger: Ledger
+    let status: DayStatus
+    let units: Double
     let budget: Double?
+    let isToday: Bool
     @Environment(\.databaseContext) private var database
     @Environment(Prefs.self) private var prefs
 
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.day == rhs.day && lhs.status == rhs.status && lhs.units == rhs.units && lhs.budget == rhs.budget && lhs.isToday == rhs.isToday
+    }
+
     var body: some View {
-        let status = ledger.status(on: day)
-        let units = ledger.totals(on: day).units
-        let isToday = day == ledger.today
         let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
         let fill: Color = switch status {
         case .drank: Color.heat(units: units, budget: budget)
@@ -146,17 +158,23 @@ private struct DayCell: View {
         }
         .contentShape(shape)
 
-        if status == .future {
+        switch status {
+        case .future:
             cell.opacity(0.5)
-        } else {
+        case .drank:
+            // Nothing to offer a day with drinks on it, and an empty menu still lifts the cell on a long press.
+            NavigationLink(value: day) { cell }.buttonStyle(.plain)
+        case .alcoholFree:
             NavigationLink(value: day) { cell }
                 .buttonStyle(.plain)
                 .contextMenu {
-                    if status == .alcoholFree {
-                        Button("Not alcohol-free", systemImage: "xmark") { database.logbook(prefs).setAlcoholFree(false, on: day) }
-                    } else if status != .drank {
-                        Button("Alcohol-free", systemImage: "leaf") { database.logbook(prefs).setAlcoholFree(true, on: day) }
-                    }
+                    Button("Not alcohol-free", systemImage: "xmark") { database.logbook(prefs).setAlcoholFree(false, on: day) }
+                }
+        case .today, .unlogged, .untracked:
+            NavigationLink(value: day) { cell }
+                .buttonStyle(.plain)
+                .contextMenu {
+                    Button("Alcohol-free", systemImage: "leaf") { database.logbook(prefs).setAlcoholFree(true, on: day) }
                 }
         }
     }

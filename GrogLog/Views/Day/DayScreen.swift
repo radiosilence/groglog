@@ -31,14 +31,17 @@ struct DayScreen: View {
     @State private var settingGoal = false
     @State private var settingSpend = false
 
+    /// The chart compares the day with the week before it, so the whole window is fetched once and the day's own
+    /// drinks are taken from it, rather than the chart running a second observation over a subset.
     init(day: DayKey, ledger: Ledger) {
         self.day = day
         self.ledger = ledger
-        _entries = Query(constant: EntriesRequest(days: day...day))
+        _entries = Query(constant: EntriesRequest(days: ledger.weekBefore(day).lowerBound...day))
     }
 
     var body: some View {
         let logbook = database.logbook(prefs)
+        let todays = entries.filter { $0.day == day.number }
         let status = ledger.status(on: day)
         let budget = ledger.dailyBudget(on: day, goal: prefs.goal)
         let totals = ledger.totals(on: day)
@@ -56,7 +59,7 @@ struct DayScreen: View {
 
             Section {
                 TimelineView(.everyMinute) { timeline in
-                    DayChart(day: day, ledger: ledger, budget: budget, tick: timeline.date)
+                    DayChart(day: day, ledger: ledger, budget: budget, tick: timeline.date, pours: entries)
                 }
             }
 
@@ -93,12 +96,12 @@ struct DayScreen: View {
             switch status {
             case .drank:
                 Section("Drinks") {
-                    ForEach(entries.reversed()) { entry in
+                    ForEach(todays.reversed()) { entry in
                         Button { editing = entry } label: { PourRow(entry: entry, currency: prefs.currency) }
                             .tint(.primary)
                     }
                     .onDelete { offsets in
-                        let reversed = Array(entries.reversed())
+                        let reversed = Array(todays.reversed())
                         offsets.forEach { logbook.delete(reversed[$0].pour) }
                     }
                 }
