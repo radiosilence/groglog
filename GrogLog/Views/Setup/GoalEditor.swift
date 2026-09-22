@@ -105,6 +105,28 @@ struct GoalEditor: View {
                 Text("Pick how fast to cut down and get a daily and weekly unit budget.")
             }
         }
+
+        // Guidance treats a gradual reduction as something decided on for a particular person, by
+        // someone who has met them. This screen can only count what you've decided; it can't tell you
+        // whether a taper is the right approach, and shouldn't be read as saying that it is.
+        Section {
+            Text("A taper is for when cutting down gradually is already the right approach for you. Whether it is, and how fast, is a question for your GP or an alcohol service — GrogLog only keeps count of the plan you set.")
+        } header: {
+            Text("Before you start")
+        }
+
+        // DHSC's UK clinical guidelines for alcohol treatment, chapter 8, step 3. These are the signs
+        // the guidance says to stop and get help for, not to taper more slowly through.
+        Section {
+            Label("A fit or seizure", systemImage: "bolt.fill")
+            Label("Seeing or hearing things that aren't there", systemImage: "eye.trianglebadge.exclamationmark.fill")
+            Label("Confusion, or being unsteady on your feet", systemImage: "figure.fall")
+        } header: {
+            Text("Call 999 if you get any of these")
+        } footer: {
+            Text("Withdrawal can turn serious, and these are the signs that it has. They're an emergency, not a reason to cut down more slowly.")
+        }
+        .foregroundStyle(Color.over)
     }
 }
 
