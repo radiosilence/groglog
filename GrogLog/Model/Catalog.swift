@@ -819,6 +819,9 @@ nonisolated enum Catalog {
         ("Rheinbacher Premium Pilsner", .beer, 4.5, [(can500, 3.99)]),
         ("Anti-Establishment IPA", .beer, 5.6, [(can440, 1.99)]),
         ("Anti-Establishment Hazy Daisy IPA", .beer, 5.0, [(can440, 1.99)]),
+        // The one price here nobody publishes, so it's two quid from the memory of somebody drinking
+        // one, who thinks it might have been £1.50 and isn't walking back to Aldi to find out.
+        ("Anti-Establishment Back Up Session IPA", .beer, 4.3, [(can330, 2)]),
         ("Anti-Establishment Found Lager", .beer, 4.0, [(can440, 2)]),
         ("Anti-Establishment Mango Joiva Lager", .beer, 4.0, [(can440, 1.49)]),
         ("Anti-Establishment Peach Joiva Lager", .beer, 4.0, [(can440, 1.49)]),
