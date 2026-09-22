@@ -58,6 +58,7 @@ nonisolated enum Catalog {
     private static let bottle620 = ServeSize(.bottle, 620)
     private static let bottle650 = ServeSize(.bottle, 650)
     private static let bottle660 = ServeSize(.bottle, 660)
+    private static let bottle2000 = ServeSize(.bottle, 2000)
     private static let bottle2500 = ServeSize(.bottle, 2500)
     private static let glass125 = ServeSize(.wineGlass, 125)
     private static let glass175 = ServeSize(.wineGlass, 175)
@@ -68,6 +69,7 @@ nonisolated enum Catalog {
     private static let single = ServeSize(.shot, 25)
     private static let single35 = ServeSize(.shot, 35)
     private static let bottle70cl = ServeSize(.wineBottle, 700)
+    private static let bottle1l = ServeSize(.wineBottle, 1000)
     private static let schooner = ServeSize(.wineGlass, 70)
     private static let port = ServeSize(.wineGlass, 50)
     private static let longDrink = ServeSize(.tumbler, 225)
@@ -811,6 +813,32 @@ nonisolated enum Catalog {
         ("VK", .alcopop, 4.0, [(bottle275, 2)]),
         ("Smirnoff Ice", .alcopop, 4.0, [(bottle275, 2.01)]),
         ("Hooch", .alcopop, 4.0, [(bottle440, 2.1)]),
+        // Aldi and Lidl's own labels. Priced as the shop sells them, which is the only way they're
+        // sold — there's no bar pouring Old Hopking, so a measure of one prices off the bottle.
+        ("Galahad Premium Lager", .beer, 4.0, [(can440, 2.99)]),
+        ("Rheinbacher Premium Pilsner", .beer, 4.5, [(can500, 3.99)]),
+        ("Perlenbacher Pilsner", .beer, 4.5, [(bottle500, 1.29)]),
+        ("Hatherwood Golden Goose", .beer, 4.5, [(bottle500, 1.09)]),
+        ("Hatherwood Ruby Rooster", .beer, 3.8, [(bottle500, 1.09)]),
+        ("Taurus Original Cider", .cider, 5.0, [(can440, 2.29), (bottle2000, 1.89)]),
+        ("Taurus Pear Cider", .cider, 4.8, [(can440, 2.29)]),
+        ("Highland Black Scotch Whisky", .spirit, 40.0, [(single, 0.55), (bottle70cl, 15.35)]),
+        ("Glen Marnoch Speyside Single Malt", .spirit, 40.0, [(single, 0.66), (bottle70cl, 18.49)]),
+        ("Queen Margot Blended Scotch Whisky", .spirit, 40.0, [(single, 0.48), (bottle70cl, 13.49)]),
+        ("Greyson's London Dry Gin", .spirit, 37.5, [(single, 0.43), (bottle70cl, 11.99), (bottle1l, 16.79)]),
+        ("Hortus Artisan London Dry Gin", .spirit, 40.0, [(single, 0.61), (bottle70cl, 16.99)]),
+        ("Hortus Rhubarb & Ginger Gin Liqueur", .spirit, 20.0, [(single, 0.43), (bottle70cl, 11.99)]),
+        ("Hortus Scottish Raspberry Gin Liqueur", .spirit, 20.0, [(single, 0.43), (bottle70cl, 11.99)]),
+        ("Rachmaninoff Triple Distilled Vodka", .spirit, 37.5, [(single, 0.36), (bottle70cl, 9.99)]),
+        ("Old Hopking White Rum", .spirit, 37.5, [(single, 0.44), (bottle70cl, 12.25)]),
+        ("Old Hopking Dark Rum", .spirit, 37.5, [(single, 0.43), (bottle70cl, 11.99)]),
+        ("Old Hopking Spiced Rum", .spirit, 35.0, [(single, 0.43), (bottle70cl, 11.99)]),
+        ("Ballycastle Country Cream", .spirit, 12.0, [(port, 0.4), (bottle70cl, 5.59)]),
+        ("Specially Selected Rioja Reserva", .redWine, 14.2, [(glass175, 1.86), (wineBottle, 7.99)]),
+        ("Cepa Lebrel Crianza", .redWine, 15.0, [(glass175, 1.35), (wineBottle, 5.79)]),
+        ("Veuve Monsigny Champagne Brut", .bubbles, 12.5, [(flute, 2.67), (wineBottle, 15.99)]),
+        ("Costellore Prosecco", .bubbles, 10.5, [(flute, 0.91), (wineBottle, 5.45)]),
+        ("Belletti Hugo Spritz", .alcopop, 6.9, [(flute, 0.67), (wineBottle, 3.99)]),
     ]
 
     static let brands: [CatalogBrand] = entries.map { CatalogBrand(name: $0.0, category: $0.1, abv: $0.2, serves: $0.3) }

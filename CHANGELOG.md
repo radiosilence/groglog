@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Aldi and Lidl's own labels: Galahad and Rheinbacher, Perlenbacher and the Hatherwood ales, Taurus cider, Highland Black and Glen Marnoch, Queen Margot, Greyson's and the Hortus gins, Rachmaninoff, the Old Hopking rums, Ballycastle, and a few of the wines. Priced as the shop sells them, since that's the only way they're sold — nowhere pours Old Hopking by the measure, so a shot of one prices off the bottle. Oliver Cromwell gin is here as Greyson's, which is what Aldi renamed it in 2025.
+
 - The pace a stepped taper picks is a link now, and behind it is where that figure came from: the 10%-a-day ceiling and which guideline it's in, the boundaries at 25 and 15 and which of the two is ours, the levels NICE says to ask for help at, and links to both documents. It also says the thing the screen can't: a stepped taper always takes the quickest pace its level allows, so there's no way to make it slower — that's what Proportional is for.
 
 - The preview marks where a stepped taper changes pace. It changes twice on the way down from 30 units a day — at 25 and at 15 — but the first is a 29% steepening against the second's threefold one, so the curve alone reads as though only one thing happened. Now each change is a line on the chart saying what the pace becomes.
