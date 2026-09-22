@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The pace a stepped taper picks is a link now, and behind it is where that figure came from: the 10%-a-day ceiling and which guideline it's in, the boundaries at 25 and 15 and which of the two is ours, the levels NICE says to ask for help at, and links to both documents. It also says the thing the screen can't: a stepped taper always takes the quickest pace its level allows, so there's no way to make it slower — that's what Proportional is for.
+
 - The preview marks where a stepped taper changes pace. It changes twice on the way down from 30 units a day — at 25 and at 15 — but the first is a 29% steepening against the second's threefold one, so the curve alone reads as though only one thing happened. Now each change is a line on the chart saying what the pace becomes.
 
 - The dynamic taper is a plan again, and is called Stepped. It used to take its cut off a rolling average of what had actually been drunk, which made it unpredictable in exactly the wrong direction: a quiet day dragged the average down and the next day's budget with it, by three quarters on the shortest setting, and the effective pace ran half again faster than the label. It reads nothing now. It starts at the quickest pace allowed for where the budget begins and quickens each time the budget crosses a threshold — every four days over 25 units, every three under that, every day under 15 — so the curve is a run of progressively steeper eases rather than one shape. There is nothing to set: the pace is whatever the ladder gives.

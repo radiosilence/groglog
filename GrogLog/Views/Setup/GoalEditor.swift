@@ -5,6 +5,7 @@ import SwiftUI
 struct GoalEditor: View {
     let ledger: Ledger
     @Binding var goal: Goal
+    @State private var showingGuidance = false
 
     /// Put the plan back on a pace that's on offer, after something moved that changes which are.
     /// Steps to the quickest still allowed rather than the gentlest, so raising the starting figure
@@ -44,9 +45,16 @@ struct GoalEditor: View {
                 let offeredUnits = Goal.unitCuts(from: from, perDays: goal.periodDays)
                 // Dynamic has no pace to pick: it takes the one its ladder gives for where you are.
                 if goal.taper == .dynamic {
-                    LabeledContent("Starts at") {
-                        Text("10% every \(Goal.periods.first { $0.days == Goal.pace(drinking: from) }?.label ?? "week")")
+                    Button { showingGuidance = true } label: {
+                        LabeledContent {
+                            HStack(spacing: 4) {
+                                Text("10% every \(Goal.periods.first { $0.days == Goal.pace(drinking: from) }?.label ?? "week")")
+                                Image(systemName: "info.circle")
+                            }
                             .foregroundStyle(Color.grog)
+                        } label: {
+                            Text("Starts at").foregroundStyle(Color.primary)
+                        }
                     }
                 } else if goal.taper == .linear {
                     LabeledContent("Cut by") { EmptyView() }
@@ -116,7 +124,6 @@ struct GoalEditor: View {
                         .font(.subheadline)
                         .foregroundStyle(Color.over)
                 }
-
             }
         } header: {
             Text("Goal")
@@ -136,6 +143,7 @@ struct GoalEditor: View {
                 Text("Pick how fast to cut down and get a daily and weekly unit budget.")
             }
         }
+        .sheet(isPresented: $showingGuidance) { GuidanceSheet() }
 
         // Guidance treats a gradual reduction as something decided on for a particular person, by
         // someone who has met them. This screen can only count what you've decided; it can't tell you
@@ -258,5 +266,49 @@ private struct BurndownPreview: View {
         .chartYAxisLabel("u/day")
         .frame(height: 120)
         .padding(.vertical, 6)
+    }
+}
+
+
+/// Where the pace limits come from, and where they don't. Reachable from the pace a stepped taper
+/// picks, because that's the number somebody would most want to argue with.
+private struct GuidanceSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text("No more than 10% a day. That's the ceiling in the DHSC's UK clinical guidelines for alcohol treatment — the first national guideline to put a number on reducing without medication, published November 2025.")
+                    Text("It calls that figure the development group's clinical consensus rather than trial evidence, and the protocol around it assumes a clinician has judged the person suitable and reviews them as they go.")
+                        .foregroundStyle(.secondary)
+                    Link("Read chapter 8, harm reduction", destination: URL(string: "https://www.gov.uk/guidance/clinical-guidelines-for-alcohol-treatment/8-harm-reduction")!)
+                } header: {
+                    Text("The pace")
+                }
+
+                Section {
+                    Text("Over 25 units a day, the same guidance suggests no faster than 10% every four days, and says the same of being over 65 or in poor health.")
+                    Text("Between 15 and 25 the step to every three days is ours, not theirs. NICE considers assisted withdrawal over 15 units a day, and running at the outright ceiling unsupervised while still drinking that much isn't what the ceiling was written for.")
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Text("Why it starts slower")
+                }
+
+                Section {
+                    Text("Over 15 units a day, NICE says to consider medically assisted withdrawal. Over 30, it points to inpatient or residential care rather than cutting down alone.")
+                    Link("NICE CG115", destination: URL(string: "https://www.nice.org.uk/guidance/cg115")!)
+                } header: {
+                    Text("When to ask for help")
+                }
+
+                Section {
+                    Text("GrogLog doesn't recommend a plan — it keeps count of the one you set. Whether tapering is the right approach for you, and how fast, is a question for your GP or an alcohol service.")
+                }
+            }
+            .navigationTitle("Where this comes from")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        }
     }
 }
