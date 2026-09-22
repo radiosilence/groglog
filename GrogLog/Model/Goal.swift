@@ -58,12 +58,6 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
     /// NICE CG115 recommendation 1.3.4.5: over 30 units a day, consider inpatient or residential.
     static let inpatientWeekly = 30 * 7.0
 
-    /// However the taper is set, the budget never falls more than this in a day. Not a figure from the
-    /// guidance — that caps the share and slows the period for heavy drinkers instead of naming a
-    /// ceiling in units — but ten per cent of eighty is eight units gone in a day, and a cap can only
-    /// ever make a taper gentler. It bites where a proportional curve is steepest, which is its start.
-    static let maxDailyUnitDrop = 2.0
-
     /// How often the cut lands. The share itself doesn't move: ten per cent is the fastest rate that
     /// isn't faster than is safe, so taking it more or less often is the whole of the pace. A day apart
     /// it's 10% a day, a week apart 1.5% — and nothing in that range can be set too fast, which a menu

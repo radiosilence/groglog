@@ -171,17 +171,18 @@ nonisolated struct Ledger {
 
     /// When today's taper, carried on, reaches the target — and drops under a unit a day, the point where stopping is a small step.
     func projection(goal: Goal) -> (target: DayKey?, underOneUnit: DayKey?) {
-        guard taper(on: today, goal: goal) != nil else { return (nil, nil) }
-        // Walked, not solved. The budget is three different curves depending on the taper, with a
-        // straight cap laid across the steep end of each — so stepping the same function the chart
-        // draws keeps the date and the line telling one story, where a closed form for each would
-        // drift from it. Two years is further ahead than a taper means anything; past that, no date.
-        // The taper's own curve, not the floored budget: "under 1 u/day by" is a question about the
-        // rate you're going at, and a target of two a day would otherwise make the answer never.
+        guard let now = taper(on: today, goal: goal) else { return (nil, nil) }
+        guard goal.taper == .linear ? goal.dailyUnitCut > 0 : goal.dailyCut > 0 else { return (nil, nil) }
         func day(reaching level: Double) -> DayKey? {
-            (0...730).lazy
-                .first { (taper(on: today + $0, goal: goal)?.budget ?? .infinity) <= level }
-                .map { today + $0 }
+            // A proportional taper approaches a level and never arrives, so the day it passes one is a
+            // logarithm. A linear one walks down at a fixed pace, and can reach nothing — which is the
+            // one level the proportional one can't, so nought is a question only this taper can answer.
+            guard goal.taper == .linear ? level >= 0 : level > 0 else { return nil }
+            if now.budget <= level { return today }
+            let days = goal.taper == .linear
+                ? (now.budget - level) / goal.dailyUnitCut
+                : log(level / now.budget) / log(1 - goal.dailyCut)
+            return today + Int(days.rounded(.up))
         }
         return (day(reaching: goal.targetWeekly / 7), day(reaching: 1))
     }
@@ -200,24 +201,14 @@ nonisolated struct Ledger {
             let budget = goal.taper == .linear
                 ? max(0, reference - goal.dailyUnitCut * Double(elapsed))
                 : reference * pow(1 - goal.dailyCut, Double(elapsed))
-            return (capped(budget, from: reference, over: elapsed), reference)
+            return (budget, reference)
         }
         let anchor = min(day, today)
         guard let lastLogged = (1...28).lazy.map({ anchor - $0 }).first(where: isLogged) else { return nil }
         let window = (0..<max(1, goal.periodDays)).map { lastLogged - $0 }.filter(isLogged)
         let average = window.reduce(0) { $0 + totals(on: $1).units } / Double(window.count)
         let daysAhead = max(0, anchor.distance(to: day))
-        let budget = average * (1 - goal.reductionPercent / 100) * pow(1 - goal.dailyCut, Double(daysAhead))
-        // Dynamic re-anchors on the average every day, so one day is what it's ever fallen by.
-        return (capped(budget, from: average, over: daysAhead + 1), average)
-    }
-
-    /// A floor under the steepest part of any taper: from where it started, the budget can't be further
-    /// down than `maxDailyUnitDrop` a day. A proportional curve falls fastest at the top, so this is a
-    /// straight line across its first stretch — after which the curve is below the cap and carries on
-    /// as set. It can only ever raise a budget, never lower one.
-    private func capped(_ budget: Double, from reference: Double, over days: Int) -> Double {
-        max(budget, reference - Goal.maxDailyUnitDrop * Double(days))
+        return (average * (1 - goal.reductionPercent / 100) * pow(1 - goal.dailyCut, Double(daysAhead)), average)
     }
 
     // MARK: Curves
