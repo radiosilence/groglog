@@ -7,6 +7,7 @@
 - The pour plays before the write lands, not after the disk has acknowledged it.
 - Changing when the day ends re-days every entry off the main thread. It's the full rebuild, seconds on a long log, and it ran while the picker was still settling.
 - Catalogue search folds names once rather than per keystroke per serve, and the long-press sheet looks brands up by kind instead of scanning the lot against every drink you own.
+- Aldi and Lidl's own labels: Galahad and Rheinbacher, Perlenbacher and the Hatherwood ales, Taurus cider, Highland Black and Glen Marnoch, Queen Margot, Greyson's and the Hortus gins, Rachmaninoff, the Old Hopking rums, Ballycastle, and a few of the wines. Priced as the shop sells them, since that's the only way they're sold — nowhere pours Old Hopking by the measure, so a shot of one prices off the bottle. Oliver Cromwell gin is here as Greyson's, which is what Aldi renamed it in 2025.
 
 - The pace a stepped taper picks is a link now, and behind it is where that figure came from: the 10%-a-day ceiling and which guideline it's in, the boundaries at 25 and 15 and which of the two is ours, the levels NICE says to ask for help at, and links to both documents. It also says the thing the screen can't: a stepped taper always takes the quickest pace its level allows, so there's no way to make it slower — that's what Proportional is for.
 
