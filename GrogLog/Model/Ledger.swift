@@ -192,24 +192,29 @@ nonisolated struct Ledger {
     /// one can land on nothing and does. Dynamic: the cut applied to your average over the previous period (dry
     /// days count as zero, unlogged days are left out) — after a gap, the period ending at the last logged day
     /// within four weeks — continuing the taper daily for future days. No history to go on means no budget.
-    private func taper(on day: DayKey, goal: Goal) -> (budget: Double, reference: Double)? {
+    private func taper(on day: DayKey, goal: Goal)  -> (budget: Double, reference: Double)? {
         guard goal.isEnabled else { return nil }
-        if goal.taper != .dynamic {
-            let elapsed = DayKey(goal.start, in: clock.calendar).distance(to: day)
-            guard elapsed >= 0 else { return nil }
-            let reference = goal.baselineWeekly / 7
-            let budget = goal.taper == .linear
-                ? max(0, reference - goal.dailyUnitCut * Double(elapsed))
-                : reference * pow(1 - goal.dailyCut, Double(elapsed))
+        let elapsed = DayKey(goal.start, in: clock.calendar).distance(to: day)
+        guard elapsed >= 0 else { return nil }
+        let reference = goal.baselineWeekly / 7
+        switch goal.taper {
+        case .linear:
+            return (max(0, reference - goal.dailyUnitCut * Double(elapsed)), reference)
+        case .proportional:
+            return (reference * pow(1 - goal.dailyCut, Double(elapsed)), reference)
+        case .dynamic:
+            // The one taper that changes pace as it goes. It takes whatever its ladder gives for the
+            // level the budget has reached, so it quickens a rung at a time on the way down, where a
+            // single share only ever eases off. Walked rather than solved: the rate depends on where
+            // the budget is and where the budget is depends on the rate.
+            var budget = reference
+            for _ in 0..<min(elapsed, 3650) {
+                budget *= 1 - Goal.rate(forPace: Goal.pace(drinking: budget * 7))
+            }
             return (budget, reference)
         }
-        let anchor = min(day, today)
-        guard let lastLogged = (1...28).lazy.map({ anchor - $0 }).first(where: isLogged) else { return nil }
-        let window = (0..<max(1, goal.periodDays)).map { lastLogged - $0 }.filter(isLogged)
-        let average = window.reduce(0) { $0 + totals(on: $1).units } / Double(window.count)
-        let daysAhead = max(0, anchor.distance(to: day))
-        return (average * (1 - goal.reductionPercent / 100) * pow(1 - goal.dailyCut, Double(daysAhead)), average)
     }
+
 
     // MARK: Curves
 

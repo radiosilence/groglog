@@ -10,9 +10,9 @@ struct GoalEditor: View {
     /// Steps to the quickest still allowed rather than the gentlest, so raising the starting figure
     /// costs as little pace as it has to.
     private func settle() {
-        let drinking = ledger.recentWeeklyAverage() ?? goal.baselineWeekly
-        if !Goal.tapers(drinking: drinking).contains(goal.taper) { goal.taper = .proportional }
-        let from = goal.taper == .dynamic ? drinking : goal.baselineWeekly
+        // Dynamic picks its own pace off the ladder, so there's nothing of its to put back.
+        guard goal.taper != .dynamic else { return }
+        let from = goal.baselineWeekly
         goal.periodDays = Goal.nearestOffered(period: goal.periodDays, from: from)
         goal.reductionUnits = Goal.nearestOffered(units: goal.reductionUnits, from: from, perDays: goal.periodDays)
     }
@@ -23,7 +23,8 @@ struct GoalEditor: View {
         // about. What the taper counts down from is what decides the size of its steps, and that's
         // the baseline for a scheduled plan — which is why editing it changes what's on offer.
         let drinking = recent ?? goal.baselineWeekly
-        let from = goal.taper == .dynamic ? drinking : goal.baselineWeekly
+        // All three count down from the baseline now, so that's what sets the size of their steps.
+        let from = goal.baselineWeekly
         // Amounts are stored per week but people think in a day's drinking, whatever the taper's pace.
         let per = "u/day"
         let amount = { (weekly: Double) in "\((weekly / 7).unitsText) u/day" }
@@ -34,34 +35,33 @@ struct GoalEditor: View {
         Section {
             Toggle("Cut down", isOn: $goal.isEnabled)
             if goal.isEnabled {
-                let offeredTapers = Goal.tapers(drinking: drinking)
                 LabeledContent("Taper") { EmptyView() }
-                ChipRow(options: Taper.allCases, selection: $goal.taper,
-                        isEnabled: offeredTapers.contains, label: \.label)
-                if !offeredTapers.contains(.dynamic) {
-                    Label("Following your own drinking isn't offered over 30 units a day: the cut comes off a lagging average, so one quiet day can drop the next day's budget by far more than 10%.", systemImage: "info.circle")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+                ChipRow(options: Taper.allCases, selection: $goal.taper, label: \.label)
+                Text(goal.taper.explanation)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
                 let offeredPeriods = Goal.periods(from: from).map(\.days)
                 let offeredUnits = Goal.unitCuts(from: from, perDays: goal.periodDays)
-                if goal.taper == .linear {
+                // Dynamic has no pace to pick: it takes the one its ladder gives for where you are.
+                if goal.taper == .dynamic {
+                    LabeledContent("Starts at") {
+                        Text("10% every \(Goal.periods.first { $0.days == Goal.pace(drinking: from) }?.label ?? "week")")
+                            .foregroundStyle(Color.grog)
+                    }
+                } else if goal.taper == .linear {
                     LabeledContent("Cut by") { EmptyView() }
                     ChipRow(options: Goal.unitCuts, selection: $goal.reductionUnits,
                             isEnabled: offeredUnits.contains) { "−\($0.formatted(.number.precision(.fractionLength(0...1)))) u" }
                 }
                 // The share is fixed at the fastest that's safe, so how often it lands is the whole pace.
-                LabeledContent(goal.taper == .linear ? "Every" : "Cut \(Int(Goal.standardCut))% every") { EmptyView() }
-                ChipRow(options: Goal.periods.map(\.days), selection: $goal.periodDays,
-                        isEnabled: offeredPeriods.contains) { days in
-                    Goal.periods.first { $0.days == days }?.label ?? "\(days) days"
-                }
-                // Greying happens as you type, because seeing it narrow is the point. Moving the
-                // selection doesn't: that waits for the field to be let go of, or for a change that
-                // isn't typing at all. See `settle`.
-                .onChange(of: goal.taper, initial: true) { settle() }
-                .onChange(of: goal.periodDays) { settle() }
                 if goal.taper != .dynamic {
+                    LabeledContent(goal.taper == .linear ? "Every" : "Cut \(Int(Goal.standardCut))% every") { EmptyView() }
+                    ChipRow(options: Goal.periods.map(\.days), selection: $goal.periodDays,
+                            isEnabled: offeredPeriods.contains) { days in
+                        Goal.periods.first { $0.days == days }?.label ?? "\(days) days"
+                    }
+                }
+                Group {
                     NumberRow(label: "From", value: perPeriod(\.baselineWeekly), suffix: per, onEditingEnded: settle)
                     // To the nearest unit a day. The average is 30.486 a day and nobody plans from that.
                     if let recent {
@@ -72,6 +72,11 @@ struct GoalEditor: View {
                     }
                     DatePicker("Starting", selection: $goal.start, displayedComponents: .date)
                 }
+                // Greying happens as you type, because seeing it narrow is the point. Moving the
+                // selection doesn't: that waits for the field to be let go of, or for a change that
+                // isn't typing at all. See `settle`.
+                .onChange(of: goal.taper, initial: true) { settle() }
+                .onChange(of: goal.periodDays) { settle() }
                 NumberRow(label: "Down to", value: perPeriod(\.targetWeekly), suffix: per)
                 BurndownPreview(goal: goal, ledger: ledger)
                 ProjectionRow(ledger: ledger, goal: goal)
@@ -121,8 +126,7 @@ struct GoalEditor: View {
                 let guideline = "The UK low-risk guideline is \(amount(Units.weeklyGuideline))."
                 switch goal.taper {
                 case .dynamic:
-                    let window = goal.periodDays == 1 ? "yesterday" : "your average over the last \(goal.periodDays) days"
-                    Text("Each day's budget is \(Int(goal.reductionPercent))% under \(window), down to \(amount(goal.targetWeekly)). Go over and it simply carries on from there — no schedule to catch up with. \(guideline)")
+                    Text("\(amount(goal.baselineWeekly)) → \(amount(goal.targetWeekly)) from \(goal.start.formatted(date: .abbreviated, time: .omitted)), quickening as it falls: 10% a week above 30 u/day, every four days under that, every three under 25, and every day under 15. You don't set the pace — it's the fastest the guidance allows for wherever the budget has got to. \(guideline)")
                 case .proportional:
                     Text("\(amount(goal.baselineWeekly)) → \(amount(goal.targetWeekly)) from \(goal.start.formatted(date: .abbreviated, time: .omitted)), about \(perDay)% less each day. Takes a smaller cut as it goes, so it nears the target without quite landing on it. \(guideline)")
                 case .linear:
@@ -220,15 +224,20 @@ private struct BurndownPreview: View {
 
     var body: some View {
         let calendar = ledger.clock.calendar
-        let start = goal.taper == .dynamic ? ledger.today : DayKey(goal.start, in: calendar)
-        let points = stride(from: 0, through: 84, by: 3).map { start + $0 }
+        // Every day, not every third: the pace changes where the budget crosses a threshold, and
+        // sampling past the corner rounds it off into something that looks like a mistake. A day with
+        // no budget is left out rather than drawn as nought, which read as the plan hitting the floor.
+        let start = DayKey(goal.start, in: calendar)
+        let points = (0...84).compactMap { step -> (Date, Double)? in
+            ledger.dailyBudget(on: start + step, goal: goal).map { ((start + step).date(in: calendar), $0) }
+        }
         Chart {
-            ForEach(points, id: \.self) { day in
-                let amount = ledger.dailyBudget(on: day, goal: goal) ?? 0
-                AreaMark(x: .value("Date", day.date(in: calendar)), y: .value("Budget", amount))
+            ForEach(points, id: \.0) { date, amount in
+                AreaMark(x: .value("Date", date), y: .value("Budget", amount))
                     .foregroundStyle(LinearGradient(colors: [Color.dry.opacity(0.4), Color.dry.opacity(0.05)], startPoint: .top, endPoint: .bottom))
-                LineMark(x: .value("Date", day.date(in: calendar)), y: .value("Budget", amount))
+                LineMark(x: .value("Date", date), y: .value("Budget", amount))
                     .foregroundStyle(Color.dry)
+                    .lineStyle(StrokeStyle(lineWidth: 2, lineJoin: .round))
             }
         }
         .chartYAxisLabel("u/day")

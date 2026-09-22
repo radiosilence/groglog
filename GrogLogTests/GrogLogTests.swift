@@ -221,6 +221,7 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
     @Test func thePeriodIsTheWholeOfThePace() {
         let paces = Goal.periods.map { Goal(periodDays: $0.days).dailyCut }
         #expect(paces == paces.sorted(by: >), "a day apart is the fastest, a week apart the gentlest")
+        _ = Goal.pace(drinking: 20 * 7)
         #expect(abs(paces.first! - 0.10) < 0.0001)
         #expect(paces.last! < 0.02)
     }
@@ -282,7 +283,8 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
 
     @Test func aFastTaperIsWithheldFromWhoeverIsDrinkingMost() {
         // DHSC names 25 a day as the point to go slower, and says every four days rather than every day.
-        #expect(Goal.periods(from: 20 * 7).map(\.days) == [1, 3, 4, 7])
+        #expect(Goal.periods(from: 14 * 7).map(\.days) == [1, 3, 4, 7])
+        #expect(Goal.periods(from: 20 * 7).map(\.days) == [3, 4, 7], "ours, on NICE's line at 15")
         #expect(Goal.periods(from: 40 * 7).map(\.days) == [4, 7])
     }
 
@@ -301,30 +303,57 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         }
     }
 
-    /// It follows a lagging average, so a quiet day drags the next day's budget down with it and the
-    /// fall outruns ten per cent without anybody picking that. Not for the people it would hurt most.
-    @Test func dynamicIsntOfferedWhereThePaceIsTheRisk() {
-        #expect(Goal.tapers(drinking: 20 * 7).contains(.dynamic))
-        #expect(Goal.tapers(drinking: 29 * 7).contains(.dynamic))
-        #expect(!Goal.tapers(drinking: 30 * 7).contains(.dynamic))
-        #expect(!Goal.tapers(drinking: 60 * 7).contains(.dynamic))
-        // The other two stay whatever the drinking.
-        #expect(Goal.tapers(drinking: 60 * 7) == [.proportional, .linear])
+    /// It's a plan, not a reading of the log: the pace comes off where the budget has got to, so it
+    /// quickens a rung at a time on the way down and nothing anybody drinks moves it.
+    @Test func dynamicQuickensAsTheBudgetFalls() throws {
+        let goal = Goal(isEnabled: true, taper: .dynamic, baselineWeekly: 40 * 7, start: date(2026, 9, 1))
+        let ledger = Ledger(days: [], clock: clock)
+        let start = DayKey(year: 2026, month: 9, day: 1)
+        let day = { try #require(ledger.dailyBudget(on: start + $0, goal: goal)) }
+        // It opens on the rung the guidance names for over 25 a day.
+        let first = try day(0) - day(1)
+        #expect(abs(first / 40 - Goal.rate(forPace: 4)) < 0.0001)
+        // And by the time the budget is under fifteen it's on the quickest.
+        let at60 = try day(60)
+        let late = try at60 - day(61)
+        #expect(abs(late / at60 - Goal.rate(forPace: 1)) < 0.0001)
+        // Falling all the way, and never faster than the ceiling.
+        let (top, middle, bottom) = (try day(0), try day(30), try day(60))
+        #expect(bottom < middle && middle < top)
+        let steps = try (0..<90).map { try (day($0) - day($0 + 1)) / day($0) }
+        #expect(steps.allSatisfy { $0 <= Goal.safeDailyCut + 0.0001 })
+        #expect(steps.first! < steps.last!, "gentle at the top, quick at the bottom")
     }
 
-    /// Dynamic takes the whole period's cut off the average on day one, not a day's worth of it —
-    /// so the figure the screen shows has to be that, not the daily-equivalent.
-    @Test func dynamicsFirstStepIsTheWholeCut() {
-        let goal = Goal(taper: .dynamic, periodDays: 4)
-        #expect(abs(goal.openingDrop(from: 40 * 7) - 4) < 0.0001)
-        #expect(abs(Goal(taper: .proportional, periodDays: 4).openingDrop(from: 40 * 7) - 1.04) < 0.01)
+    /// The ladder and the picker are the same list, so the automatic pace can never be gentler than
+    /// the quickest you could have picked by hand at that level.
+    @Test func theLadderIsWhateverThePickerWouldOffer() {
+        for daily in stride(from: 4.0, through: 80, by: 1) {
+            let quickest = Goal.periods(from: daily * 7).map(\.days).min()
+            #expect(Goal.pace(drinking: daily * 7) == quickest, "at \(daily) u/day")
+        }
+        #expect(Goal.pace(drinking: 40 * 7) == 4, "the DHSC limit over 25 a day")
+        #expect(Goal.pace(drinking: 20 * 7) == 3, "ours, on NICE's line at 15")
+        #expect(Goal.pace(drinking: 14 * 7) == 1, "the ceiling, under it")
+    }
+
+    /// Nothing logged changes it, which is the difference from what it used to be.
+    @Test func dynamicIgnoresWhatIsActuallyDrunk() throws {
+        let goal = Goal(isEnabled: true, taper: .dynamic, baselineWeekly: 30 * 7, start: date(2026, 9, 1))
+        let start = DayKey(year: 2026, month: 9, day: 1)
+        let quiet = (0..<7).map { Day(number: (start + $0).number, isAlcoholFree: true) }
+        let empty = Ledger(days: [], clock: clock), logged = Ledger(days: quiet, clock: clock)
+        let withoutLog = try #require(empty.dailyBudget(on: start + 10, goal: goal))
+        let withLog = try #require(logged.dailyBudget(on: start + 10, goal: goal))
+        #expect(withoutLog == withLog)
     }
 
     /// Raising where a taper starts from can take its pace off the table. It steps to the quickest
     /// that's still there rather than all the way to the gentlest.
     @Test func raisingTheStartMovesToTheNextPaceStillOffered() {
         // Every day is fine from 20 a day. From 24 it isn't, and three days is the next one along.
-        #expect(Goal.nearestOffered(period: 1, from: 20 * 7) == 1)
+        #expect(Goal.nearestOffered(period: 1, from: 14 * 7) == 1)
+        #expect(Goal.nearestOffered(period: 1, from: 20 * 7) == 3)
         // Past 25 the guidance takes the quicker two, so four days is what's left.
         #expect(Goal.nearestOffered(period: 1, from: 30 * 7) == 4)
         #expect(Goal.nearestOffered(period: 3, from: 30 * 7) == 4)
@@ -343,7 +372,9 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
     }
 
     @Test func theOpeningStepIsWhatThePercentageHides() {
-        #expect(abs(Goal(periodDays: 1).openingDrop(from: 60 * 7) - 6) < 0.0001, "a tenth of sixty")
+        #expect(abs(Goal(taper: .proportional, periodDays: 1).openingDrop(from: 60 * 7) - 6) < 0.0001, "a tenth of sixty")
+        // Dynamic's is whatever rung sixty a day puts it on, which is the gentlest.
+        #expect(abs(Goal(taper: .dynamic).openingDrop(from: 60 * 7) - 60 * Goal.rate(forPace: 4)) < 0.0001)
         #expect(abs(Goal(taper: .linear, reductionUnits: 2, periodDays: 4).openingDrop(from: 60 * 7) - 0.5) < 0.0001)
     }
 
@@ -477,26 +508,14 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
     }
 }
 
+/// Dynamic used to take its cut off a rolling average of what had actually been drunk, so a gap in the
+/// log meant no budget at all and a quiet day could take three quarters off one. It's a plan now — it
+/// reads nothing, and a gap in the log changes nothing.
 @Suite struct DynamicBudgetTests {
-    @Test func isTheCutOffTheRecentAverage() throws {
-        let (logbook, drink) = try logbook(drink: beer(abv: 20, ml: 1000))
-        let today = clock.today
-        // Last week: two 20 u days and a dry day; the rest unlogged and left out. Average 13.33, less 10%.
-        logbook.log(Serve(drink), at: [clock.start(of: today - 2).addingTimeInterval(15 * 3600), clock.start(of: today - 5).addingTimeInterval(15 * 3600)])
-        logbook.setAlcoholFree(true, on: today - 1)
-        let goal = Goal(isEnabled: true, taper: .dynamic, reductionPercent: 10, periodDays: 7)
-        #expect(abs(try #require(try ledger(logbook).dailyBudget(on: today, goal: goal)) - 12) < 0.0001)
-    }
-
-    @Test func looksPastGapsButNotForever() throws {
-        let (logbook, drink) = try logbook(drink: beer(abv: 10, ml: 1000))
-        let today = clock.today
-        let goal = Goal(isEnabled: true, taper: .dynamic, reductionPercent: 10, periodDays: 1)
-        #expect(try ledger(logbook).dailyBudget(on: today, goal: goal) == nil)
-        logbook.log(Serve(drink), at: [clock.start(of: today - 40).addingTimeInterval(15 * 3600)])
-        #expect(try ledger(logbook).dailyBudget(on: today, goal: goal) == nil)
-        logbook.log(Serve(drink), at: [clock.start(of: today - 5).addingTimeInterval(15 * 3600)])
-        #expect(abs(try #require(try ledger(logbook).dailyBudget(on: today, goal: goal)) - 9) < 0.0001)
+    @Test func aGapInTheLogNoLongerLeavesYouWithoutABudget() throws {
+        let (logbook, _) = try logbook()
+        let goal = Goal(isEnabled: true, taper: .dynamic, baselineWeekly: 70, start: clock.start(of: clock.today))
+        #expect(try ledger(logbook).dailyBudget(on: clock.today, goal: goal) != nil)
     }
 }
 
