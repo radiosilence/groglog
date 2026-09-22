@@ -249,6 +249,18 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(try JSONDecoder().decode(Goal.self, from: Data(gentle.utf8)).periodDays == 7)
     }
 
+    /// The numbers the screen leans on, tied to where they come from. DHSC's UK clinical guidelines for
+    /// alcohol treatment (ch. 8, Nov 2025) for the pace; NICE CG115 recs 1.3.4.1 and 1.3.4.5 for when
+    /// the answer stops being a slower plan and starts being somebody qualified.
+    @Test func theLimitsAreTheOnesTheGuidanceGives() {
+        #expect(Goal.safeDailyCut == 0.10, "DHSC: no more than 10% a day")
+        #expect(Goal.slowerAboveWeekly / 7 == 25, "DHSC: over 25 a day, consider 10% every four days")
+        #expect(Goal.assistedWithdrawalWeekly / 7 == 15, "NICE CG115 1.3.4.1")
+        #expect(Goal.inpatientWeekly / 7 == 30, "NICE CG115 1.3.4.5")
+        // And the default is what DHSC suggests for the people this app is mostly for.
+        #expect(Goal().periodDays == 4 && Goal().reductionPercent == 10)
+    }
+
     @Test func aLinearCutStopsAtTwoUnits() {
         #expect(Goal.unitCuts.max() == 2)
         #expect(Goal.unitCuts.contains(0.5) && Goal.unitCuts.contains(1))

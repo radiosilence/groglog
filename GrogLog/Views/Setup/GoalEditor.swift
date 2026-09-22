@@ -8,6 +8,8 @@ struct GoalEditor: View {
 
     var body: some View {
         let recent = ledger.recentWeeklyAverage()
+        // What they're actually drinking, which is what the thresholds are about — not the plan.
+        let drinking = recent ?? goal.baselineWeekly
         // Amounts are stored per week but people think in a day's drinking, whatever the taper's pace.
         let per = "u/day"
         let amount = { (weekly: Double) in "\((weekly / 7).unitsText) u/day" }
@@ -46,9 +48,24 @@ struct GoalEditor: View {
                 BurndownPreview(goal: goal, ledger: ledger)
                 ProjectionRow(ledger: ledger, goal: goal)
                 if goal.isFasterThanSafe {
-                    Label("That's more than 10% a day. Cutting heavy drinking that fast risks withdrawal — a slower taper is safer.", systemImage: "exclamationmark.triangle.fill")
+                    Label("That's more than 10% a day, which UK treatment guidance gives as the ceiling for cutting down without medication. A slower taper is safer.", systemImage: "exclamationmark.triangle.fill")
                         .font(.subheadline)
                         .foregroundStyle(Color.over)
+                }
+                // The same guidance names 25 units a day as a reason to halve the pace, and NICE gives
+                // two thresholds above it where the answer isn't a slower plan but somebody qualified.
+                if drinking >= Goal.inpatientWeekly {
+                    Label("Over 30 units a day. NICE points to inpatient or residential withdrawal at this level, not to cutting down alone — please talk to your GP or an alcohol service before you start.", systemImage: "cross.case.fill")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.over)
+                } else if drinking >= Goal.assistedWithdrawalWeekly {
+                    Label("Over 15 units a day. NICE says to consider medically assisted withdrawal at this level — worth speaking to your GP or an alcohol service about support alongside this.", systemImage: "cross.case")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else if drinking >= Goal.slowerAboveWeekly, goal.periodDays == 1 {
+                    Label("Over 25 units a day, guidance suggests cutting 10% every four days rather than every day.", systemImage: "info.circle")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
                 // A linear taper's share grows as the budget shrinks, so the warning isn't yes or no — it's
                 // a level, and only one worth naming while it's still above the guideline. It's the size of
@@ -58,11 +75,7 @@ struct GoalEditor: View {
                         .font(.subheadline)
                         .foregroundStyle(Color.over)
                 }
-                if (recent ?? goal.baselineWeekly) >= Goal.withdrawalRiskWeekly {
-                    Label("Around 15+ units a day, stopping suddenly can be dangerous. Taper, and consider asking your GP or a local alcohol service about support.", systemImage: "cross.case")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+
             }
         } header: {
             Text("Goal")

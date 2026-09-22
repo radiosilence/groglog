@@ -25,7 +25,9 @@ struct SetupScreen: View {
                     }
                 }
             } footer: {
-                Text("Pick how fast to cut down and get a daily and weekly unit budget.")
+                // The guidance the pace limits come from assumes a clinician judged the person suitable
+                // and reviews them as they go. This does neither, and shouldn't be read as if it did.
+                Text("Pick how fast to cut down and get a daily and weekly unit budget.\n\nGrogLog doesn't recommend a plan — it keeps count of the one you set. Cutting down is safest with medical guidance, and stopping suddenly when you're dependent can be dangerous. Talk to your GP or an alcohol service about the right pace for you.")
             }
 
             Section {

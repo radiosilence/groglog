@@ -40,10 +40,23 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
     /// fourteen a week, and a floor you didn't ask for is a floor that stops the budget coming down.
     var targetWeekly = 0.0
 
-    /// Faster than this, sudden drops in heavy drinking risk withdrawal; commonly cited self-tapering limit.
+    /// Ten per cent a day is the ceiling in the DHSC's UK clinical guidelines for alcohol treatment
+    /// (chapter 8, harm reduction, November 2025) — the first national guideline to put a number on
+    /// reducing without medication. Its own text calls that number the development group's clinical
+    /// consensus rather than trial evidence, and the protocol around it assumes a clinician has judged
+    /// the person suitable and reviews them as they go. An app can't do either, which is why nothing
+    /// here presents a plan as advice.
     static let safeDailyCut = 0.10
-    /// Around 15 units a day, stopping suddenly can be dangerous and assisted withdrawal is advised.
-    static let withdrawalRiskWeekly = 105.0
+
+    /// The same guidance: someone over this, or over 65, or in poor health, may need to go slower, and
+    /// suggests no more than 10% every four days — which is where a new goal starts.
+    static let slowerAboveWeekly = 25 * 7.0
+
+    /// NICE CG115 recommendation 1.3.4.1: over 15 units a day, consider assisted withdrawal.
+    static let assistedWithdrawalWeekly = 15 * 7.0
+
+    /// NICE CG115 recommendation 1.3.4.5: over 30 units a day, consider inpatient or residential.
+    static let inpatientWeekly = 30 * 7.0
 
     /// How often the cut lands. The share itself doesn't move: ten per cent is the fastest rate that
     /// isn't faster than is safe, so taking it more or less often is the whole of the pace. A day apart
