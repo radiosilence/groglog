@@ -285,6 +285,22 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(abs(goal.sharpensBelow - (1.0 / 7) / Goal.safeDailyCut) < 0.0001)
         #expect(!goal.isFasterThanSafe)
     }
+
+    /// The 10%-a-day limit is about withdrawal, which isn't a risk near the guideline — so saying a taper
+    /// turns sharp below 1.4 u/day would be warning about the very level the same screen recommends.
+    @Test func saysNothingWhereTheGuidelineWouldContradictIt() {
+        #expect(goal.sharpensBelow < Units.weeklyGuideline / 7)
+        #expect(!goal.sharpensWhileItMatters)
+        // A unit a day off every day sharpens from ten a day down, which is worth knowing about.
+        var brisk = goal
+        brisk.periodDays = 1
+        #expect(brisk.sharpensBelow == 10)
+        #expect(brisk.sharpensWhileItMatters)
+        // Nothing to say about a taper that isn't linear, whatever its numbers.
+        var easing = brisk
+        easing.taper = .proportional
+        #expect(!easing.sharpensWhileItMatters)
+    }
 }
 
 /// `Prefs` reads the goal with `try?` and falls back to a fresh one, so a goal that won't decode is a

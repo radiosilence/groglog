@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The linear taper's warning stays quiet where it would contradict the guideline. The 10%-a-day limit exists because of withdrawal from heavy drinking, so it stops meaning anything as the budget nears the recommended level — cutting from a unit and a half a day to none carries no risk, and a red warning about it sat directly above the line recommending two a day. It's now only raised where the taper sharpens while there's still enough drinking for it to matter, and it says the cut is more than a tenth of what remains rather than anything about how much that is.
 - A third taper: linear. Proportional and dynamic both take a share off, which falls fast at the top, eases as it goes and never quite reaches nothing — mathematically it can't. Linear takes the same number of units off every period, so it lands on nothing on a day you can name, and the projection will name it. The cost is the mirror of the benefit: a fixed amount is a growing share of a shrinking budget, so where a proportional taper gets gentler a linear one gets sharper, and the editor says at which level it passes 10% a day rather than pretending the answer is yes or no. It's a level, not a verdict.
 - The goal now survives a field being added to it. Every field decodes as optional with its default behind it, because the synthesised version threw on a key that didn't exist yet and the settings read it with `try?` — so shipping one new field would have quietly reset a taper somebody was part-way through. An older goal's dynamic-or-not flag becomes the matching taper.
 

@@ -67,6 +67,12 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
     /// budget falls: it passes the safe rate at this daily budget and is sharper than it from there down.
     var sharpensBelow: Double { dailyUnitCut / Self.safeDailyCut }
 
+    /// Whether that's worth saying. The 10%-a-day limit is about withdrawal from heavy drinking, so it
+    /// stops meaning anything as the budget nears the guideline — cutting from a unit and a half to none
+    /// carries no risk, and warning about it would contradict the guideline the same screen recommends.
+    /// Worth a word only where the taper sharpens while there's still enough drinking for it to matter.
+    var sharpensWhileItMatters: Bool { taper == .linear && sharpensBelow > Units.weeklyGuideline / 7 }
+
     var isFasterThanSafe: Bool {
         switch taper {
         case .dynamic, .proportional: dailyCut > Self.safeDailyCut + 0.0005

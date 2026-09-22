@@ -56,10 +56,11 @@ struct GoalEditor: View {
                         .font(.subheadline)
                         .foregroundStyle(Color.over)
                 }
-                // A linear taper's share grows as the budget shrinks, so the warning isn't yes or no —
-                // it's a level. Below it the same units a day are coming off faster than 10% of what's left.
-                if goal.taper == .linear, goal.dailyUnitCut > 0 {
-                    Label("Steady all the way down, so it takes a bigger share the lower it gets: under \(goal.sharpensBelow.unitsText) u/day it's cutting faster than 10% a day. Proportional eases off instead.", systemImage: "exclamationmark.triangle.fill")
+                // A linear taper's share grows as the budget shrinks, so the warning isn't yes or no — it's
+                // a level, and only one worth naming while it's still above the guideline. It's the size of
+                // the cut being warned about, never the amount left, which is the guideline's business.
+                if goal.sharpensWhileItMatters {
+                    Label("The same amount comes off whatever's left, so the cut deepens as a share: below \(goal.sharpensBelow.unitsText) u/day it's taking more than 10% of what remains each day. Proportional eases off instead.", systemImage: "exclamationmark.triangle.fill")
                         .font(.subheadline)
                         .foregroundStyle(Color.over)
                 }
