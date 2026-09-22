@@ -23,22 +23,16 @@ struct GoalEditor: View {
                 }
                 .pickerStyle(.segmented)
                 if goal.taper == .linear {
-                    NumberRow(label: "Cut by", value: $goal.reductionUnits, suffix: per)
-                } else {
-                    Picker("Cut", selection: $goal.reductionPercent) {
-                        ForEach(Goal.cuts(perDays: goal.periodDays), id: \.self) { Text("−\(Int($0))%") }
+                    Picker("Cut by", selection: $goal.reductionUnits) {
+                        ForEach(Goal.unitCuts, id: \.self) { Text("−\($0.formatted(.number.precision(.fractionLength(0...1)))) u") }
                     }
                     .pickerStyle(.segmented)
                 }
-                Picker("Every", selection: $goal.periodDays) {
+                // The share is fixed at the fastest that's safe, so how often it lands is the whole pace.
+                Picker(goal.taper == .linear ? "Every" : "Cut \(Int(Goal.standardCut))% every", selection: $goal.periodDays) {
                     ForEach(Goal.periods, id: \.days) { Text($0.label).tag($0.days) }
                 }
                 .pickerStyle(.segmented)
-                // A day offers gentler cuts than a quarter does, so changing the period moves the chosen
-                // one to the nearest it still offers rather than leaving the picker showing nothing.
-                .onChange(of: goal.periodDays) { _, days in
-                    goal.reductionPercent = Goal.nearestCut(to: goal.reductionPercent, perDays: days)
-                }
                 if goal.taper != .dynamic {
                     NumberRow(label: "From", value: perPeriod(\.baselineWeekly), suffix: per)
                     if let recent, abs(recent - goal.baselineWeekly) > 0.5 {

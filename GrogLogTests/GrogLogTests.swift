@@ -209,37 +209,52 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
 /// The picker used to offer the same four cuts whatever the period, so "−50%" and "day" together meant
 /// halving your drinking daily — well past the rate the same screen warns is a withdrawal risk.
 @Suite struct TaperOfferTests {
+    /// The share is fixed at the fastest that isn't unsafe, so however often it lands it stays inside —
+    /// which a menu of shares couldn't promise: −50% is fine over a week and 20% a day over three.
     @Test func nothingYouCanPickIsFasterThanIsSafe() {
         for period in Goal.periods {
-            for cut in Goal.cuts(perDays: period.days) {
-                let goal = Goal(isEnabled: true, reductionPercent: cut, periodDays: period.days)
-                #expect(!goal.isFasterThanSafe, "−\(Int(cut))% every \(period.label) is \(goal.dailyCut) a day")
-            }
+            let goal = Goal(isEnabled: true, periodDays: period.days)
+            #expect(!goal.isFasterThanSafe, "\(Int(Goal.standardCut))% every \(period.label) is \(goal.dailyCut) a day")
         }
     }
 
-    @Test func aDayIsOfferedGentlerCutsThanALongerPeriod() {
-        #expect(Goal.cuts(perDays: 1).max()! <= Goal.cuts(perDays: 7).max()!)
-        #expect(Goal.cuts(perDays: 1).contains(5))
-        #expect(!Goal.cuts(perDays: 1).contains(50))
+    @Test func thePeriodIsTheWholeOfThePace() {
+        let paces = Goal.periods.map { Goal(periodDays: $0.days).dailyCut }
+        #expect(paces == paces.sorted(by: >), "a day apart is the fastest, a week apart the gentlest")
+        #expect(abs(paces.first! - 0.10) < 0.0001)
+        #expect(paces.last! < 0.02)
     }
 
-    @Test func theDefaultIsTenPercentADayToNothing() {
+    @Test func theDefaultIsTenPercentEveryFourDaysToNothing() {
         let goal = Goal()
-        #expect(goal.reductionPercent == 10 && goal.periodDays == 1)
+        #expect(goal.reductionPercent == 10 && goal.periodDays == 4)
         #expect(goal.targetWeekly == 0)
-        #expect(abs(goal.dailyCut - 0.10) < 0.0001)
+        // Not the fastest safe rate — the one to start somebody on.
+        #expect(abs(goal.dailyCut - 0.026) < 0.001)
         #expect(!goal.isFasterThanSafe)
-        // No target to reach, so no date for one — but there's still a date it drops under a unit a day.
         let projection = Ledger(days: [], clock: clock).projection(goal: Goal(isEnabled: true, taper: .proportional, baselineWeekly: 70, start: clock.start(of: clock.today)))
-        #expect(projection.target == nil)
+        #expect(projection.target == nil, "a share never reaches nothing")
         #expect(projection.underOneUnit != nil)
     }
 
-    @Test func changingThePeriodKeepsTheNearestCutItOffers() {
-        #expect(Goal.nearestCut(to: 50, perDays: 1) == 10)
-        #expect(Goal.nearestCut(to: 2, perDays: 7) == 10)
-        #expect(Goal.nearestCut(to: 10, perDays: 1) == 10)
+    /// A goal saved when the picker offered other periods keeps its pace, not its number of days.
+    @Test func aRetiredPeriodMovesToWhicheverKeepsThePace() throws {
+        // -50% a week was 9.4% a day, which is nearest to 10% every day.
+        let brisk = #"{"isEnabled":true,"reductionPercent":50,"periodDays":7}"#
+        let moved = try JSONDecoder().decode(Goal.self, from: Data(brisk.utf8))
+        #expect(moved.reductionPercent == Goal.standardCut)
+        #expect(moved.periodDays == 1, "9.4% a day belongs next to 10% a day, not next to a week")
+        // -10% every twelve weeks was 0.1% a day, which is nearest to the gentlest still offered.
+        let gentle = #"{"isEnabled":true,"reductionPercent":10,"periodDays":84}"#
+        #expect(try JSONDecoder().decode(Goal.self, from: Data(gentle.utf8)).periodDays == 7)
+    }
+
+    @Test func aLinearCutStopsAtTwoUnits() {
+        #expect(Goal.unitCuts.max() == 2)
+        #expect(Goal.unitCuts.contains(0.5) && Goal.unitCuts.contains(1))
+        var goal = Goal(taper: .linear, reductionUnits: 5)
+        goal.reductionUnits = 5
+        #expect(goal.reductionUnits == 5, "the model holds what it's given")
     }
 }
 
@@ -330,9 +345,12 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
     @Test func aGoalSavedBeforeAFieldExistedKeepsWhatItDidSet() throws {
         let old = #"{"isEnabled":true,"isDynamic":false,"baselineWeekly":70,"reductionPercent":25,"periodDays":7,"targetWeekly":14}"#
         let goal = try JSONDecoder().decode(Goal.self, from: Data(old.utf8))
-        #expect(goal.isEnabled && goal.baselineWeekly == 70 && goal.reductionPercent == 25)
+        #expect(goal.isEnabled && goal.baselineWeekly == 70 && goal.targetWeekly == 14)
         #expect(goal.taper == .proportional, "isDynamic:false was the proportional taper")
         #expect(goal.reductionUnits == Goal().reductionUnits, "a field it never knew about takes the default")
+        // 25% a week was 4% a day, and the nearest pace still offered is 10% every three days.
+        #expect(goal.reductionPercent == Goal.standardCut && goal.periodDays == 3)
+        #expect(abs(goal.dailyCut - 0.0345) < 0.001, "and it's still going at roughly the pace it was")
     }
 
     @Test func theOldDynamicFlagBecomesTheDynamicTaper() throws {
@@ -341,7 +359,7 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
     }
 
     @Test func aGoalSurvivesTheRoundTrip() throws {
-        let goal = Goal(isEnabled: true, taper: .linear, baselineWeekly: 63, reductionUnits: 2, periodDays: 28)
+        let goal = Goal(isEnabled: true, taper: .linear, baselineWeekly: 63, reductionUnits: 2, periodDays: 7)
         #expect(try JSONDecoder().decode(Goal.self, from: JSONEncoder().encode(goal)) == goal)
     }
 }

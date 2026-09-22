@@ -29,11 +29,12 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
     var isEnabled = false
     var taper = Taper.dynamic
     var baselineWeekly = 28.0
-    var reductionPercent = 10.0
+    var reductionPercent = Goal.standardCut
     /// How much a linear taper takes off the *daily* budget each period, in units a day.
     var reductionUnits = 1.0
-    /// 10% a day to begin with: the fastest taper that isn't faster than is safe.
-    var periodDays = 1
+    /// Ten per cent every four days to begin with — about 2.6% a day. Ten a day is the fastest that
+    /// isn't unsafe, which is not the same as the one to start somebody on.
+    var periodDays = 4
     var start = Date.now
     /// Nought, not the guideline. Someone opening this is more likely to be heading for none than for
     /// fourteen a week, and a floor you didn't ask for is a floor that stops the budget coming down.
@@ -44,17 +45,26 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
     /// Around 15 units a day, stopping suddenly can be dangerous and assisted withdrawal is advised.
     static let withdrawalRiskWeekly = 105.0
 
-    /// How often the cut lands, and the shares worth offering over that long. A percentage means something
-    /// very different over a day than over twelve weeks: −50% in a week is 9% a day and inside what's
-    /// safe, while −50% in a day is half your drinking gone by tomorrow and most of it gone by Friday.
-    /// So over a day the offer stops where the safe limit does, and every pairing here is under it.
-    static let periods: [(days: Int, label: String)] = [(1, "day"), (7, "week"), (28, "4 wk"), (56, "8 wk"), (84, "12 wk")]
+    /// How often the cut lands. The share itself doesn't move: ten per cent is the fastest rate that
+    /// isn't faster than is safe, so taking it more or less often is the whole of the pace. A day apart
+    /// it's 10% a day, a week apart 1.5% — and nothing in that range can be set too fast, which a menu
+    /// of shares could be. −50% is fine over a week and 20% a day over three.
+    static let standardCut = 10.0
 
-    static func cuts(perDays days: Int) -> [Double] { days == 1 ? [2, 5, 10] : [10, 25, 33, 50] }
+    static let periods: [(days: Int, label: String)] = [(1, "day"), (3, "3 days"), (4, "4 days"), (7, "week")]
 
-    /// The nearest share this period does offer, for when the period changes under a chosen one.
-    static func nearestCut(to percent: Double, perDays days: Int) -> Double {
-        cuts(perDays: days).min { abs($0 - percent) < abs($1 - percent) } ?? percent
+    /// What a linear taper can take off the daily budget each period. Two units is the top of it: a day
+    /// apart that's 2 u/day off every day, which empties a heavy drinker's budget inside a fortnight and
+    /// is already taking more than a tenth of what's left below 20 u/day.
+    static let unitCuts = [0.5, 1.0, 1.5, 2.0]
+
+    /// The offered period closest in pace to a rate, for a goal saved when the picker offered others.
+    /// It's the daily rate that's matched, not the number of days — snapping an eight-week taper to the
+    /// nearest period it still has would quietly make it several times faster.
+    static func nearestPeriod(toDailyCut cut: Double) -> Int {
+        periods.map(\.days).min {
+            abs(Goal(periodDays: $0).dailyCut - cut) < abs(Goal(periodDays: $1).dailyCut - cut)
+        } ?? 1
     }
 
     /// The equivalent share per day, for comparing proportional plans on the same footing.
@@ -83,7 +93,7 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
     }
 
     init(isEnabled: Bool = false, taper: Taper = .dynamic, baselineWeekly: Double = 28,
-         reductionPercent: Double = 10, reductionUnits: Double = 1, periodDays: Int = 1,
+         reductionPercent: Double = Goal.standardCut, reductionUnits: Double = 1, periodDays: Int = 4,
          start: Date = .now, targetWeekly: Double = 0) {
         self.isEnabled = isEnabled
         self.taper = taper
@@ -113,6 +123,16 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
             self.taper = taper
         } else if let wasDynamic = try decoder.container(keyedBy: Legacy.self).decodeIfPresent(Bool.self, forKey: .isDynamic) {
             taper = wasDynamic ? .dynamic : .proportional
+        }
+        // A share or a period the picker has since dropped would leave it showing nothing, so the goal
+        // moves to the offered period nearest the pace it was already going — same taper, said anew.
+        if !Self.unitCuts.contains(reductionUnits) {
+            reductionUnits = Self.unitCuts.min { abs($0 - reductionUnits) < abs($1 - reductionUnits) } ?? 1
+        }
+        if reductionPercent != Self.standardCut || !Self.periods.contains(where: { $0.days == periodDays }) {
+            let pace = dailyCut
+            reductionPercent = Self.standardCut
+            periodDays = Self.nearestPeriod(toDailyCut: pace)
         }
     }
 
