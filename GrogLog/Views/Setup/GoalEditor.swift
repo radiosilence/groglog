@@ -76,6 +76,18 @@ struct GoalEditor: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
+                // The pace in units, which is the thing the percentage hides: a tenth of sixty is six.
+                // And when that's why an option has gone, say so rather than leaving a gap.
+                let opening = goal.openingDrop(drinking: drinking)
+                if opening > 0 {
+                    let withheld = periods.count < Goal.periods.count && drinking <= Goal.slowerAboveWeekly
+                    Label(withheld
+                          ? "That's \(opening.unitsText) u/day off to start with. Quicker options aren't offered — they'd take more than \(Goal.maxOpeningDrop.unitsText) u/day off at this much drinking."
+                          : "That's \(opening.unitsText) u/day off to start with.",
+                          systemImage: withheld ? "gauge.with.dots.needle.33percent" : "arrow.down.right")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
                 // A linear taper's share grows as the budget shrinks, so the warning isn't yes or no — it's
                 // a level, and only one worth naming while it's still above the guideline. It's the size of
                 // the cut being warned about, never the amount left, which is the guideline's business.

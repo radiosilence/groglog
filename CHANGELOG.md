@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- No taper starts by taking more than two units a day off, and where that rules one out the screen says so. The 25-a-day rule left two gaps: a tenth of twenty-four units is 2.4 gone overnight and sat under the threshold, while a tenth every four days is 2.08 at eighty a day and sat above it. Both are closed by the same rule, applied the way the guidance applies its own — by withholding the pace, not by bending the curve. Whatever the drinking, some pace is always on offer; at eighty a day it's the weekly one.
+- The goal screen says what the taper takes off on its first morning, in units. That's the figure a percentage hides, and the one that moves with how much is being drunk: ten per cent is ten per cent, but a tenth of sixty units is six of them.
+
 - The goal screen says what to do when it goes wrong, which is the one thing a plan can't help with. A fit, seeing or hearing things that aren't there, confusion or unsteadiness on your feet: these are the signs the guidance says to call an ambulance for, and it says so plainly rather than treating them as a reason to taper more slowly. Taken from the DHSC's UK clinical guidelines for alcohol treatment, chapter 8, step 3.
 - And it says what the feature is for: cutting down gradually, when that's already the right approach for you. Whether it is, and how fast, is a question for a GP or an alcohol service. The guidance treats a reduction plan as something decided on for a particular person by someone who has met them, and a screen that quietly skips that step is claiming more than it can.
 

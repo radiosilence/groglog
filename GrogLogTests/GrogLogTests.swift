@@ -284,7 +284,34 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         // DHSC names 25 a day as the point to go slower, and says every four days rather than every day.
         #expect(Goal.periods(drinking: 20 * 7).map(\.days) == [1, 3, 4, 7])
         #expect(Goal.periods(drinking: 40 * 7).map(\.days) == [4, 7])
-        #expect(Goal.periods(drinking: Goal.slowerAboveWeekly).map(\.days).contains(1), "at 25 exactly, not over it")
+    }
+
+    /// Whatever's left after that, nothing whose first morning takes more than two units off.
+    @Test func nothingOfferedTakesMoreThanTwoUnitsOnItsFirstDay() {
+        for daily in stride(from: 4.0, through: 140, by: 1) {
+            let offered = Goal.periods(drinking: daily * 7)
+            #expect(!offered.isEmpty, "there's always some pace on offer")
+            for period in offered.dropLast() {
+                let opening = Goal(periodDays: period.days).openingDrop(drinking: daily * 7)
+                #expect(opening <= Goal.maxOpeningDrop + 0.0001,
+                        "\(period.label) on \(daily) u/day opens at \(opening) u")
+            }
+        }
+    }
+
+    @Test func theTwoGapsThePeriodGateLeftAreClosed() {
+        // A tenth of 24 is 2.4 units overnight, which the 25-a-day rule let through.
+        #expect(!Goal.periods(drinking: 24 * 7).map(\.days).contains(1))
+        #expect(Goal.periods(drinking: 20 * 7).map(\.days).contains(1), "and a tenth of 20 is exactly two")
+        // A tenth every four days is 2.08 at eighty, which it also let through.
+        #expect(Goal.periods(drinking: 80 * 7).map(\.days) == [7])
+        // However much someone drinks, the gentlest stands rather than leaving nothing.
+        #expect(Goal.periods(drinking: 200 * 7).map(\.days) == [7])
+    }
+
+    @Test func theOpeningStepIsWhatThePercentageHides() {
+        #expect(abs(Goal(periodDays: 1).openingDrop(drinking: 60 * 7) - 6) < 0.0001, "a tenth of sixty")
+        #expect(abs(Goal(taper: .linear, reductionUnits: 2, periodDays: 4).openingDrop(drinking: 60 * 7) - 0.5) < 0.0001)
     }
 
     /// Only where withdrawal is a consideration at all — NICE puts that at over 15 units a day, and

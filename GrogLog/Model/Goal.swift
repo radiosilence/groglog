@@ -71,11 +71,30 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
     /// is already taking more than a tenth of what's left below 20 u/day.
     static let unitCuts = [0.5, 1.0, 1.5, 2.0]
 
+    /// The most a taper may take off on its first morning, which is the steepest step it ever takes.
+    /// Not a figure from the guidance — that caps the share and lengthens the period instead — but ten
+    /// per cent of sixty units is six of them gone overnight, and withholding the quicker paces from
+    /// whoever is drinking most is the guidance's own answer to that. This withholds them by the size
+    /// of the step rather than the size of the drinking, which catches the same thing from the other
+    /// side. Nothing is reshaped by it: a pace is offered or it isn't, and the screen says why.
+    static let maxOpeningDrop = 2.0
+
     /// Which periods to offer somebody drinking this much. Over 25 units a day the guidance names a
     /// slower pace for exactly that reason — no more than 10% every four days — so the quicker two
-    /// aren't on the table. A taper still is, at the pace the guidance gives for that much drinking.
+    /// aren't on the table. On top of that, nothing whose first step is over two units. A taper is
+    /// still on offer either way, at a pace that suits how much is being drunk.
     static func periods(drinking weekly: Double) -> [(days: Int, label: String)] {
-        weekly > slowerAboveWeekly ? periods.filter { $0.days >= 4 } : periods
+        let offered = periods.filter { period in
+            guard weekly <= slowerAboveWeekly || period.days >= 4 else { return false }
+            return weekly / 7 * Goal(periodDays: period.days).dailyCut <= maxOpeningDrop + 0.0001
+        }
+        return offered.isEmpty ? [periods[periods.count - 1]] : offered
+    }
+
+    /// What this takes off the budget on its first day — the steepest step a proportional taper makes,
+    /// and every step a linear one makes.
+    func openingDrop(drinking weekly: Double) -> Double {
+        taper == .linear ? dailyUnitCut : weekly / 7 * dailyCut
     }
 
     /// And which linear amounts. A share is self-limiting — ten per cent is ten per cent of whatever
