@@ -71,24 +71,11 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
     /// is already taking more than a tenth of what's left below 20 u/day.
     static let unitCuts = [0.5, 1.0, 1.5, 2.0]
 
-    /// The most a taper may take off on its first morning, which is the steepest step it ever takes.
-    /// Not a figure from the guidance — that caps the share and lengthens the period instead — but ten
-    /// per cent of sixty units is six of them gone overnight, and withholding the quicker paces from
-    /// whoever is drinking most is the guidance's own answer to that. This withholds them by the size
-    /// of the step rather than the size of the drinking, which catches the same thing from the other
-    /// side. Nothing is reshaped by it: a pace is offered or it isn't, and the screen says why.
-    static let maxOpeningDrop = 2.0
-
-    /// Which periods to offer somebody drinking this much. Over 25 units a day the guidance names a
-    /// slower pace for exactly that reason — no more than 10% every four days — so the quicker two
-    /// aren't on the table. On top of that, nothing whose first step is over two units. A taper is
-    /// still on offer either way, at a pace that suits how much is being drunk.
     /// `from` is what the taper counts down from — the baseline for a scheduled plan, recent drinking
     /// for a dynamic one — because that's what decides how big its steps are.
     static func periods(from weekly: Double) -> [(days: Int, label: String)] {
         let offered = periods.filter { period in
-            guard weekly <= slowerAboveWeekly || period.days >= 4 else { return false }
-            return weekly / 7 * Goal(periodDays: period.days).dailyCut <= maxOpeningDrop + 0.0001
+            weekly <= slowerAboveWeekly || period.days >= 4
         }
         return offered.isEmpty ? [periods[periods.count - 1]] : offered
     }
@@ -108,7 +95,22 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
     /// What this takes off the budget on its first day — the steepest step a proportional taper makes,
     /// and every step a linear one makes.
     func openingDrop(from weekly: Double) -> Double {
-        taper == .linear ? dailyUnitCut : weekly / 7 * dailyCut
+        switch taper {
+        case .linear: dailyUnitCut
+        // Dynamic takes the whole period's cut off the average on its first day, not a day's worth.
+        case .dynamic: weekly / 7 * reductionPercent / 100
+        case .proportional: weekly / 7 * dailyCut
+        }
+    }
+
+    /// Which tapers to offer. Dynamic follows your own drinking rather than a schedule, which is both
+    /// its virtue and its limit: the cut comes off a lagging average, so a quiet day drags the average
+    /// down and the next day's budget with it. One light day after a heavy week takes three quarters
+    /// off a one-day window, and nobody chose that. Where the pace isn't the risk that's a fair trade
+    /// for never having a schedule to fall behind. Above the level NICE sends people to inpatient
+    /// care, it isn't.
+    static func tapers(drinking weekly: Double) -> [Taper] {
+        weekly >= inpatientWeekly ? Taper.allCases.filter { $0 != .dynamic } : Taper.allCases
     }
 
     /// And which linear amounts. A share is self-limiting — ten per cent is ten per cent of whatever
@@ -120,7 +122,6 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
     /// nothing to bite on and every amount stands. A rate limit meant for withdrawal, applied where
     /// withdrawal isn't the risk, is the same mistake as warning somebody off the guideline.
     static func unitCuts(from weekly: Double, perDays days: Int) -> [Double] {
-        guard weekly >= assistedWithdrawalWeekly else { return unitCuts }
         let ceiling = weekly / 7 * safeDailyCut * Double(max(1, days))
         let offered = unitCuts.filter { $0 <= ceiling + 0.0001 }
         return offered.isEmpty ? [unitCuts.min() ?? 0.5] : offered

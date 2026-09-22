@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- The two-units-a-day limit is gone, and ten per cent a day does the work instead. Two units began life as the top of the linear picker and got promoted to a general safety rule, which it never was — the guidance gives one rate and one rate only. Nothing is lost by dropping it: a share is self-limiting, so a proportional taper is inside the ceiling whatever it's set to, and a linear one is filtered to the amounts that open inside it. That filter now applies wherever the taper starts from rather than only above 15 units a day.
+- Following your own drinking isn't offered over 30 units a day. Its cut comes off a lagging average, so one quiet day after a heavy week drags the next day's budget down with it — by three quarters on a one-day window, which nobody chose and the guidance wouldn't allow. That's a fair trade for never having a schedule to fall behind, where the pace isn't the risk. Above the level NICE sends people to inpatient care, it isn't.
+- The first step it takes is reported honestly for that taper too. It takes the whole period's cut off the average on day one rather than a day's worth, so a plan set to 10% every four days opens by taking 10%, and the screen was quoting a quarter of that.
+
 - Raise where a taper starts from and it moves to the next pace still open to it, rather than sitting on one that's no longer there. It steps to the quickest that's left rather than all the way to the gentlest, so putting the starting figure up costs as little pace as it has to.
 - That happens when you let go of the field, not as you type it. Halfway through typing 30 the number is 3, and a screen that re-plans on every keystroke fights whoever is typing. The chips still grey and ungrey live, because watching the choices narrow is the point; it's only the choice itself that waits.
 

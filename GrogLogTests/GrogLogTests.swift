@@ -286,27 +286,38 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(Goal.periods(from: 40 * 7).map(\.days) == [4, 7])
     }
 
-    /// Whatever's left after that, nothing whose first morning takes more than two units off.
-    @Test func nothingOfferedTakesMoreThanTwoUnitsOnItsFirstDay() {
-        for daily in stride(from: 4.0, through: 140, by: 1) {
-            let offered = Goal.periods(from: daily * 7)
-            #expect(!offered.isEmpty, "there's always some pace on offer")
-            for period in offered.dropLast() {
-                let opening = Goal(periodDays: period.days).openingDrop(from: daily * 7)
-                #expect(opening <= Goal.maxOpeningDrop + 0.0001,
-                        "\(period.label) on \(daily) u/day opens at \(opening) u")
+    /// Ten per cent is the only rate the guidance gives, so that's the only one enforced. A share is
+    /// self-limiting; a fixed number of units isn't, so it's the linear amounts that get filtered.
+    @Test func noLinearAmountOpensSteeperThanTenPerCent() {
+        for daily in stride(from: 4.0, through: 80, by: 1) {
+            for period in Goal.periods(from: daily * 7) {
+                let offered = Goal.unitCuts(from: daily * 7, perDays: period.days)
+                for units in offered where units > Goal.unitCuts[0] {
+                    let opening = units / Double(period.days) / daily
+                    #expect(opening <= Goal.safeDailyCut + 0.0001,
+                            "−\(units) u every \(period.label) on \(daily) u/day opens at \(opening)")
+                }
             }
         }
     }
 
-    @Test func theTwoGapsThePeriodGateLeftAreClosed() {
-        // A tenth of 24 is 2.4 units overnight, which the 25-a-day rule let through.
-        #expect(!Goal.periods(from: 24 * 7).map(\.days).contains(1))
-        #expect(Goal.periods(from: 20 * 7).map(\.days).contains(1), "and a tenth of 20 is exactly two")
-        // A tenth every four days is 2.08 at eighty, which it also let through.
-        #expect(Goal.periods(from: 80 * 7).map(\.days) == [7])
-        // However much someone drinks, the gentlest stands rather than leaving nothing.
-        #expect(Goal.periods(from: 200 * 7).map(\.days) == [7])
+    /// It follows a lagging average, so a quiet day drags the next day's budget down with it and the
+    /// fall outruns ten per cent without anybody picking that. Not for the people it would hurt most.
+    @Test func dynamicIsntOfferedWhereThePaceIsTheRisk() {
+        #expect(Goal.tapers(drinking: 20 * 7).contains(.dynamic))
+        #expect(Goal.tapers(drinking: 29 * 7).contains(.dynamic))
+        #expect(!Goal.tapers(drinking: 30 * 7).contains(.dynamic))
+        #expect(!Goal.tapers(drinking: 60 * 7).contains(.dynamic))
+        // The other two stay whatever the drinking.
+        #expect(Goal.tapers(drinking: 60 * 7) == [.proportional, .linear])
+    }
+
+    /// Dynamic takes the whole period's cut off the average on day one, not a day's worth of it —
+    /// so the figure the screen shows has to be that, not the daily-equivalent.
+    @Test func dynamicsFirstStepIsTheWholeCut() {
+        let goal = Goal(taper: .dynamic, periodDays: 4)
+        #expect(abs(goal.openingDrop(from: 40 * 7) - 4) < 0.0001)
+        #expect(abs(Goal(taper: .proportional, periodDays: 4).openingDrop(from: 40 * 7) - 1.04) < 0.01)
     }
 
     /// Raising where a taper starts from can take its pace off the table. It steps to the quickest
@@ -314,20 +325,19 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
     @Test func raisingTheStartMovesToTheNextPaceStillOffered() {
         // Every day is fine from 20 a day. From 24 it isn't, and three days is the next one along.
         #expect(Goal.nearestOffered(period: 1, from: 20 * 7) == 1)
-        #expect(Goal.nearestOffered(period: 1, from: 24 * 7) == 3)
-        // Past 25 the guidance takes the three-day one too, so four days is what's left.
+        // Past 25 the guidance takes the quicker two, so four days is what's left.
         #expect(Goal.nearestOffered(period: 1, from: 30 * 7) == 4)
         #expect(Goal.nearestOffered(period: 3, from: 30 * 7) == 4)
-        // And at eighty a day, only the weekly one.
-        #expect(Goal.nearestOffered(period: 4, from: 80 * 7) == 7)
         // A pace that's still offered is left where it is.
-        #expect(Goal.nearestOffered(period: 7, from: 80 * 7) == 7)
+        #expect(Goal.nearestOffered(period: 4, from: 80 * 7) == 4)
     }
 
     @Test func raisingTheStartKeepsALinearCutIfItCan() {
         // Two a day is fine from forty. From eighteen it's over a tenth, so it drops to one and a half.
         #expect(Goal.nearestOffered(units: 2, from: 40 * 7, perDays: 1) == 2)
         #expect(Goal.nearestOffered(units: 2, from: 18 * 7, perDays: 1) == 1.5)
+        // And at ten a day it's a fifth, so it drops again. The rule holds wherever it's set now.
+        #expect(Goal.nearestOffered(units: 2, from: 10 * 7, perDays: 1) == 1)
         // Spread over four days the same two units is gentle again.
         #expect(Goal.nearestOffered(units: 2, from: 18 * 7, perDays: 4) == 2)
     }
@@ -337,16 +347,16 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(abs(Goal(taper: .linear, reductionUnits: 2, periodDays: 4).openingDrop(from: 60 * 7) - 0.5) < 0.0001)
     }
 
-    /// Only where withdrawal is a consideration at all — NICE puts that at over 15 units a day, and
-    /// under it a rate ceiling meant for withdrawal has nothing to bite on.
-    @Test func aLinearCutIsWithheldOnlyWhereWithdrawalIsTheRisk() {
+    /// Ten per cent of whatever the taper starts from, wherever that is.
+    @Test func aLinearCutIsWithheldWhereverItWouldOpenTooSteep() {
         // Two a day off twenty a day is a tenth of it, right on the ceiling; off eighteen it's over.
         #expect(Goal.unitCuts(from: 18 * 7, perDays: 1) == [0.5, 1.0, 1.5])
         #expect(Goal.unitCuts(from: 40 * 7, perDays: 1) == Goal.unitCuts)
-        // Ten a day would be a fifth gone by morning, but at ten a day that isn't what's dangerous.
-        #expect(Goal.unitCuts(from: 10 * 7, perDays: 1) == Goal.unitCuts)
-        // Fifteen a day is where it starts applying, and a tenth of fifteen is one and a half.
-        #expect(Goal.unitCuts(from: Goal.assistedWithdrawalWeekly, perDays: 1) == [0.5, 1.0, 1.5])
+        // Ten a day would be a fifth gone by morning, so only a tenth of it stands.
+        #expect(Goal.unitCuts(from: 10 * 7, perDays: 1) == [0.5, 1.0])
+        #expect(Goal.unitCuts(from: 15 * 7, perDays: 1) == [0.5, 1.0, 1.5])
+        // However little is being drunk, the smallest stands rather than leaving nothing.
+        #expect(Goal.unitCuts(from: 2 * 7, perDays: 1) == [0.5])
         // Spread over four days the same two units is gentle again, so it comes back either way.
         #expect(Goal.unitCuts(from: 18 * 7, perDays: 4) == Goal.unitCuts)
     }

@@ -10,7 +10,9 @@ struct GoalEditor: View {
     /// Steps to the quickest still allowed rather than the gentlest, so raising the starting figure
     /// costs as little pace as it has to.
     private func settle() {
-        let from = goal.taper == .dynamic ? (ledger.recentWeeklyAverage() ?? goal.baselineWeekly) : goal.baselineWeekly
+        let drinking = ledger.recentWeeklyAverage() ?? goal.baselineWeekly
+        if !Goal.tapers(drinking: drinking).contains(goal.taper) { goal.taper = .proportional }
+        let from = goal.taper == .dynamic ? drinking : goal.baselineWeekly
         goal.periodDays = Goal.nearestOffered(period: goal.periodDays, from: from)
         goal.reductionUnits = Goal.nearestOffered(units: goal.reductionUnits, from: from, perDays: goal.periodDays)
     }
@@ -32,10 +34,15 @@ struct GoalEditor: View {
         Section {
             Toggle("Cut down", isOn: $goal.isEnabled)
             if goal.isEnabled {
-                Picker("Taper", selection: $goal.taper) {
-                    ForEach(Taper.allCases, id: \.self) { Text($0.label).tag($0) }
+                let offeredTapers = Goal.tapers(drinking: drinking)
+                LabeledContent("Taper") { EmptyView() }
+                ChipRow(options: Taper.allCases, selection: $goal.taper,
+                        isEnabled: offeredTapers.contains, label: \.label)
+                if !offeredTapers.contains(.dynamic) {
+                    Label("Following your own drinking isn't offered over 30 units a day: the cut comes off a lagging average, so one quiet day can drop the next day's budget by far more than 10%.", systemImage: "info.circle")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
-                .pickerStyle(.segmented)
                 let offeredPeriods = Goal.periods(from: from).map(\.days)
                 let offeredUnits = Goal.unitCuts(from: from, perDays: goal.periodDays)
                 if goal.taper == .linear {
@@ -92,11 +99,7 @@ struct GoalEditor: View {
                 // And when that's why an option has gone, say so rather than leaving a gap.
                 let opening = goal.openingDrop(from: from)
                 if opening > 0 {
-                    let withheld = offeredPeriods.count < Goal.periods.count && from <= Goal.slowerAboveWeekly
-                    Label(withheld
-                          ? "That's \(opening.unitsText) u/day off to start with. Quicker options aren't offered — they'd take more than \(Goal.maxOpeningDrop.unitsText) u/day off at this much drinking."
-                          : "That's \(opening.unitsText) u/day off to start with.",
-                          systemImage: withheld ? "gauge.with.dots.needle.33percent" : "arrow.down.right")
+                    Label("That's \(opening.unitsText) u/day off to start with.", systemImage: "arrow.down.right")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
