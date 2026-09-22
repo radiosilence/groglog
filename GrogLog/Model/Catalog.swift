@@ -817,6 +817,11 @@ nonisolated enum Catalog {
         // sold — there's no bar pouring Old Hopking, so a measure of one prices off the bottle.
         ("Galahad Premium Lager", .beer, 4.0, [(can440, 2.99)]),
         ("Rheinbacher Premium Pilsner", .beer, 4.5, [(can500, 3.99)]),
+        ("Anti-Establishment IPA", .beer, 5.6, [(can440, 1.99)]),
+        ("Anti-Establishment Hazy Daisy IPA", .beer, 5.0, [(can440, 1.99)]),
+        ("Anti-Establishment Found Lager", .beer, 4.0, [(can440, 2)]),
+        ("Anti-Establishment Mango Joiva Lager", .beer, 4.0, [(can440, 1.49)]),
+        ("Anti-Establishment Peach Joiva Lager", .beer, 4.0, [(can440, 1.49)]),
         ("Perlenbacher Pilsner", .beer, 4.5, [(bottle500, 1.29)]),
         ("Hatherwood Golden Goose", .beer, 4.5, [(bottle500, 1.09)]),
         ("Hatherwood Ruby Rooster", .beer, 3.8, [(bottle500, 1.09)]),
