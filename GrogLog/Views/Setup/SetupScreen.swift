@@ -114,12 +114,12 @@ struct SetupScreen: View {
     private var goalSummary: String {
         let goal = prefs.goal
         guard goal.isEnabled else { return "Off" }
-        let every = goal.periodDays == 1 ? "a day" : goal.periodDays == 7 ? "a week" : "every \(goal.periodDays / 7) weeks"
+        // The picker's own labels, so the row and the control it summarises can't drift apart.
+        let every = Goal.periods.first { $0.days == goal.periodDays }?.label ?? "\(goal.periodDays) days"
+        let amount = { (value: Double) in value.formatted(.number.precision(.fractionLength(0...1))) }
         // A linear taper comes off in units, not in shares, and this row could only ever say a share.
-        // The amount is units off the daily budget, but writing it "u/day a day" collides with the
-        // period, so the row says what you'd say out loud: two units a day.
         return goal.taper == .linear
-            ? "−\(goal.reductionUnits.unitsText) u \(every)"
-            : "−\(Int(goal.reductionPercent))% \(every)"
+            ? "−\(amount(goal.reductionUnits)) u/\(every)"
+            : "−\(amount(goal.reductionPercent))%/\(every)"
     }
 }
