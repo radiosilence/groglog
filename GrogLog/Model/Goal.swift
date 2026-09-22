@@ -11,9 +11,12 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
     var isDynamic = true
     var baselineWeekly = 28.0
     var reductionPercent = 10.0
-    var periodDays = 7
+    /// 10% a day to begin with: the fastest taper that isn't faster than is safe.
+    var periodDays = 1
     var start = Date.now
-    var targetWeekly = Units.weeklyGuideline
+    /// Nought, not the guideline. Someone opening this is more likely to be heading for none than for
+    /// fourteen a week, and a floor you didn't ask for is a floor that stops the budget coming down.
+    var targetWeekly = 0.0
 
     /// Faster than this, sudden drops in heavy drinking risk withdrawal; commonly cited self-tapering limit.
     static let safeDailyCut = 0.10

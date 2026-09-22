@@ -223,6 +223,18 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(!Goal.cuts(perDays: 1).contains(50))
     }
 
+    @Test func theDefaultIsTenPercentADayToNothing() {
+        let goal = Goal()
+        #expect(goal.reductionPercent == 10 && goal.periodDays == 1)
+        #expect(goal.targetWeekly == 0)
+        #expect(abs(goal.dailyCut - 0.10) < 0.0001)
+        #expect(!goal.isFasterThanSafe)
+        // No target to reach, so no date for one — but there's still a date it drops under a unit a day.
+        let projection = Ledger(days: [], clock: clock).projection(goal: Goal(isEnabled: true, isDynamic: false, baselineWeekly: 70, start: clock.start(of: clock.today)))
+        #expect(projection.target == nil)
+        #expect(projection.underOneUnit != nil)
+    }
+
     @Test func changingThePeriodKeepsTheNearestCutItOffers() {
         #expect(Goal.nearestCut(to: 50, perDays: 1) == 10)
         #expect(Goal.nearestCut(to: 2, perDays: 7) == 10)
