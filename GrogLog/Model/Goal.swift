@@ -80,9 +80,14 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
 
     /// And which linear amounts. A share is self-limiting — ten per cent is ten per cent of whatever
     /// you drink — but a fixed number of units isn't: two a day off a ten-a-day budget is twenty per
-    /// cent, twice the ceiling, on the first morning. So the amounts on offer are the ones that start
-    /// inside it. If nothing does, the smallest stands: at that little the taper isn't the risk.
+    /// cent, twice the ceiling, on the first morning.
+    ///
+    /// That only matters where withdrawal does. NICE puts assisted withdrawal at over 15 units a day
+    /// and calls milder dependence than that no case for it, so under the same figure the ceiling has
+    /// nothing to bite on and every amount stands. A rate limit meant for withdrawal, applied where
+    /// withdrawal isn't the risk, is the same mistake as warning somebody off the guideline.
     static func unitCuts(drinking weekly: Double, perDays days: Int) -> [Double] {
+        guard weekly >= assistedWithdrawalWeekly else { return unitCuts }
         let ceiling = weekly / 7 * safeDailyCut * Double(max(1, days))
         let offered = unitCuts.filter { $0 <= ceiling + 0.0001 }
         return offered.isEmpty ? [unitCuts.min() ?? 0.5] : offered
@@ -111,7 +116,9 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
     /// stops meaning anything as the budget nears the guideline — cutting from a unit and a half to none
     /// carries no risk, and warning about it would contradict the guideline the same screen recommends.
     /// Worth a word only where the taper sharpens while there's still enough drinking for it to matter.
-    var sharpensWhileItMatters: Bool { taper == .linear && sharpensBelow > Units.weeklyGuideline / 7 }
+    func sharpensWhileItMatters(drinking weekly: Double) -> Bool {
+        taper == .linear && weekly >= Self.assistedWithdrawalWeekly && sharpensBelow > Units.weeklyGuideline / 7
+    }
 
     var isFasterThanSafe: Bool {
         switch taper {

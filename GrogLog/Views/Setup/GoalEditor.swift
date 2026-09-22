@@ -79,7 +79,7 @@ struct GoalEditor: View {
                 // A linear taper's share grows as the budget shrinks, so the warning isn't yes or no — it's
                 // a level, and only one worth naming while it's still above the guideline. It's the size of
                 // the cut being warned about, never the amount left, which is the guideline's business.
-                if goal.sharpensWhileItMatters {
+                if goal.sharpensWhileItMatters(drinking: drinking) {
                     Label("The same amount comes off whatever's left, so the cut deepens as a share: below \(goal.sharpensBelow.unitsText) u/day it's taking more than 10% of what remains each day. Proportional eases off instead.", systemImage: "exclamationmark.triangle.fill")
                         .font(.subheadline)
                         .foregroundStyle(Color.over)
