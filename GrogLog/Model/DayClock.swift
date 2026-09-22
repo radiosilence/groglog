@@ -2,7 +2,7 @@ import Foundation
 
 /// Maps moments onto drinking days. A day runs from `rolloverHour` to `rolloverHour` the next morning,
 /// so the 1am pint counts towards the night it belongs to.
-nonisolated struct DayClock {
+nonisolated struct DayClock: Equatable {
     var rolloverHour: Int
     var calendar: Calendar = .current
 
@@ -47,6 +47,22 @@ nonisolated struct DayClock {
 
     func hourLabel(_ hours: Double) -> String {
         start(of: today).addingTimeInterval(hours * 3600).formatted(.dateTime.hour())
+    }
+}
+
+/// `hours(_:into:)` over a screen's worth of drinks. Where a day starts is a calendar calculation, and the
+/// curves ask it once per drink; this asks it once per day.
+nonisolated struct HourCounter {
+    let clock: DayClock
+    private var starts: [Int: Date] = [:]
+
+    init(_ clock: DayClock) { self.clock = clock }
+
+    mutating func hours(_ date: Date, into day: DayKey) -> Double {
+        if let start = starts[day.number] { return date.timeIntervalSince(start) / 3600 }
+        let start = clock.start(of: day)
+        starts[day.number] = start
+        return date.timeIntervalSince(start) / 3600
     }
 }
 

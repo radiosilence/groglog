@@ -80,14 +80,22 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
     /// is already taking more than a tenth of what's left below 20 u/day.
     static let unitCuts = [0.5, 1.0, 1.5, 2.0]
 
+    /// The quickest pace on offer above each level, which is both where the picker's offer narrows and
+    /// the rung a stepped taper runs at. Over 25 the guidance names the limit itself. The rung under it
+    /// is ours: NICE considers assisted withdrawal over 15 a day, and going at the outright ceiling
+    /// unsupervised while still drinking that much is not what the ceiling was written for. Under 15
+    /// it's the ceiling.
+    static let ladder: [(aboveWeekly: Double, pace: Int)] = [
+        (slowerAboveWeekly, 4),
+        (assistedWithdrawalWeekly, 3),
+        (-.infinity, 1),
+    ]
+
     /// `from` is what the taper counts down from — its baseline — because that's what decides how big
     /// its steps are. Over 25 units a day the guidance names a slower pace, no more than 10% every
     /// four days, so the quicker two aren't on the table there.
     static func periods(from weekly: Double) -> [(days: Int, label: String)] {
-        // Over 25 the guidance names the limit itself. The rung under it is ours: NICE considers
-        // assisted withdrawal over 15 a day, and going at the outright ceiling unsupervised while
-        // still drinking that much is not what the ceiling was written for. Under 15 it's the ceiling.
-        let floor = weekly > slowerAboveWeekly ? 4 : weekly > assistedWithdrawalWeekly ? 3 : 1
+        let floor = ladder.first { weekly > $0.aboveWeekly }!.pace
         let offered = periods.filter { $0.days >= floor }
         return offered.isEmpty ? [periods[periods.count - 1]] : offered
     }
