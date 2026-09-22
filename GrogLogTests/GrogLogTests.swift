@@ -272,6 +272,60 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
 
 /// A linear taper takes the same units off every day rather than the same share, so unlike a proportional
 /// one it actually lands on nothing — and takes a bigger bite the lower it gets.
+/// Ten per cent of eighty units is eight gone in a day. Whatever the taper says, the budget falls by at
+/// most two a day — which makes a steep proportional curve start as a straight line and pick the curve
+/// up again once it's dropped below the cap.
+@Suite struct SteepnessCapTests {
+    private let ledger = Ledger(days: [], clock: clock)
+    private func heavy(_ periodDays: Int) -> Goal {
+        Goal(isEnabled: true, taper: .proportional, baselineWeekly: 80 * 7, periodDays: periodDays,
+             start: date(2026, 9, 1))
+    }
+
+    @Test func theFirstStretchOfASteepTaperIsAStraightTwoADay() throws {
+        let goal = heavy(1)
+        let start = DayKey(year: 2026, month: 9, day: 1)
+        let day = { try #require(self.ledger.dailyBudget(on: start + $0, goal: goal)) }
+        // Uncapped, 10% of 80 would be 8 off the first day.
+        #expect(abs(try day(0) - 80) < 0.0001)
+        #expect(abs(try day(1) - 78) < 0.0001)
+        #expect(abs(try day(2) - 76) < 0.0001)
+        let steps = try (0..<20).map { try day($0) - day($0 + 1) }
+        #expect(steps.allSatisfy { $0 <= Goal.maxDailyUnitDrop + 0.0001 }, "\(steps.prefix(6))")
+    }
+
+    @Test func itPicksTheCurveUpAgainOnceThatIsTheGentlerOne() throws {
+        let goal = heavy(1)
+        let start = DayKey(year: 2026, month: 9, day: 1)
+        let steps = try (0..<80).map { i -> Double in
+            let here = try #require(ledger.dailyBudget(on: start + i, goal: goal))
+            let next = try #require(ledger.dailyBudget(on: start + i + 1, goal: goal))
+            return here - next
+        }
+        // Straight while the cap holds, then easing off as a proportional taper does.
+        #expect(steps.first! > steps.last!)
+        #expect(steps.contains { $0 < Goal.maxDailyUnitDrop - 0.1 }, "the curve takes over eventually")
+    }
+
+    /// A gentle taper is untouched by it — the cap is a ceiling on steepness, not a pace of its own.
+    /// Forty a day cut every four days falls about 1.04 a day, which is inside it.
+    @Test func aTaperInsideTheCapIsLeftAlone() throws {
+        let goal = Goal(isEnabled: true, taper: .proportional, baselineWeekly: 40 * 7, periodDays: 4,
+                        start: date(2026, 9, 1))
+        let start = DayKey(year: 2026, month: 9, day: 1)
+        let uncapped = 40 * pow(1 - goal.dailyCut, 3)
+        #expect(abs(try #require(ledger.dailyBudget(on: start + 3, goal: goal)) - uncapped) < 0.0001)
+    }
+
+    @Test func theProjectedDateFollowsTheCappedCurveNotTheUncappedOne() throws {
+        let today = clock.today
+        let goal = Goal(isEnabled: true, taper: .linear, baselineWeekly: 80 * 7, reductionUnits: 2,
+                        periodDays: 1, start: clock.start(of: today), targetWeekly: 0)
+        // Two a day off eighty is forty days, and the cap is the same two a day, so it doesn't move.
+        #expect(ledger.projection(goal: goal).target == today + 40)
+    }
+}
+
 @Suite struct LinearTaperTests {
     private let start = DayKey(year: 2026, month: 9, day: 1)
     private var goal: Goal {
