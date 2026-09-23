@@ -164,6 +164,9 @@ private struct ProgressCard: View {
     /// Days across, pinchable between a few days and the lot.
     @State private var window: Double
     @GestureState private var pinch = 1.0
+    /// Held here, not just handed to the chart on first draw: the chart is redrawn every minute for the "now" rule,
+    /// and one given only a starting position goes back to the start of its range each time.
+    @State private var scrolledTo: Date?
 
     init(title: String, days: Double, history: Int, ledger: Ledger, goal: Goal, nights: Nights, heart: HeartLines, onSetGoal: @escaping () -> Void) {
         self.title = title
@@ -180,7 +183,9 @@ private struct ProgressCard: View {
         let calendar = ledger.clock.calendar
         let today = ledger.today
         // Everything back to `history` days is drawn; the chart shows a window of it and scrolls through the rest.
-        let start = max([ledger.firstDay, nights.first].compactMap(\.self).min() ?? today - 27, today - history)
+        // The log's own history only: older heart readings come in from the left edge on a dash, and widening the
+        // chart to reach them would leave months of it empty.
+        let start = max(ledger.firstDay ?? today - 27, today - history)
         // Never show more days than there are; a window wider than the data leaves it stranded at the left.
         let days = min(Int((window / pinch).rounded()), start.distance(to: today + 15))
         let past = start...today
@@ -249,7 +254,8 @@ private struct ProgressCard: View {
             .font(.subheadline)
             .foregroundStyle(.secondary)
             ProgressPlot(drank: drank, behind: behind, ahead: ahead, heart: hearts, heartScale: HeartScale(hearts, top: top), dots: heart == .nightly,
-                         now: now, top: top, days: days, initialX: (today - (days - 4)).date(in: calendar))
+                         now: now, top: top, days: days,
+                         x: Binding(get: { scrolledTo ?? (today - (days - 4)).date(in: calendar) }, set: { scrolledTo = $0 }))
             // Simultaneous, or the chart's own scrolling swallows it and nothing zooms.
             .simultaneousGesture(
                 MagnifyGesture(minimumScaleDelta: 0.05)
@@ -325,7 +331,12 @@ private struct ProgressPlot: View, Equatable {
     let now: Date
     let top: Double
     let days: Int
-    let initialX: Date
+    @Binding var x: Date
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.drank == rhs.drank && lhs.behind == rhs.behind && lhs.ahead == rhs.ahead && lhs.heart == rhs.heart
+            && lhs.heartScale == rhs.heartScale && lhs.dots == rhs.dots && lhs.now == rhs.now && lhs.top == rhs.top && lhs.days == rhs.days
+    }
 
     var body: some View {
         Chart {
@@ -374,7 +385,7 @@ private struct ProgressPlot: View, Equatable {
         }
         .chartScrollableAxes(.horizontal)
         .chartXVisibleDomain(length: Double(days) * 86_400)
-        .chartScrollPosition(initialX: initialX)
+        .chartScrollPosition(x: $x)
         .frame(height: 220)
     }
 }
@@ -575,6 +586,9 @@ private struct WeeksCard: View {
     let nights: Nights
     @Binding var weeks: Int
     @Environment(Prefs.self) private var prefs
+    /// Held for the same reason as the progress charts', and dropped when the range changes so a new range opens on
+    /// the latest weeks.
+    @State private var scrolledTo: Date?
 
     var body: some View {
         let calendar = prefs.clock.calendar
@@ -591,7 +605,9 @@ private struct WeeksCard: View {
             }
             .pickerStyle(.segmented)
 
-            WeeksPlot(stats: stats, heart: hearts, weeks: weeks, calendar: calendar)
+            WeeksPlot(stats: stats, heart: hearts, weeks: weeks, calendar: calendar,
+                      x: Binding(get: { scrolledTo ?? (stats.last!.start - 7 * (weeks - 1)).date(in: calendar) }, set: { scrolledTo = $0 }))
+                .onChange(of: weeks) { scrolledTo = nil }
 
             HStack(spacing: 16) {
                 LegendKey(label: "Units", color: .grog)
@@ -609,6 +625,11 @@ private struct WeeksPlot: View, Equatable {
     let heart: [HeartPoint]
     let weeks: Int
     let calendar: Calendar
+    @Binding var x: Date
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.stats == rhs.stats && lhs.heart == rhs.heart && lhs.weeks == rhs.weeks && lhs.calendar == rhs.calendar
+    }
 
     var body: some View {
         let top = max(Units.weeklyGuideline, stats.map(\.totals.units).max() ?? 0, stats.compactMap(\.budget).max() ?? 0) * 1.15
@@ -657,7 +678,7 @@ private struct WeeksPlot: View, Equatable {
         }
         .chartScrollableAxes(.horizontal)
         .chartXVisibleDomain(length: Double(weeks) * 7 * 86_400)
-        .chartScrollPosition(initialX: (stats.last!.start - 7 * (weeks - 1)).date(in: calendar))
+        .chartScrollPosition(x: $x)
         .frame(height: 220)
     }
 }
