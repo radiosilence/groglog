@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Wetherspoon's drinks menu, in full. Ninety-eight drinks that weren't here: Ruddles and Worthington's, the craft cans, the farmhouse ciders, the named wines behind the grape varieties, the flavoured vodkas and shot liqueurs, the bombs and the pitcher cocktails. Prices are one pub's — The Watch House in Lewisham, read off the order-and-pay menu in September 2026 — because Wetherspoon sets them per pub and a chain-wide price doesn't exist: the same Carling is £3.49 there and £2.99 in Wigan. A spirit's price is the measure with a mixer, since that's how the bar sells one; the units are the spirit's alone. Rotating guest ales aren't here, and neither is anything already in the catalogue under its own name at the same strength.
+
 - Searching a drink gives you every size it comes in, not just the one you added it as. Naming a drink exactly and then having to long-press a pint of something else to find it, or take the bottle and change the size, was a strange way to treat somebody who had already told you what they wanted. A size you've pinned keeps the price you pinned it at.
 
 - The date on the charts is the day you get low enough to stop, not the day you get under a unit. A taper that takes a share off what's left never reaches nothing, so the old figure sat at the thin end of a curve nobody walks down a hundredth of a unit at a time — months of tail that meant nothing. Alcohol services put the point you can simply stop at around ten units a day, which is under the level NICE considers assisted withdrawal at, so that's the date now. It isn't a figure from the written guidance, and the code says so.

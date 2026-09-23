@@ -67,6 +67,7 @@ nonisolated enum Catalog {
     private static let halfBottle = ServeSize(.wineBottle, 350)
     private static let wineBottle = ServeSize(.wineBottle, 750)
     private static let single = ServeSize(.shot, 25)
+    private static let double = ServeSize(.tumbler, 50)
     private static let single35 = ServeSize(.shot, 35)
     private static let bottle70cl = ServeSize(.wineBottle, 700)
     private static let bottle1l = ServeSize(.wineBottle, 1000)
@@ -847,6 +848,128 @@ nonisolated enum Catalog {
         ("Veuve Monsigny Champagne Brut", .bubbles, 12.5, [(flute, 2.67), (wineBottle, 15.99)]),
         ("Costellore Prosecco", .bubbles, 10.5, [(flute, 0.91), (wineBottle, 5.45)]),
         ("Belletti Hugo Spritz", .alcopop, 6.9, [(flute, 0.67), (wineBottle, 3.99)]),
+        // Wetherspoon's own list, read off the order-and-pay menu for The Watch House, Lewisham, in
+        // September 2026 — one pub because prices are set per pub and a chain-wide Spoons price doesn't
+        // exist: the same Carling is £3.49 here and £2.99 in Wigan. A spirit's price is the measure
+        // with a mixer of your choice, because that's how Spoons sells one and the mixer costs nothing;
+        // the units are the spirit's alone. The guest ales aren't here — they change every few weeks
+        // and a catalogue entry would outlive the cask. Nor is anything Spoons sells that's already
+        // above under its own name at the same strength: a Stella is a Stella, and one
+        // pub's price doesn't earn a second entry. A brand Spoons pours at a different strength does.
+        ("Bud Light", .beer, 3.4, [(pint, 1.99), (half, 1)]),
+        ("Carlsberg Pilsner", .beer, 3.8, [(pint, 3.14), (half, 1.57)]),
+        ("Worthington's Creamflow", .beer, 3.4, [(pint, 1.99), (half, 1)]),
+        ("Ruddles Best", .beer, 3.4, [(pint, 1.99), (half, 1)]),
+        ("Leffe Blonde (draught)", .beer, 6.0, [(pint, 4.65), (half, 2.33)]),
+        ("Mad Squirrel $umo", .beer, 4.7, [(pint, 3.59), (half, 1.8)]),
+        ("Efes", .beer, 5.0, [(bottle500, 5.05)]),
+        ("Stella Artois Unfiltered", .beer, 5.0, [(bottle620, 5.23)]),
+        // Spoons lists this one as plain "Estrella Galicia" at 5.5%, which is the Especial, not the
+        // 4.7% standard lager the same brewery puts in a 330 everywhere else.
+        ("Estrella Galicia Especial", .beer, 5.5, [(bottle330, 4.25)]),
+        // The can range, which turns over but not like the casks do.
+        ("Shipyard American Pale Ale", .beer, 4.5, [(can440, 2.59)]),
+        ("Williams Brothers Joker IPA", .beer, 5.0, [(can330, 3.29)]),
+        ("Kirkstall Judicious", .beer, 4.8, [(can440, 4.15)]),
+        ("Oakham Citra", .beer, 4.6, [(can440, 4.15)]),
+        ("Siren Paloma Gose", .beer, 5.0, [(can440, 4.15)]),
+        ("Seven Bro7hers Buzz", .beer, 6.0, [(can440, 4.39)]),
+        ("Thornbridge West Side Glory", .beer, 7.0, [(can440, 4.39)]),
+        ("Jiddler's Tipple Swiss Roll Stout", .stout, 5.1, [(can440, 4.15)]),
+        // Cider. The two farmhouse ones are on the cider list rather than the guest board, which is why
+        // they're here. They also pour by the third, and the catalogue has no third, so these are halves.
+        ("Harry's Scrummage", .cider, 6.0, [(pint, 3.44), (half, 1.72)]),
+        ("Purbeck Dandy Dab", .cider, 5.0, [(pint, 3.44), (half, 1.72)]),
+        ("Kopparberg Mango", .cider, 4.0, [(bottle500, 3.1)]),
+        ("Kopparberg Sweet Vintage Pear", .cider, 7.0, [(bottle500, 4.25)]),
+        ("Angry Orchard", .cider, 5.0, [(bottle500, 4.25)]),
+        ("Bulmers Crushed Red Berries & Lime", .cider, 4.0, [(bottle500, 4.25)]),
+        // The wine list, by the name on the bottle rather than by grape, because Spoons pours one
+        // Chardonnay and it is this one. Coldwater Creek is the house wine and glasses only.
+        ("Coldwater Creek Chardonnay", .whiteWine, 12.0, [(glass125, 2.35), (glass175, 3.21), (glass250, 4.35)]),
+        ("Coldwater Creek Pinot Grigio", .whiteWine, 12.0, [(glass125, 2.35), (glass175, 3.21), (glass250, 4.35)]),
+        ("Cune White Rioja", .whiteWine, 12.5, [(glass125, 3.1), (glass175, 4.25), (glass250, 5.75), (wineBottle, 15.53)]),
+        ("Villa Maria Private Bin Sauvignon Blanc", .whiteWine, 12.0, [(glass125, 3.45), (glass175, 4.79), (glass250, 6.49), (wineBottle, 17.41)]),
+        ("Bolla Pinot Grigio delle Venezie", .whiteWine, 11.5, [(wineBottle, 13.54)]),
+        ("Coldwater Creek Merlot", .redWine, 12.0, [(glass125, 2.35), (glass175, 3.21), (glass250, 4.35)]),
+        ("Grant Burge Barossa Ink Shiraz", .redWine, 14.0, [(glass125, 3.45), (glass175, 4.79), (glass250, 6.49), (wineBottle, 17.41)]),
+        ("Trivento Reserve Malbec", .redWine, 12.5, [(wineBottle, 15.53)]),
+        ("Mount Rozier Pinot Noir Reserve", .redWine, 12.5, [(wineBottle, 13.54)]),
+        ("Coldwater Creek Rosé", .rose, 11.5, [(glass125, 2.35), (glass175, 3.21), (glass250, 4.35)]),
+        ("Villa Maria Blush Sauvignon", .rose, 12.0, [(glass125, 3.15), (glass175, 4.35), (glass250, 5.89), (wineBottle, 17.41)]),
+        ("The Pale by Sacha Lichine", .rose, 13.0, [(glass125, 3.89), (glass175, 5.39), (glass250, 7.29), (wineBottle, 19.64)]),
+        ("Gallo Family Vineyards White Zinfandel", .rose, 8.0, [(wineBottle, 12.54)]),
+        ("Teresa Rizzi Prosecco", .bubbles, 11.0, [(glass175, 3.84), (.init(.wineBottle, 200), 4.85), (wineBottle, 17.41)]),
+        ("Teresa Rizzi Sparkling Rosé", .bubbles, 11.5, [(.init(.wineBottle, 200), 4.85)]),
+        ("Broadwood's Folly", .bubbles, 12.0, [(wineBottle, 24.79)]),
+        // Spirits, single and double. The flavoured ends of the vodka and liqueur lists are most of
+        // what's new here; the base spirits are already above.
+        ("XIX Mixed Berry", .spirit, 37.5, [(single, 2.1), (double, 3.6)]),
+        ("Au Vodka Miami Mango", .spirit, 35.2, [(single, 2.35), (double, 3.85)]),
+        ("Au Vodka Juicy Peach", .spirit, 35.2, [(single, 2.35), (double, 3.85)]),
+        ("Au Vodka Blue Raspberry", .spirit, 35.2, [(single, 2.35), (double, 3.85)]),
+        ("Au Vodka Pineapple Crush", .spirit, 35.2, [(single, 2.35), (double, 3.85)]),
+        ("Au Vodka Pink Lemonade", .spirit, 35.2, [(single, 2.35), (double, 3.85)]),
+        ("Au Vodka Strawberry Burst", .spirit, 35.2, [(single, 2.35), (double, 3.85)]),
+        ("Smirnoff Mango & Passionfruit Twist", .spirit, 35.0, [(single, 2.1), (double, 3.6)]),
+        ("Smirnoff Raspberry Crush", .spirit, 35.0, [(single, 2.1), (double, 3.6)]),
+        // Flävar is 25% on the vodka list and 21% on the shot list; the bottle says 25%.
+        ("Flävar Blueberry & Lemon", .spirit, 25.0, [(single, 3.3), (double, 4.8)]),
+        ("Flävar Salted Caramel", .spirit, 25.0, [(single, 3.3), (double, 4.8)]),
+        ("Flävar Strawberry & Lime", .spirit, 25.0, [(single, 3.3), (double, 4.8)]),
+        ("Absolut Vanilia", .spirit, 38.0, [(single, 3.68), (double, 5.18)]),
+        ("Beefeater Blood Orange", .spirit, 37.5, [(single, 2.1), (double, 3.6)]),
+        ("Tanqueray No. Ten", .spirit, 47.3, [(single, 5.65), (double, 7.15)]),
+        ("Edinburgh Gin Rhubarb & Ginger", .spirit, 20.0, [(single, 4.3), (double, 5.8)]),
+        ("Captain Morgan White", .spirit, 37.5, [(single, 2.1), (double, 3.6)]),
+        ("Captain Morgan Tiki", .spirit, 25.0, [(single, 3.68), (double, 5.18)]),
+        ("Johnnie Walker Red Label", .spirit, 40.0, [(single, 2.1), (double, 3.6)]),
+        ("Jose Cuervo Especial Silver", .spirit, 35.0, [(single, 2.1), (double, 3.6)]),
+        ("El Sueño MODA Pineapple", .spirit, 35.0, [(single, 4.19), (double, 5.69)]),
+        ("Cazcabel Coffee", .spirit, 34.0, [(single, 4.19)]),
+        ("Kahlúa", .spirit, 16.0, [(single, 3.3), (double, 4.8)]),
+        ("Chambord", .spirit, 16.5, [(single, 3.39), (double, 4.89)]),
+        ("Jack Daniel's Tennessee Apple", .spirit, 35.0, [(single, 3.39), (double, 4.89)]),
+        ("Strika", .spirit, 35.0, [(single, 3.39), (double, 4.89)]),
+        ("Antica Sambuca Raspberry", .spirit, 38.0, [(single, 3.39)]),
+        ("Antica Sambuca Black", .spirit, 38.0, [(single, 3.39)]),
+        ("Limoncello", .spirit, 30.0, [(single, 2.1)]),
+        ("Tequila Rose", .spirit, 15.0, [(single, 3.39)]),
+        ("Lacey's Vodkashake Banana", .spirit, 15.0, [(single, 2.1)]),
+        ("Corky's Raspberry", .spirit, 15.0, [(single, 2.99)]),
+        ("Corky's Sour Apple", .spirit, 15.0, [(single, 2.99)]),
+        ("Corky's Sour Cherry", .spirit, 15.0, [(single, 2.99)]),
+        // Premixed by the bottle.
+        ("Echo Falls Blue Raspberry", .alcopop, 9.0, [(glass125, 2.35), (glass175, 3.25), (glass250, 4.5), (wineBottle, 13.29)]),
+        ("WKD Blue", .alcopop, 3.4, [(bottle275, 3.34)]),
+        // Spoons cocktails. The spritzes give their measures, so the strength is those over the glass:
+        // 125 ml of Prosecco and a 25 or 50 ml spirit in a 250 ml wine glass, ice included. The ones
+        // Spoons sells by the pitcher are here as the glass, which is what one person drinks and the
+        // only serve whose volume the menu implies — it doesn't say how much a jug holds.
+        ("Sarti Spritz", .cocktail, 7.7, [(.init(.wineGlass, 250), 4.85)]),
+        ("Strawberry Spritz", .cocktail, 8.0, [(.init(.wineGlass, 250), 4.85)]),
+        ("Mango & Passionfruit Spritz", .cocktail, 9.0, [(.init(.wineGlass, 250), 4.85)]),
+        ("Peach Blush Spritz", .cocktail, 7.6, [(.init(.wineGlass, 250), 4.85)]),
+        ("Echo Falls Blue Raspberry Spritz", .cocktail, 5.7, [(.init(.wineGlass, 250), 3.49)]),
+        ("Tinto de Verano", .cocktail, 6.0, [(.init(.wineGlass, 250), 2.59)]),
+        ("Strawberry Daiquiri", .cocktail, 9.5, [(doubleLong, 4.65)]),
+        ("Mango Monster Mash", .cocktail, 5.6, [(doubleLong, 7.43)]),
+        ("Candy Rosá", .cocktail, 5.2, [(doubleLong, 7.43)]),
+        ("Purple Rain", .cocktail, 3.5, [(doubleLong, 7.43)]),
+        ("Hawaiian Pipeline Punch", .cocktail, 6.0, [(doubleLong, 7.43)]),
+        ("Smirnoff & Monster", .cocktail, 3.8, [(doubleLong, 4.3)]),
+        ("BuzzBallz Berry Cherry Limeade", .cocktail, 13.5, [(.init(.can, 200), 5)]),
+        ("BuzzBallz Strawberry 'Rita", .cocktail, 13.5, [(.init(.can, 200), 5)]),
+        ("BuzzBallz Lime 'Rita", .cocktail, 13.5, [(.init(.can, 200), 5)]),
+        // A bomb is a 25 ml measure dropped into a can of Monster, so it's weak for what it costs.
+        ("Strikabomb", .cocktail, 3.5, [(doubleLong, 4.3)]),
+        ("Flävarbomb", .cocktail, 2.5, [(doubleLong, 4.3)]),
+        ("SoCoLocobomb", .cocktail, 3.5, [(doubleLong, 4.3)]),
+        ("Skittlebomb", .cocktail, 4.0, [(doubleLong, 4.3)]),
+        ("Raspberrybomb", .cocktail, 3.8, [(doubleLong, 4.3)]),
+        ("Fireballbomb", .cocktail, 3.3, [(doubleLong, 4.3)]),
+        ("Lady Guinness", .cocktail, 15.7, [(.init(.shot, 30), 4.89)]),
+        ("Jammy Dodger", .cocktail, 16.7, [(.init(.shot, 30), 4.89)]),
     ]
 
     static let brands: [CatalogBrand] = entries.map { CatalogBrand(name: $0.0, category: $0.1, abv: $0.2, serves: $0.3) }

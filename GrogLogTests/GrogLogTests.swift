@@ -644,8 +644,8 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
 /// The catalogue is a hand-written table, so guard the mistakes hand-writing makes: a stray decimal point,
 /// a brand listed twice, a serve with no size.
 @Suite struct CatalogTests {
-    /// What a strength can plausibly be for each kind of drink — wide enough for Żywiec Porter and
-    /// Wray & Nephew, tight enough to catch 45% where 4.5% was meant.
+    /// What a strength can plausibly be for each kind of drink — wide enough for Żywiec Porter, Wray
+    /// & Nephew and a 25 ml measure dropped in a glass of Monster, tight enough to catch 45% for 4.5%.
     private func band(_ category: DrinkCategory) -> ClosedRange<Double> {
         switch category {
         case .beer, .stout: 2...13
@@ -654,8 +654,8 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         case .bubbles: 5...14
         case .fortified: 12...22
         case .spirit: 10...85
-        case .alcopop: 3...8
-        case .cocktail: 3...35
+        case .alcopop: 3...9
+        case .cocktail: 2...35
         case .units: 100...100
         }
     }
