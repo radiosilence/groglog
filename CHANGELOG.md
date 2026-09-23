@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Setup explains itself in fewer, plainer words.
+
 - Heart readings go back as far as Health has them, not just to when the log started, so there's a before to compare with. Weeks and nights with no reading are crossed by a faint dashed line rather than left to restart the line cold — it joins what was measured and isn't a measurement itself. Where the last reading is older than the chart, the dash comes in from its left edge.
 
 - The Day chart has the day before yesterday on it too, faintly, named by its weekday. One day against the one before is a coin toss; three in a row is a pattern.

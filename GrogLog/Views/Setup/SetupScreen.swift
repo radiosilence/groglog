@@ -27,7 +27,7 @@ struct SetupScreen: View {
             } footer: {
                 // The guidance the pace limits come from assumes a clinician judged the person suitable
                 // and reviews them as they go. This does neither, and shouldn't be read as if it did.
-                Text("Pick how fast to cut down and get a daily and weekly unit budget.\n\nGrogLog doesn't recommend a plan — it keeps count of the one you set. Cutting down is safest with medical guidance, and stopping suddenly when you're dependent can be dangerous. Talk to your GP or an alcohol service about the right pace for you.")
+                Text("Set how fast you want to cut down and you'll get a daily and weekly budget.\n\nGrogLog doesn't choose a plan for you, it just tracks the one you set. If you drink heavily every day, stopping suddenly can be dangerous. Talk to your GP or an alcohol service about a safe pace.")
             }
 
             Section {
@@ -40,7 +40,7 @@ struct SetupScreen: View {
                     ForEach(["GBP", "EUR", "USD"], id: \.self) { Text($0) }
                 }
             } footer: {
-                Text("Drinks after midnight count towards the night before, until the day ends.")
+                Text("Drinks after midnight count towards the night before.")
             }
             // Every entry re-dayed and every day re-totted: seconds on a long log, and not while a picker settles.
             .onChange(of: prefs.rolloverHour) {
@@ -52,7 +52,7 @@ struct SetupScreen: View {
                 Section {
                     Toggle("Copy to Health", isOn: $prefs.mirrorsToHealth)
                 } footer: {
-                    Text("Drinks and calories go into Health as you log them, converted to the standard drinks Health counts — nearly two units each. Turning it off takes GrogLog's entries back out.")
+                    Text("Adds your drinks and calories to Health. Health counts US standard drinks, which are about 1.8 UK units each. Turning this off removes them again.")
                 }
                 .onChange(of: prefs.mirrorsToHealth) { _, on in
                     let logbook = database.logbook(prefs)
@@ -68,7 +68,7 @@ struct SetupScreen: View {
                 Section {
                     Toggle("Heart readings from Health", isOn: $prefs.readsHeart)
                 } footer: {
-                    Text("Overnight HRV and resting heart rate from whatever writes them to Health — a Garmin, a watch, a ring — drawn on Reports against the night before. Read only.")
+                    Text("Shows your resting heart rate and HRV on Reports, next to what you drank the night before. Needs a watch that saves them to Health.")
                 }
                 .onChange(of: prefs.readsHeart) { _, on in
                     guard on else { return }
@@ -87,7 +87,7 @@ struct SetupScreen: View {
             } header: {
                 Text("Data")
             } footer: {
-                Text("Everything stays on this phone. Importing merges — nothing already here is overwritten.")
+                Text("Your data stays on this phone. Importing a backup adds to what's here and never overwrites it.")
             }
 
             #if DEBUG
@@ -100,7 +100,7 @@ struct SetupScreen: View {
             } header: {
                 Text("Developer")
             } footer: {
-                Text("Demo mode swaps in four months of sample data, held in memory. Your own log is left alone and comes back when you switch it off.")
+                Text("Swaps in four months of made-up data. Your real log comes back when you turn it off.")
             }
             #endif
         }
@@ -112,7 +112,7 @@ struct SetupScreen: View {
                 Task { pricesReset = await Task.detached { logbook.resetPrices() }.value }
             }
         } message: {
-            Text("Every drink and Log tile goes back to what the catalogue charges, losing any price you set yourself. Drinks already logged keep what they cost at the time.")
+            Text("Sets every drink and Log tile back to the catalogue price, including any you've changed. Drinks you've already logged keep the price you paid.")
         }
         .alert("Prices reset", isPresented: Binding(get: { pricesReset != nil }, set: { if !$0 { pricesReset = nil } })) {
             Button("OK") { pricesReset = nil }
