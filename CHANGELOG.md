@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The Day chart has the day before yesterday on it too, faintly, named by its weekday. One day against the one before is a coin toss; three in a row is a pattern.
+- Units are on the left of every chart, so a chart carrying heart readings has somewhere else to put them: bpm and ms down the right. A week or a run of nights with a single reading shows as a dot, since there's no line to draw through one point.
+
 - Two drinks logged in quick succession are two drinks in Health, not four. Each log rewrote its day in Health, and two rewrites running side by side both cleared the day before either saved, then each saved both drinks. Rewrites now queue.
 - Drinks logged from the Home Screen widget reach Health. The widget logs in its own process, which has no Health entitlement, so the app now rewrites today and yesterday in Health whenever it comes to the foreground. An import reaches Health too, which it never did.
 - Undo takes back the drink you logged last, not the one drunk last. Backdating one from the long-press sheet and then undoing it took the later drink instead.

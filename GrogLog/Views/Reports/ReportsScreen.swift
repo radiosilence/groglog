@@ -71,16 +71,25 @@ private struct HeartPoint: Equatable, Identifiable {
     var id: String { "\(reading.rawValue)\(date.timeIntervalSinceReferenceDate)" }
     var series: String { "\(reading.rawValue)\(run)" }
 
+    /// Alone in its run, so there's no line to draw it with.
+    var alone = false
+
     static func line(_ reading: HeartReading, _ days: [DayKey], at date: (DayKey) -> Date, value: (DayKey) -> Double?) -> [HeartPoint] {
         var run = 0
-        return days.compactMap { day in
+        let points = days.compactMap { day -> HeartPoint? in
             guard let value = value(day) else { run += 1; return nil }
             return HeartPoint(date: date(day), value: value, reading: reading, run: run)
+        }
+        let sizes = Dictionary(grouping: points, by: \.run).mapValues(\.count)
+        return points.map { point in
+            var point = point
+            point.alone = sizes[point.run] == 1
+            return point
         }
     }
 }
 
-/// Heart readings laid over a units chart, squeezed into its height with their own axis down the leading edge. HRV
+/// Heart readings laid over a units chart, squeezed into its height with their own axis down the trailing edge. HRV
 /// in ms and resting rate in bpm share it: both sit in the same few tens, and the legend says which is which.
 private struct HeartScale: Equatable {
     let low: Double
@@ -104,7 +113,7 @@ private struct HeartScale: Equatable {
     }
 
     var axis: some AxisContent {
-        AxisMarks(position: .leading, values: ticks) { value in
+        AxisMarks(position: .trailing, values: ticks) { value in
             AxisValueLabel { Text("\(Int(self.value(atY: value.as(Double.self) ?? 0).rounded()))") }
         }
     }
@@ -121,7 +130,7 @@ private struct HeartLegend: View {
             HStack(spacing: 16) {
                 ForEach(readings, id: \.self) { LegendKey(label: "\($0.rawValue)\(suffix)", color: $0.color) }
                 Spacer()
-                Text("\(readings.map { $0 == .hrv ? "ms" : "bpm" }.joined(separator: " · "))").font(.caption).foregroundStyle(.tertiary)
+                Text("\(readings.map { $0 == .hrv ? "ms" : "bpm" }.joined(separator: " · ")), right axis").font(.caption).foregroundStyle(.tertiary)
             }
         }
     }
@@ -328,7 +337,7 @@ private struct ProgressPlot: View, Equatable {
                     LineMark(x: .value("Day", point.date), y: .value("Units", heartScale.y(point.value)), series: .value("Line", point.series))
                         .foregroundStyle(point.reading.color)
                         .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                    if dots {
+                    if dots || point.alone {
                         PointMark(x: .value("Day", point.date), y: .value("Units", heartScale.y(point.value)))
                             .foregroundStyle(point.reading.color)
                             .symbolSize(24)
@@ -341,7 +350,7 @@ private struct ProgressPlot: View, Equatable {
         }
         .chartYScale(domain: 0...top)
         .chartYAxis {
-            AxisMarks()
+            AxisMarks(position: .leading)
             if let heartScale { heartScale.axis }
         }
         .clipped()
@@ -444,6 +453,7 @@ private struct WeekPlot: View, Equatable {
             }
         }
         .chartXScale(domain: 0...7)
+        .chartYAxis { AxisMarks(position: .leading) }
         .chartXAxis {
             AxisMarks(values: Array(0...6).map(Double.init)) { value in
                 AxisGridLine()
@@ -536,6 +546,7 @@ private struct MonthPlot: View, Equatable {
                 .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
         }
         .chartXScale(domain: 0...31)
+        .chartYAxis { AxisMarks(position: .leading) }
         .chartXAxis {
             AxisMarks(values: [1, 8, 15, 22, 29]) { AxisGridLine(); AxisValueLabel() }
         }
@@ -616,12 +627,17 @@ private struct WeeksPlot: View, Equatable {
                     LineMark(x: .value("Week", point.date, unit: .weekOfYear), y: .value("Units", heartScale.y(point.value)), series: .value("Line", point.series))
                         .foregroundStyle(point.reading.color)
                         .lineStyle(StrokeStyle(lineWidth: point.reading == .resting ? 2.5 : 1.5, lineCap: .round, lineJoin: .round))
+                    if point.alone {
+                        PointMark(x: .value("Week", point.date, unit: .weekOfYear), y: .value("Units", heartScale.y(point.value)))
+                            .foregroundStyle(point.reading.color)
+                            .symbolSize(30)
+                    }
                 }
             }
         }
         .chartYScale(domain: 0...top)
         .chartYAxis {
-            AxisMarks()
+            AxisMarks(position: .leading)
             if let heartScale { heartScale.axis }
         }
         .chartScrollableAxes(.horizontal)
@@ -718,6 +734,7 @@ private struct WeekdayPlot: View, Equatable {
                     .clipShape(.rect(cornerRadius: 4))
             }
         }
+        .chartYAxis { AxisMarks(position: .leading) }
         .frame(height: 160)
     }
 }

@@ -1,7 +1,7 @@
 import Charts
 import SwiftUI
 
-/// Running units through the day, against yesterday and the average day of the week before. Takes the window's
+/// Running units through the day, against the two days before it and the average day of the week before. Takes the window's
 /// drinks from the screen, which fetches them once for both.
 struct DayChart: View {
     let day: DayKey
@@ -15,11 +15,12 @@ struct DayChart: View {
     var body: some View {
         let clock = ledger.clock
         let yesterday = day - 1
+        let dayBefore = day - 2
         let now = Date.now
         let nowHour = day == ledger.today ? clock.hours(now, into: day) : nil
         var hours = HourCounter(clock)
         let firstHour = pours
-            .filter { $0.day == day.number || $0.day == yesterday.number }
+            .filter { $0.day == day.number || $0.day == yesterday.number || $0.day == dayBefore.number }
             .map { hours.hours($0.timestamp, into: $0.dayKey) }
             .min()
         let from = max(0, min(10, (firstHour ?? 10) - 1).rounded(.down))
@@ -28,6 +29,9 @@ struct DayChart: View {
         let series = [
             Series(name: "Today", color: .grog, points: ledger.cumulative(pours, on: day, from: from, through: nowHour ?? 24)),
             Series(name: "Yesterday", color: .gray.opacity(0.6), points: yesterdayLogged ? ledger.cumulative(pours, on: yesterday, from: from) : []),
+            // Named by its weekday: "two days ago" reads as a count, not a day you remember.
+            Series(name: dayBefore.date(in: clock.calendar).formatted(.dateTime.weekday(.abbreviated)), color: .gray.opacity(0.25),
+                   points: ledger.isLogged(dayBefore) ? ledger.cumulative(pours, on: dayBefore, from: from) : []),
             Series(name: "Week avg", color: .dry, points: ledger.averageCumulative(pours, over: ledger.weekBefore(day), from: from), dashed: true),
         ]
         let at = nowHour ?? 24
@@ -110,6 +114,7 @@ private struct DayPlot: View, Equatable {
             }
         }
         .chartXScale(domain: from...24)
+        .chartYAxis { AxisMarks(position: .leading) }
         .chartYScale(domain: 0...top)
         .chartXAxis {
             AxisMarks(values: hours.map(\.x)) { value in

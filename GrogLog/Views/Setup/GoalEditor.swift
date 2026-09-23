@@ -283,7 +283,8 @@ private struct BurndownPlot: View, Equatable {
                     .lineStyle(StrokeStyle(lineWidth: 2, lineJoin: .round))
             }
         }
-        .chartYAxisLabel("u/day")
+        .chartYAxisLabel("u/day", position: .leading)
+        .chartYAxis { AxisMarks(position: .leading) }
         .frame(height: 120)
         .padding(.vertical, 6)
     }
