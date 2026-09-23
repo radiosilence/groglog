@@ -14,6 +14,8 @@ import os
     private let store = HKHealthStore()
     private let beverages = HKQuantityType(.numberOfAlcoholicBeverages)
     private let energy = HKQuantityType(.dietaryEnergyConsumed)
+    private let hrv = HKQuantityType(.heartRateVariabilitySDNN)
+    private let restingHR = HKQuantityType(.restingHeartRate)
     private let log = Logger(subsystem: "cc.blit.groglog", category: "health")
 
     static var isAvailable: Bool { HKHealthStore.isHealthDataAvailable() }
@@ -66,6 +68,38 @@ import os
                 log.error("Couldn't mirror \(day.number): \(error)")
             }
         }
+    }
+
+    /// Asks to read heart data. Health never says whether reading was allowed — a refusal just looks like an empty
+    /// store — so this can only report that the question was answered.
+    func allowReading() async -> Bool {
+        guard Self.isAvailable else { return false }
+        do {
+            try await store.requestAuthorization(toShare: [], read: [hrv, restingHR])
+            return true
+        } catch {
+            log.error("Health wouldn't authorise reading: \(error)")
+            return false
+        }
+    }
+
+    /// HRV and resting heart rate, filed under the nights they followed. Health labels every HRV as SDNN, whatever the
+    /// device measured — Garmin's is RMSSD — so the numbers compare with themselves, not with another brand's.
+    func nights(_ days: ClosedRange<DayKey>, clock: DayClock) async -> Nights {
+        guard Self.isAvailable else { return Nights(clock: clock) }
+        let range = HKQuery.predicateForSamples(withStart: clock.start(of: days.lowerBound), end: clock.end(of: days.upperBound + 1))
+        let read = { (type: HKQuantityType, unit: HKUnit) async -> [(Date, Double)] in
+            let query = HKSampleQueryDescriptor(predicates: [.quantitySample(type: type, predicate: range)], sortDescriptors: [])
+            do {
+                return try await query.result(for: self.store).map {
+                    ($0.startDate.addingTimeInterval($0.endDate.timeIntervalSince($0.startDate) / 2), $0.quantity.doubleValue(for: unit))
+                }
+            } catch {
+                self.log.error("Couldn't read \(type): \(error)")
+                return []
+            }
+        }
+        return Nights(hrv: await read(hrv, .secondUnit(with: .milli)), restingHR: await read(restingHR, .count().unitDivided(by: .minute())), clock: clock)
     }
 
     private func samples(for entry: Entry) -> [HKQuantitySample] {

@@ -32,3 +32,45 @@ import Testing
         #expect(entry(ml: 330, abv: 0).standardDrinks == 0)
     }
 }
+
+/// A reading belongs to the evening that caused it. File one by calendar date and every heavy night's damage lands on
+/// the day after, which is usually a quiet one.
+@Suite struct NightTests {
+    private let calendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/London")!
+        return calendar
+    }()
+    private var clock: DayClock { DayClock(rolloverHour: 5, calendar: calendar) }
+    private let friday = DayKey(year: 2026, month: 9, day: 18)
+
+    private func at(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: 9, day: day, hour: hour, minute: minute))!
+    }
+
+    @Test func theNightAndTheMorningAfterBelongToTheEvening() {
+        for date in [at(18, 23, 30), at(19, 3), at(19, 7), at(19, 11, 59)] {
+            #expect(clock.night(for: date) == friday)
+        }
+        #expect(clock.night(for: at(18, 19, 59)) == friday - 1)
+        #expect(clock.night(for: at(19, 20)) == friday + 1)
+    }
+
+    @Test func aRestingRateStampedOnTheMorningIsTheNightBefore() {
+        // Health stamps a day's resting rate across the whole calendar day; its middle is Saturday noon.
+        let nights = Nights(restingHR: [(at(19, 12), 58)], clock: clock)
+        #expect(nights[friday]?.restingHR == 58)
+    }
+
+    @Test func daytimeHRVIsLeftOut() {
+        let nights = Nights(hrv: [(at(19, 2), 40), (at(19, 4), 50), (at(19, 15), 90)], clock: clock)
+        #expect(nights[friday]?.hrv == 45)
+        #expect(nights[friday - 1] == nil)
+    }
+
+    @Test func tooFewNightsIsNoAverage() {
+        let nights = Nights(hrv: [(at(15, 3), 40), (at(16, 3), 50)], clock: clock)
+        #expect(nights.mean(\.hrv, over: (friday - 6)...friday) == nil)
+        #expect(nights.mean(\.hrv, over: (friday - 6)...friday, atLeast: 2) == 45)
+    }
+}

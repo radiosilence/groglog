@@ -8,6 +8,7 @@ import Observation
     var currency: String { didSet { store.set(currency, forKey: "currency") } }
     var goal: Goal { didSet { store.set(try? JSONEncoder().encode(goal), forKey: "goal") } }
     var mirrorsToHealth: Bool { didSet { store.set(mirrorsToHealth, forKey: "mirrorsToHealth") } }
+    var readsHeart: Bool { didSet { store.set(readsHeart, forKey: "readsHeart") } }
 
     init(store: UserDefaults = .shared) {
         self.store = store
@@ -15,6 +16,7 @@ import Observation
         currency = store.string(forKey: "currency") ?? Locale.current.currency?.identifier ?? "GBP"
         goal = store.data(forKey: "goal").flatMap { try? JSONDecoder().decode(Goal.self, from: $0) } ?? Goal()
         mirrorsToHealth = store.bool(forKey: "mirrorsToHealth")
+        readsHeart = store.bool(forKey: "readsHeart")
     }
 
     var clock: DayClock { DayClock(rolloverHour: rolloverHour) }

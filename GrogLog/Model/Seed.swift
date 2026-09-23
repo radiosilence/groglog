@@ -112,6 +112,25 @@ nonisolated enum Seed {
         }
     }
 
+    /// Readings from a watch bought two months ago, answering to the log: a heavy night drags the next morning's HRV
+    /// down and resting rate up, and a run of them moves the baseline too, so a dry week shows as recovery.
+    static func nights(_ ledger: Ledger, days: Int = 60) -> Nights {
+        var rng = SeededRandom(seed: 7)
+        let today = ledger.today
+        let units = { (day: DayKey) in ledger.totals(on: day).units }
+        var byDay: [DayKey: Night] = [:]
+        for day in (today - days)..<today {
+            // Left on the charger now and then.
+            if Double.random(in: 0..<1, using: &rng) < 0.06 { continue }
+            let week = ((day - 6)...day).map(units).reduce(0, +) / 7
+            byDay[day] = Night(
+                hrv: 64 - units(day) * 0.45 - week * 0.35 + Double.random(in: -4...4, using: &rng),
+                restingHR: 51 + units(day) * 0.12 + week * 0.22 + Double.random(in: -1.5...1.5, using: &rng)
+            )
+        }
+        return Nights(byDay: byDay)
+    }
+
     private static func favourite(_ name: String, _ category: DrinkCategory, _ abv: Double, _ vessel: Vessel, _ ml: Double, _ price: Double, _ logbook: Logbook, _ db: Database) throws -> Serve {
         var drink = try logbook.findOrCreate(name: name, category: category, abv: abv, vessel: vessel, volumeMl: ml, db)
         drink.price = price

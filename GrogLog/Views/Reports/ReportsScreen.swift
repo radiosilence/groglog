@@ -7,6 +7,9 @@ struct ReportsScreen: View {
     @Environment(Prefs.self) private var prefs
     @State private var weeks = 12
     @State private var settingGoal = false
+    @State private var nights = Nights(byDay: [:])
+    @AppStorage("demoMode") private var demoMode = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         let clock = ledger.clock
@@ -19,11 +22,11 @@ struct ReportsScreen: View {
 
         ScrollView {
             VStack(spacing: 16) {
-                ProgressCard(title: "Weekly progress", days: 10, history: 60, ledger: ledger, goal: prefs.goal) { settingGoal = true }
-                ProgressCard(title: "Monthly progress", days: 35, history: 120, ledger: ledger, goal: prefs.goal) { settingGoal = true }
+                ProgressCard(title: "Weekly progress", days: 10, history: 60, ledger: ledger, goal: prefs.goal, nights: nights, heart: .nightly) { settingGoal = true }
+                ProgressCard(title: "Monthly progress", days: 35, history: 120, ledger: ledger, goal: prefs.goal, nights: nights, heart: .averaged) { settingGoal = true }
                 WeekCard(ledger: ledger, goal: prefs.goal)
                 MonthCard(ledger: ledger)
-                WeeksCard(stats: stats, weeks: $weeks)
+                WeeksCard(stats: stats, nights: nights, weeks: $weeks)
                 SummaryTiles(ledger: ledger, stats: Array(shown), days: days, currency: prefs.currency)
                 WeekdayCard(ledger: ledger, days: days)
             }
@@ -36,6 +39,91 @@ struct ReportsScreen: View {
                 .labelStyle(.titleAndIcon)
         }
         .sheet(isPresented: $settingGoal) { GoalSheet(goal: prefs.goal) }
+        // Again on coming back: the watch syncs last night some time after the app was last open.
+        .task(id: [firstWeek.number, today.number, prefs.readsHeart ? 1 : 0, demoMode ? 1 : 0, scenePhase == .active ? 1 : 0]) {
+            guard scenePhase == .active else { return }
+            #if DEBUG
+            if demoMode { nights = Seed.nights(ledger); return }
+            #endif
+            nights = prefs.readsHeart ? await Health.shared.nights(firstWeek...today, clock: clock) : Nights(byDay: [:])
+        }
+    }
+}
+
+/// Which heart readings a progress chart carries: each night as it came, or the week around it.
+private enum HeartLines {
+    case nightly, averaged
+}
+
+private enum HeartReading: String {
+    case hrv = "HRV", resting = "Resting HR"
+
+    var color: Color { self == .hrv ? .hrv : .pulse }
+    var value: KeyPath<Night, Double?> { self == .hrv ? \.hrv : \.restingHR }
+}
+
+private struct HeartPoint: Equatable, Identifiable {
+    let date: Date
+    let value: Double
+    let reading: HeartReading
+    /// A run of consecutive readings; a missing night starts a new one, so the line breaks rather than bridging it.
+    let run: Int
+    var id: String { "\(reading.rawValue)\(date.timeIntervalSinceReferenceDate)" }
+    var series: String { "\(reading.rawValue)\(run)" }
+
+    static func line(_ reading: HeartReading, _ days: [DayKey], at date: (DayKey) -> Date, value: (DayKey) -> Double?) -> [HeartPoint] {
+        var run = 0
+        return days.compactMap { day in
+            guard let value = value(day) else { run += 1; return nil }
+            return HeartPoint(date: date(day), value: value, reading: reading, run: run)
+        }
+    }
+}
+
+/// Heart readings laid over a units chart, squeezed into its height with their own axis down the leading edge. HRV
+/// in ms and resting rate in bpm share it: both sit in the same few tens, and the legend says which is which.
+private struct HeartScale: Equatable {
+    let low: Double
+    let high: Double
+    let top: Double
+
+    init?(_ points: [HeartPoint], top: Double) {
+        guard let lo = points.map(\.value).min(), let hi = points.map(\.value).max() else { return nil }
+        low = (lo / 5).rounded(.down) * 5 - 5
+        high = max(low + 20, (hi / 5).rounded(.up) * 5 + 5)
+        self.top = top
+    }
+
+    func y(_ value: Double) -> Double { top * (0.08 + 0.84 * (value - low) / (high - low)) }
+
+    func value(atY y: Double) -> Double { low + (y / top - 0.08) / 0.84 * (high - low) }
+
+    var ticks: [Double] {
+        let step = high - low > 60 ? 20.0 : 10.0
+        return Array(stride(from: (low / step).rounded(.up) * step, through: high, by: step)).map(y)
+    }
+
+    var axis: some AxisContent {
+        AxisMarks(position: .leading, values: ticks) { value in
+            AxisValueLabel { Text("\(Int(self.value(atY: value.as(Double.self) ?? 0).rounded()))") }
+        }
+    }
+}
+
+/// Keys for whichever heart lines a chart is drawing, on their own row so the drinking keys above keep theirs.
+private struct HeartLegend: View {
+    let points: [HeartPoint]
+    let suffix: String
+
+    var body: some View {
+        let readings = [HeartReading.hrv, .resting].filter { reading in points.contains { $0.reading == reading } }
+        if !readings.isEmpty {
+            HStack(spacing: 16) {
+                ForEach(readings, id: \.self) { LegendKey(label: "\($0.rawValue)\(suffix)", color: $0.color) }
+                Spacer()
+                Text("\(readings.map { $0 == .hrv ? "ms" : "bpm" }.joined(separator: " · ")), left axis").font(.caption).foregroundStyle(.tertiary)
+            }
+        }
     }
 }
 
@@ -47,16 +135,20 @@ private struct ProgressCard: View {
     let history: Int
     let ledger: Ledger
     let goal: Goal
+    let nights: Nights
+    let heart: HeartLines
     let onSetGoal: () -> Void
     /// Days across, pinchable between a few days and the lot.
     @State private var window: Double
     @GestureState private var pinch = 1.0
 
-    init(title: String, days: Double, history: Int, ledger: Ledger, goal: Goal, onSetGoal: @escaping () -> Void) {
+    init(title: String, days: Double, history: Int, ledger: Ledger, goal: Goal, nights: Nights, heart: HeartLines, onSetGoal: @escaping () -> Void) {
         self.title = title
         self.history = history
         self.ledger = ledger
         self.goal = goal
+        self.nights = nights
+        self.heart = heart
         self.onSetGoal = onSetGoal
         _window = State(initialValue: days)
     }
@@ -105,20 +197,33 @@ private struct ProgressCard: View {
         // Scale to the window in view, so an old binge doesn't flatten the recent weeks.
         let shown = drank.filter { $0.date >= ledger.clock.start(of: today - days) }
         let top = max(10, sofar, shown.map(\.units).max() ?? 0, ahead.map(\.units).max() ?? 0) * 1.15
+        // Each night sits on the bar of the day it followed. Averaged, it's the week up to that night, and only once
+        // enough of that week has readings to be one.
+        let nightsShown = Array(start..<today)
+        let hearts = switch heart {
+        case .nightly:
+            HeartPoint.line(.hrv, nightsShown, at: noon) { nights[$0]?.hrv }
+        case .averaged:
+            [HeartReading.hrv, .resting].flatMap { reading in
+                HeartPoint.line(reading, nightsShown, at: noon) { nights.mean(reading.value, over: ($0 - 6)...$0) }
+            }
+        }
 
         Card(title: title) {
-            if let todays = ledger.dailyBudget(on: today, goal: goal) {
-                VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 2) {
+                if let todays = ledger.dailyBudget(on: today, goal: goal) {
                     Text("Today's budget \(todays.unitsText) u")
                     if let stop = ledger.projection(goal: goal).stoppable {
                         Text("Low enough to stop by \(stop.date(in: calendar).formatted(date: .abbreviated, time: .omitted)) at this rate")
                             .foregroundStyle(Color.dry)
                     }
                 }
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                heartSummary(today - 1)
             }
-            ProgressPlot(drank: drank, behind: behind, ahead: ahead, now: now, top: top, days: days, initialX: (today - (days - 4)).date(in: calendar))
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            ProgressPlot(drank: drank, behind: behind, ahead: ahead, heart: hearts, heartScale: HeartScale(hearts, top: top), dots: heart == .nightly,
+                         now: now, top: top, days: days, initialX: (today - (days - 4)).date(in: calendar))
             // Simultaneous, or the chart's own scrolling swallows it and nothing zooms.
             .simultaneousGesture(
                 MagnifyGesture(minimumScaleDelta: 0.05)
@@ -135,9 +240,31 @@ private struct ProgressCard: View {
                     LegendKey(label: "Plan", color: .dry, dashed: true)
                 }
             }
+            HeartLegend(points: hearts, suffix: heart == .nightly ? " overnight" : ", 7-night average")
             if !goal.isEnabled {
                 Button("Set a goal to see your budget come down", systemImage: "target", action: onSetGoal)
                     .font(.subheadline)
+            }
+        }
+    }
+
+    /// Last night against the week before it, which is the whole point: what one evening cost.
+    @ViewBuilder private func heartSummary(_ lastNight: DayKey) -> some View {
+        let week = (lastNight - 7)...(lastNight - 1)
+        switch heart {
+        case .nightly:
+            if let hrv = nights[lastNight]?.hrv {
+                let usual = nights.mean(\.hrv, over: week)
+                let change = usual.map { hrv - $0 } ?? 0
+                let against = Text(usual == nil || abs(change) < 1 ? "" : ", \(Int(abs(change).rounded())) \(change < 0 ? "under" : "over") the week before")
+                    .foregroundStyle(change < 0 ? Color.over : Color.dry)
+                Text("HRV last night \(Int(hrv.rounded())) ms\(against)")
+            }
+        case .averaged:
+            let hrv = nights.mean(\.hrv, over: (lastNight - 6)...lastNight)
+            let resting = nights.mean(\.restingHR, over: (lastNight - 6)...lastNight)
+            if hrv != nil || resting != nil {
+                Text([hrv.map { "HRV \(Int($0.rounded())) ms" }, resting.map { "resting \(Int($0.rounded())) bpm" }].compactMap(\.self).joined(separator: " · ") + " over the last week")
             }
         }
     }
@@ -162,6 +289,9 @@ private struct ProgressPlot: View, Equatable {
     let drank: [DayBar]
     let behind: [BudgetPoint]
     let ahead: [BudgetPoint]
+    let heart: [HeartPoint]
+    let heartScale: HeartScale?
+    let dots: Bool
     let now: Date
     let top: Double
     let days: Int
@@ -187,11 +317,27 @@ private struct ProgressPlot: View, Equatable {
                     .foregroundStyle(Color.dry)
                     .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round, dash: [4, 4]))
             }
+            if let heartScale {
+                ForEach(heart) { point in
+                    LineMark(x: .value("Day", point.date), y: .value("Units", heartScale.y(point.value)), series: .value("Line", point.series))
+                        .foregroundStyle(point.reading.color)
+                        .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                    if dots {
+                        PointMark(x: .value("Day", point.date), y: .value("Units", heartScale.y(point.value)))
+                            .foregroundStyle(point.reading.color)
+                            .symbolSize(24)
+                    }
+                }
+            }
             RuleMark(x: .value("Today", now))
                 .foregroundStyle(Color.secondary.opacity(0.7))
                 .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
         }
         .chartYScale(domain: 0...top)
+        .chartYAxis {
+            AxisMarks()
+            if let heartScale { heartScale.axis }
+        }
         .clipped()
         .chartXAxis {
             AxisMarks(values: .stride(by: .day, count: max(1, days / 5))) { AxisGridLine(); AxisValueLabel(format: .dateTime.day().month(.abbreviated)) }
@@ -394,11 +540,16 @@ private struct MonthPlot: View, Equatable {
 /// Weekly units as bars against the tapering budget.
 private struct WeeksCard: View {
     let stats: [WeekStat]
+    let nights: Nights
     @Binding var weeks: Int
     @Environment(Prefs.self) private var prefs
 
     var body: some View {
         let calendar = prefs.clock.calendar
+        let starts = stats.map(\.start)
+        let hearts = [HeartReading.resting, .hrv].flatMap { reading in
+            HeartPoint.line(reading, starts, at: { $0.date(in: calendar) }) { nights.mean(reading.value, over: $0...($0 + 6)) }
+        }
         Card(title: "Weekly") {
             Picker("Range", selection: $weeks) {
                 Text("8 weeks").tag(8)
@@ -408,7 +559,7 @@ private struct WeeksCard: View {
             }
             .pickerStyle(.segmented)
 
-            WeeksPlot(stats: stats, weeks: weeks, calendar: calendar)
+            WeeksPlot(stats: stats, heart: hearts, weeks: weeks, calendar: calendar)
 
             HStack(spacing: 16) {
                 LegendKey(label: "Units", color: .grog)
@@ -416,16 +567,20 @@ private struct WeeksCard: View {
                 Spacer()
                 Text("scroll back").font(.caption).foregroundStyle(.tertiary)
             }
+            HeartLegend(points: hearts, suffix: ", weekly average")
         }
     }
 }
 
 private struct WeeksPlot: View, Equatable {
     let stats: [WeekStat]
+    let heart: [HeartPoint]
     let weeks: Int
     let calendar: Calendar
 
     var body: some View {
+        let top = max(Units.weeklyGuideline, stats.map(\.totals.units).max() ?? 0, stats.compactMap(\.budget).max() ?? 0) * 1.15
+        let heartScale = HeartScale(heart, top: top)
         Chart {
             ForEach(stats) { week in
                 BarMark(x: .value("Week", week.start.date(in: calendar), unit: .weekOfYear), y: .value("Units", week.totals.units))
@@ -449,6 +604,19 @@ private struct WeeksPlot: View, Equatable {
                 .annotation(position: .top, alignment: .trailing) {
                     Text("14 u guideline").font(.caption2).foregroundStyle(.secondary)
                 }
+            // Resting rate is the heavier line: it's the one that keeps falling for weeks after the drinking does.
+            if let heartScale {
+                ForEach(heart) { point in
+                    LineMark(x: .value("Week", point.date, unit: .weekOfYear), y: .value("Units", heartScale.y(point.value)), series: .value("Line", point.series))
+                        .foregroundStyle(point.reading.color)
+                        .lineStyle(StrokeStyle(lineWidth: point.reading == .resting ? 2.5 : 1.5, lineCap: .round, lineJoin: .round))
+                }
+            }
+        }
+        .chartYScale(domain: 0...top)
+        .chartYAxis {
+            AxisMarks()
+            if let heartScale { heartScale.axis }
         }
         .chartScrollableAxes(.horizontal)
         .chartXVisibleDomain(length: Double(weeks) * 7 * 86_400)

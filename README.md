@@ -13,6 +13,7 @@ Written because Drinkaware's Drink Coach is low-friction but slow, allows one dr
 - **The grid is yours.** Favourites (drink + size) plus anything logged that day, most recent first. Tap logs it; long-press picks a specific drink of the same type, overrides the size, stars it onto the grid, or logs several earlier. A tap never reshuffles the grid.
 - **Charts show the shape, not just the total.** Day, week and month charts are running totals that step at each drink, so a heavy night is a steep climb. Progress charts smooth daily units over a few days against the budget smoothed the same way, so they read as a trend rather than a comb. Today is the exception: it's plotted as what's logged so far, on the "now" line, so the trend runs into the dot marking the day as it actually stands. A day inside its budget reads teal, just over amber, well over red.
 - **Units as an item.** When you only know a total (another app, a night you didn't log), log "Units" directly.
+- **Heart readings answer to the night before.** Overnight HRV and resting heart rate are read from Health — whatever wrote them, a Garmin or a watch — and filed under the drinking day they followed, 8pm to 8pm on a 5am day end, so a heavy Friday's damage lands on Friday's bar and not Saturday's. Daytime HRV spot readings are left out. A night with no reading is missing, not zero, and a week's average needs three nights before it's drawn. Weekly progress carries each night as it came, to show what one evening costs; Monthly progress and the weekly bars carry averages, because recovery from a run of them is slow and only shows over weeks — resting rate especially. Health labels every HRV as SDNN whatever the device measured (Garmin's is RMSSD), so the numbers compare with themselves, not with another brand's.
 - **Spend can be set for a whole day.** A round-by-round price is a chore on a big night; set what the day cost and it stands in for the drinks' prices everywhere, until you clear it.
 
 ## Layout
@@ -22,7 +23,7 @@ Written because Drinkaware's Drink Coach is low-friction but slow, allows one dr
 | Log | The picker for today. Search, tap, long-press, undo. |
 | Calendar | History; tap a day to see or backfill it, long-press to mark it dry. |
 | Day | Running units through the day vs yesterday and the week's average day, the day's budget draining, and what it cost. |
-| Reports | Weekly and monthly progress (smoothed daily units against the budget, with the fortnight ahead — scroll and pinch), this week and this month against earlier ones, weekly bars, streaks, spend. |
+| Reports | Weekly and monthly progress (daily units against the budget, with the fortnight ahead — scroll and pinch — and heart readings when Health has them), this week and this month against earlier ones, weekly bars, streaks, spend. |
 | Setup | Goal, drinks, day end, currency, export/import. |
 
 Two widgets, both reading the same log: a Lock Screen accessory showing today against the budget that opens onto Log, and a Home Screen one whose tiles log a drink where they stand.
@@ -52,6 +53,8 @@ Setup › Data exports:
 The JSON import is lenient enough to hand-convert other apps' data — see [docs/IMPORT.md](docs/IMPORT.md).
 
 Setup › **Copy to Health** mirrors drinks and calories into Apple Health as they're logged. Health counts standard drinks, not UK units — 17.7 ml of alcohol against 10 — so the figures are converted rather than handed over. It's a mirror and never a source: a changed day is rewritten whole from the log, so edits, undos and corrected strengths carry across and the copy can't drift; turning it off takes GrogLog's entries back out.
+
+Setup › **Heart readings from Health** reads HRV and resting heart rate for Reports. Read only; nothing about it is written back.
 
 Sync (iCloud via `CKSyncEngine`, or a server) is future work; every change already goes through `Logbook` as a transaction, which is where a change log would hook in.
 

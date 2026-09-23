@@ -64,6 +64,16 @@ struct SetupScreen: View {
                         }
                     }
                 }
+
+                Section {
+                    Toggle("Heart readings from Health", isOn: $prefs.readsHeart)
+                } footer: {
+                    Text("Overnight HRV and resting heart rate from whatever writes them to Health — a Garmin, a watch, a ring — drawn on Reports against the night before. Read only.")
+                }
+                .onChange(of: prefs.readsHeart) { _, on in
+                    guard on else { return }
+                    Task { prefs.readsHeart = await Health.shared.allowReading() }
+                }
             }
 
             Section {
