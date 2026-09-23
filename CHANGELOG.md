@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Searching a drink gives you every size it comes in, not just the one you added it as. Naming a drink exactly and then having to long-press a pint of something else to find it, or take the bottle and change the size, was a strange way to treat somebody who had already told you what they wanted. A size you've pinned keeps the price you pinned it at.
+
 - The date on the charts is the day you get low enough to stop, not the day you get under a unit. A taper that takes a share off what's left never reaches nothing, so the old figure sat at the thin end of a curve nobody walks down a hundredth of a unit at a time — months of tail that meant nothing. Alcohol services put the point you can simply stop at around ten units a day, which is under the level NICE considers assisted withdrawal at, so that's the date now. It isn't a figure from the written guidance, and the code says so.
 
 - A tap does one tile's worth of work rather than the whole app's. Every screen hung off the day totals, which change on every commit, and nothing downstream noticed when its own inputs hadn't: each chart was laid out again on every drink logged from any tab, every calendar cell re-evaluated, every entries query in the app re-fetched and re-delivered the same rows. Charts now sit on plain values and are only laid out when those change, calendar cells take the handful of numbers they show, and a query whose fetch comes back the same says nothing.

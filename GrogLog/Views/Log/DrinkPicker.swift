@@ -113,9 +113,15 @@ struct DrinkPicker: View {
         } else {
             serves = drinks
                 .filter { !$0.isHidden && ($0.name.localizedStandardContains(query) || $0.category.label.localizedStandardContains(query)) }
-                .flatMap { drink in
-                    let pinned = favourites.filter { $0.drink.id == drink.id }.map(\.serve)
-                    return pinned.isEmpty ? [Serve(drink)] : pinned
+                .flatMap { drink -> [Serve] in
+                    // Every size it comes in, not just the one it was added as. Searching for Leffe and
+                    // getting only the bottle meant long-pressing a pint of something else to find it,
+                    // or picking the bottle and changing the size — for a drink you'd named exactly.
+                    let pinned = favourites.filter { $0.drink.id == drink.id }
+                    return drink.category.sizes(including: ServeSize(drink.vessel, drink.volumeMl)).map { size in
+                        pinned.first { $0.favourite.vessel == size.vessel && $0.favourite.volumeMl == size.ml }?.serve
+                            ?? Serve(drink, size.vessel, size.ml)
+                    }
                 }
         }
         let order = Dictionary(favourites.enumerated().map { ($1.serve.id, $0) }, uniquingKeysWith: min)
