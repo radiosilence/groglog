@@ -133,7 +133,7 @@ struct GoalEditor: View {
                 let guideline = "The UK low-risk guideline is \(amount(Units.weeklyGuideline))."
                 switch goal.taper {
                 case .dynamic:
-                    Text("\(amount(goal.baselineWeekly)) → \(amount(goal.targetWeekly)) from \(goal.start.formatted(date: .abbreviated, time: .omitted)), quickening as it falls: 10% a week above 30 u/day, every four days under that, every three under 25, and every day under 15. You don't set the pace — it's the fastest the guidance allows for wherever the budget has got to. \(guideline)")
+                    Text("\(amount(goal.baselineWeekly)) → \(amount(goal.targetWeekly)) from \(goal.start.formatted(date: .abbreviated, time: .omitted)), quickening as it falls: 10% every four days above 25 u/day, every three under that, and every day under 15. You don't set the pace — it's the fastest the guidance allows for wherever the budget has got to. \(guideline)")
                 case .proportional:
                     Text("\(amount(goal.baselineWeekly)) → \(amount(goal.targetWeekly)) from \(goal.start.formatted(date: .abbreviated, time: .omitted)), about \(perDay)% less each day. Takes a smaller cut as it goes, so it nears the target without quite landing on it. \(guideline)")
                 case .linear:

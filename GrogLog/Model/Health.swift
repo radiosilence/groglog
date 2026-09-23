@@ -17,6 +17,7 @@ import os
     private let hrv = HKQuantityType(.heartRateVariabilitySDNN)
     private let restingHR = HKQuantityType(.restingHeartRate)
     private let log = Logger(subsystem: "cc.blit.groglog", category: "health")
+    private var queue: Task<Void, Never>?
 
     static var isAvailable: Bool { HKHealthStore.isHealthDataAvailable() }
 
@@ -51,7 +52,17 @@ import os
 
     /// Rewrites these days: ours out, the current entries in. Only samples this app wrote are ever removed —
     /// HealthKit won't let an app delete anyone else's.
+    ///
+    /// One rewrite at a time. Two pints tapped in quick succession each ask for the day, and run side by side both
+    /// would clear it before either saved, then each save both drinks — four in Health for two drunk.
     func mirror(_ days: Set<DayKey>, _ logbook: Logbook) async {
+        let previous = queue
+        let rewrite = Task { await previous?.value; await self.rewrite(days, logbook) }
+        queue = rewrite
+        await rewrite.value
+    }
+
+    private func rewrite(_ days: Set<DayKey>, _ logbook: Logbook) async {
         guard Self.isAvailable, store.authorizationStatus(for: beverages) == .sharingAuthorized else { return }
         for day in days {
             let start = logbook.clock.start(of: day)

@@ -137,7 +137,9 @@ struct SetupScreen: View {
         let goal = prefs.goal
         guard goal.isEnabled else { return "Off" }
         // The picker's own labels, so the row and the control it summarises can't drift apart.
-        let every = Goal.periods.first { $0.days == goal.periodDays }?.label ?? "\(goal.periodDays) days"
+        // A stepped taper has no period of its own; it's whichever rung the budget has reached today.
+        let days = ledger.pace(on: ledger.today, goal: goal)
+        let every = Goal.periods.first { $0.days == days }?.label ?? "\(days) days"
         let amount = { (value: Double) in value.formatted(.number.precision(.fractionLength(0...1))) }
         // A linear taper comes off in units, not in shares, and this row could only ever say a share.
         return goal.taper == .linear

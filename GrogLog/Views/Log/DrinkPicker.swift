@@ -140,8 +140,8 @@ struct DrinkPicker: View {
         return Catalog.search(search).filter { !owned.contains(Catalog.key($0.name, $0.category)) }
     }
 
-    /// The pour plays and the tap lands before the write: the write is a transaction on the main thread, and the
-    /// grid shouldn't wait on the disk to acknowledge a tap.
+    /// The write is a transaction on the main thread, well inside a frame however long the log (`ScaleTests` times
+    /// it), so the pour and the drink landing are the same frame.
     private func log(_ serve: Serve) {
         pulses[serve.id, default: 0] += 1
         logged += 1
@@ -292,7 +292,7 @@ private struct DaySummaryBar: View {
                 Text("\(totals.count) \(totals.count == 1 ? "drink" : "drinks") · \(Text("\(totals.units.unitsText) u").bold())")
                 Spacer()
                 Button("Undo", systemImage: "arrow.uturn.backward") {
-                    if let last = pours.last { logbook.delete(last.pour) }
+                    logbook.undo(on: day)
                 }
                 .labelStyle(.iconOnly)
                 // A full-size target, or a near miss lands on the tile behind the bar. It spills into the

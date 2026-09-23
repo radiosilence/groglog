@@ -124,6 +124,22 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(try logbook.writer.read { try Day.fetchCount($0) } == 0)
     }
 
+    /// Undo takes the drink logged last, not the one drunk last: one backdated from the long-press sheet is
+    /// the one you meant to take back.
+    @Test func undoTakesTheLastLoggedNotTheLastDrunk() throws {
+        let (logbook, drink) = try logbook()
+        let day = DayKey(year: 2026, month: 9, day: 19)
+        logbook.log(Serve(drink), at: [date(2026, 9, 19, 22)])
+        logbook.log(Serve(drink, .half, 284), at: [date(2026, 9, 19, 20)])
+        logbook.undo(on: day)
+        let left = try entries(logbook, day...day)
+        #expect(left.count == 1 && left[0].vessel == .pint)
+        #expect(try ledger(logbook).totals(on: day).count == 1)
+        logbook.undo(on: day)
+        logbook.undo(on: day)
+        #expect(try ledger(logbook).status(on: day) != .drank)
+    }
+
     @Test func handSetSpendStandsUntilCleared() throws {
         let (logbook, drink) = try logbook()
         let day = DayKey(year: 2026, month: 9, day: 19)
@@ -339,6 +355,28 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(Goal.pace(drinking: 14 * 7) == 1, "the ceiling, under it")
     }
 
+    /// A stepped taper's own period is never used, so anything that names its pace has to ask the ladder.
+    @Test func aSteppedTapersPaceIsTheRungItHasReached() throws {
+        let goal = Goal(isEnabled: true, taper: .dynamic, baselineWeekly: 40 * 7, periodDays: 7, start: date(2026, 9, 1))
+        let ledger = Ledger(days: [], clock: clock)
+        let start = DayKey(year: 2026, month: 9, day: 1)
+        #expect(ledger.pace(on: start - 5, goal: goal) == 4, "before it starts, its baseline's rung")
+        #expect(ledger.pace(on: start, goal: goal) == 4)
+        #expect(ledger.pace(on: start + 90, goal: goal) == 1)
+        var fixed = goal
+        fixed.taper = .proportional
+        #expect(ledger.pace(on: start + 90, goal: fixed) == 7, "any other taper is the period it was given")
+    }
+
+    @Test func theExportDescribesTheSteppedTaperItRuns() throws {
+        var settings = Exporter.Settings()
+        settings.goal = Goal(isEnabled: true, taper: .dynamic)
+        let (logbook, _) = try logbook()
+        let text = Exporter.markdown(try logbook.writer.read { try Exporter.backup($0, settings: settings) })
+        #expect(text.contains("stepped taper") && text.contains("fixed schedule"))
+        #expect(!text.contains("average"), "it reads nothing of what's drunk")
+    }
+
     /// Nothing logged changes it, which is the difference from what it used to be.
     @Test func dynamicIgnoresWhatIsActuallyDrunk() throws {
         let goal = Goal(isEnabled: true, taper: .dynamic, baselineWeekly: 30 * 7, start: date(2026, 9, 1))
@@ -465,8 +503,6 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
     }
 }
 
-/// `Prefs` reads the goal with `try?` and falls back to a fresh one, so a goal that won't decode is a
-/// goal silently thrown away. Every field has to be optional on the way in.
 /// A share that offers a type the receiver can't read gets the auto-registered file URL instead, which
 /// is a path into this app's sandbox and no use to anything outside it — 170 bytes of nothing.
 @Suite struct ExportTypeTests {
@@ -487,6 +523,8 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
     }
 }
 
+/// `Prefs` reads the goal with `try?` and falls back to a fresh one, so a goal that won't decode is a
+/// goal silently thrown away. Every field has to be optional on the way in.
 @Suite struct GoalDecodingTests {
     @Test func aGoalSavedBeforeAFieldExistedKeepsWhatItDidSet() throws {
         let old = #"{"isEnabled":true,"isDynamic":false,"baselineWeekly":70,"reductionPercent":25,"periodDays":7,"targetWeekly":14}"#

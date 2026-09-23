@@ -2,8 +2,8 @@ import Foundation
 
 /// How the budget comes down.
 nonisolated enum Taper: String, Codable, Sendable, CaseIterable {
-    /// A share off your own recent average, so there's no schedule to fall behind and a bad day never
-    /// becomes a sudden drop to catch up with.
+    /// Ten per cent at a time off a fixed baseline, at the quickest pace the guidance allows for wherever the
+    /// budget has got to, so it quickens as it falls. Shown as "Stepped"; the case name predates that.
     case dynamic
     /// A share off a fixed baseline. Steep at the top, shallow at the bottom, and never quite nothing.
     case proportional
@@ -32,8 +32,8 @@ nonisolated enum Taper: String, Codable, Sendable, CaseIterable {
 /// Bring the budget down until it reaches `targetWeekly`, by one of three tapers. A proportional taper
 /// cuts `reductionPercent` every `periodDays`, compounding smoothly day by day — "10% a day" and "25% a
 /// week" are both just a rate, and the budget never steps. A linear one takes `reductionUnits` off the
-/// daily budget over that same period instead. Dynamic is proportional against your own recent average
-/// rather than a baseline. The maths lives in `Ledger`, which has the history.
+/// daily budget over that same period instead. Dynamic (Stepped) is proportional with the period taken off
+/// `ladder` rather than chosen. The maths lives in `Ledger`.
 nonisolated struct Goal: Codable, Equatable, Sendable {
     var isEnabled = false
     var taper = Taper.dynamic

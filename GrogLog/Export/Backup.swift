@@ -13,7 +13,7 @@ nonisolated struct Backup: Codable, Sendable {
     var dayStartsAtHour: Int?
     var currency: String?
     var goal: Goal?
-    /// `yyyy-MM-dd` the taper drops under a unit a day, if kept to.
+    /// `yyyy-MM-dd` the taper gets low enough to stop at (`Goal.stopFrom`), if kept to.
     var projectedStop: String?
     var drinks: [DrinkRecord]?
     /// The Log grid: drinks in the sizes and at the prices you usually have them.
@@ -149,7 +149,7 @@ nonisolated enum Exporter {
             let from = "from \(goal.baselineWeekly.unitsText) units/week starting \(goal.start.formatted(date: .abbreviated, time: .omitted))"
             switch goal.taper {
             case .dynamic:
-                lines.append("Goal: cut \(Int(goal.reductionPercent))% every \(goal.periodDays) day(s), compounding daily, down to \(goal.targetWeekly.unitsText) units/week — dynamic: each day's budget is the cut applied to the average over the previous period, so there is no schedule to fall behind.")
+                lines.append("Goal: stepped taper, cut 10% every 4 days above 25 units/day, every 3 days above 15, then every day, compounding daily, down to \(goal.targetWeekly.unitsText) units/week — on a fixed schedule \(from).")
             case .proportional:
                 lines.append("Goal: cut \(Int(goal.reductionPercent))% every \(goal.periodDays) day(s), compounding daily, down to \(goal.targetWeekly.unitsText) units/week — on a fixed schedule \(from).")
             case .linear:
@@ -190,7 +190,7 @@ nonisolated enum Exporter {
         if let hour = backup.dayStartsAtHour { prefs.rolloverHour = hour }
         if let currency = backup.currency { prefs.currency = currency }
         if let goal = backup.goal { prefs.goal = goal }
-        let logbook = Logbook(writer: writer, clock: prefs.clock)
+        let logbook = Logbook(writer: writer, clock: prefs.clock, mirrorsToHealth: prefs.mirrorsToHealth)
         var added = 0
 
         try logbook.bulk { db in

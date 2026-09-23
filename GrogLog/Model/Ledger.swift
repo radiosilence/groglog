@@ -170,7 +170,14 @@ nonisolated struct Ledger: Equatable {
         taper(on: day, goal: goal).map { max($0.budget, min(goal.targetWeekly / 7, $0.reference)) }
     }
 
-    /// When today's taper, carried on, reaches the target — and drops under a unit a day, the point where stopping is a small step.
+    /// How many days the budget takes to lose a tenth on `day`: the chosen period, or for a stepped taper the rung
+    /// its budget has reached — its baseline's, before it starts.
+    func pace(on day: DayKey, goal: Goal) -> Int {
+        guard goal.taper == .dynamic else { return goal.periodDays }
+        return Goal.pace(drinking: (taper(on: day, goal: goal)?.budget ?? goal.baselineWeekly / 7) * 7)
+    }
+
+    /// When today's taper, carried on, reaches the target — and gets low enough to stop (`Goal.stopFrom`).
     func projection(goal: Goal) -> (target: DayKey?, stoppable: DayKey?) {
         guard let now = taper(on: today, goal: goal) else { return (nil, nil) }
         guard goal.taper == .linear ? goal.dailyUnitCut > 0 : goal.dailyCut > 0 else { return (nil, nil) }

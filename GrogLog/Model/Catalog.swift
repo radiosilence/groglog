@@ -987,8 +987,6 @@ nonisolated enum Catalog {
     /// A drink's identity as the catalogue sees it: same name, same kind.
     static func key(_ name: String, _ category: DrinkCategory) -> String { "\(name)|\(category.rawValue)" }
 
-    /// What a brand costs in a size it may not be listed in — its own price for that size, else the
-    /// first serve scaled by volume, the same way a drink's own price scales.
     /// Whether a drink is still exactly as the catalogue has it — copied in when it was logged and never touched.
     /// Change its name, kind or strength and it stops matching, which is the point: it's yours from then on.
     static func holds(name: String, category: DrinkCategory, abv: Double) -> Bool {

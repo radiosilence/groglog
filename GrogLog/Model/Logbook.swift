@@ -48,6 +48,18 @@ nonisolated struct Logbook: Sendable {
         }
     }
 
+    /// Takes back the drink logged last on a day — last logged, not last drunk, so undoing one backdated two hours
+    /// takes that one rather than the later drink logged before it. The rowid is insertion order; a pour's own id
+    /// is random and its timestamp is when it was drunk.
+    func undo(on day: DayKey) {
+        defer { mirror([day]) }
+        write { db in
+            guard let last = try Pour.filter(Column("day") == day.number).order(Column.rowID.desc).fetchOne(db) else { return }
+            try last.delete(db)
+            try retotal([day], db)
+        }
+    }
+
     func update(_ pour: Pour, time: Date, vessel: Vessel, volumeMl: Double, price: Double) {
         defer { mirror([pour.dayKey, clock.day(for: time)]) }
         write { db in
@@ -183,9 +195,12 @@ nonisolated struct Logbook: Sendable {
 
     /// Runs a batch of writes — an import — as one transaction, re-totting the days it touched at the end.
     func bulk(_ body: (Database) throws -> Set<DayKey>) throws {
-        try writer.write { db in
-            try retotal(try body(db), db)
+        let touched = try writer.write { db in
+            let days = try body(db)
+            try retotal(days, db)
+            return days
         }
+        mirror(touched)
     }
 
     // MARK: Internals
