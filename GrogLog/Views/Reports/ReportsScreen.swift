@@ -78,7 +78,8 @@ private struct HeartPoint: Equatable, Identifiable {
     var series: String { "\(reading.rawValue)\(bridge ? "~" : "")\(run)" }
 
     /// `before` is the last reading ahead of the first day, however old, so a line that went quiet before the chart
-    /// begins still comes in from the left rather than starting cold.
+    /// begins still comes in from the left rather than starting cold. Its end is cut to the first day, on the same
+    /// slope: a point months outside the chart is still data to it, and it scrolls there.
     static func line(_ reading: HeartReading, _ days: [DayKey], before: DayKey? = nil, at date: (DayKey) -> Date, value: (DayKey) -> Double?) -> [HeartPoint] {
         var run = 0
         var points = days.compactMap { day -> HeartPoint? in
@@ -87,7 +88,12 @@ private struct HeartPoint: Equatable, Identifiable {
         }
         let sizes = Dictionary(grouping: points, by: \.run).mapValues(\.count)
         for i in points.indices { points[i].alone = sizes[points[i].run] == 1 }
-        let anchor = before.flatMap { day in value(day).map { HeartPoint(date: date(day), value: $0, reading: reading, run: -1) } }
+        let anchor = before.flatMap { day -> HeartPoint? in
+            guard let then = value(day), let next = points.first, let edge = days.first.map(date) else { return nil }
+            let from = date(day)
+            let value = then + (next.value - then) * edge.timeIntervalSince(from) / next.date.timeIntervalSince(from)
+            return HeartPoint(date: edge, value: value, reading: reading, run: -1)
+        }
         let ends = ([anchor].compactMap(\.self) + points)
         let bridges = zip(ends, ends.dropFirst()).enumerated().flatMap { index, pair -> [HeartPoint] in
             guard pair.0.run != pair.1.run else { return [] }
@@ -243,7 +249,7 @@ private struct ProgressCard: View {
             .font(.subheadline)
             .foregroundStyle(.secondary)
             ProgressPlot(drank: drank, behind: behind, ahead: ahead, heart: hearts, heartScale: HeartScale(hearts, top: top), dots: heart == .nightly,
-                         domain: start.date(in: calendar)...(today + 15).date(in: calendar), now: now, top: top, days: days, initialX: (today - (days - 4)).date(in: calendar))
+                         now: now, top: top, days: days, initialX: (today - (days - 4)).date(in: calendar))
             // Simultaneous, or the chart's own scrolling swallows it and nothing zooms.
             .simultaneousGesture(
                 MagnifyGesture(minimumScaleDelta: 0.05)
@@ -316,8 +322,6 @@ private struct ProgressPlot: View, Equatable {
     let heart: [HeartPoint]
     let heartScale: HeartScale?
     let dots: Bool
-    /// Pinned, or a line's anchor from months back would stretch the scroll all the way to it.
-    let domain: ClosedRange<Date>
     let now: Date
     let top: Double
     let days: Int
@@ -368,7 +372,6 @@ private struct ProgressPlot: View, Equatable {
         .chartXAxis {
             AxisMarks(values: .stride(by: .day, count: max(1, days / 5))) { AxisGridLine(); AxisValueLabel(format: .dateTime.day().month(.abbreviated)) }
         }
-        .chartXScale(domain: domain)
         .chartScrollableAxes(.horizontal)
         .chartXVisibleDomain(length: Double(days) * 86_400)
         .chartScrollPosition(initialX: initialX)
