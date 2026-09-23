@@ -121,7 +121,7 @@ private struct HeartLegend: View {
             HStack(spacing: 16) {
                 ForEach(readings, id: \.self) { LegendKey(label: "\($0.rawValue)\(suffix)", color: $0.color) }
                 Spacer()
-                Text("\(readings.map { $0 == .hrv ? "ms" : "bpm" }.joined(separator: " · ")), left axis").font(.caption).foregroundStyle(.tertiary)
+                Text("\(readings.map { $0 == .hrv ? "ms" : "bpm" }.joined(separator: " · "))").font(.caption).foregroundStyle(.tertiary)
             }
         }
     }
@@ -202,7 +202,9 @@ private struct ProgressCard: View {
         let nightsShown = Array(start..<today)
         let hearts = switch heart {
         case .nightly:
-            HeartPoint.line(.hrv, nightsShown, at: noon) { nights[$0]?.hrv }
+            [HeartReading.hrv, .resting].flatMap { reading in
+                HeartPoint.line(reading, nightsShown, at: noon) { nights[$0]?[keyPath: reading.value] }
+            }
         case .averaged:
             [HeartReading.hrv, .resting].flatMap { reading in
                 HeartPoint.line(reading, nightsShown, at: noon) { nights.mean(reading.value, over: ($0 - 6)...$0) }
@@ -240,7 +242,7 @@ private struct ProgressCard: View {
                     LegendKey(label: "Plan", color: .dry, dashed: true)
                 }
             }
-            HeartLegend(points: hearts, suffix: heart == .nightly ? " overnight" : ", 7-night average")
+            HeartLegend(points: hearts, suffix: heart == .nightly ? "" : ", 7-night")
             if !goal.isEnabled {
                 Button("Set a goal to see your budget come down", systemImage: "target", action: onSetGoal)
                     .font(.subheadline)
@@ -253,13 +255,17 @@ private struct ProgressCard: View {
         let week = (lastNight - 7)...(lastNight - 1)
         switch heart {
         case .nightly:
-            if let hrv = nights[lastNight]?.hrv {
-                let usual = nights.mean(\.hrv, over: week)
-                let change = usual.map { hrv - $0 } ?? 0
-                let against = Text(usual == nil || abs(change) < 1 ? "" : ", \(Int(abs(change).rounded())) \(change < 0 ? "under" : "over") the week before")
-                    .foregroundStyle(change < 0 ? Color.over : Color.dry)
-                Text("HRV last night \(Int(hrv.rounded())) ms\(against)")
+            // Down is the bad direction for HRV and up is for resting rate, so each is coloured by what it means.
+            let lines = [HeartReading.hrv, .resting].compactMap { reading -> Text? in
+                guard let value = nights[lastNight]?[keyPath: reading.value] else { return nil }
+                let unit = reading == .hrv ? "ms" : "bpm"
+                let change = nights.mean(reading.value, over: week).map { value - $0 } ?? 0
+                let worse = reading == .hrv ? change < 0 : change > 0
+                let against = Text(abs(change) < 1 ? "" : ", \(Int(abs(change).rounded())) \(change < 0 ? "under" : "over") the week before")
+                    .foregroundStyle(worse ? Color.over : Color.dry)
+                return Text("\(reading == .hrv ? "HRV" : "Resting") last night \(Int(value.rounded())) \(unit)\(against)")
             }
+            ForEach(lines.indices, id: \.self) { lines[$0] }
         case .averaged:
             let hrv = nights.mean(\.hrv, over: (lastNight - 6)...lastNight)
             let resting = nights.mean(\.restingHR, over: (lastNight - 6)...lastNight)
@@ -567,7 +573,7 @@ private struct WeeksCard: View {
                 Spacer()
                 Text("scroll back").font(.caption).foregroundStyle(.tertiary)
             }
-            HeartLegend(points: hearts, suffix: ", weekly average")
+            HeartLegend(points: hearts, suffix: ", weekly")
         }
     }
 }

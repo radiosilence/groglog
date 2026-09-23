@@ -95,7 +95,7 @@ import os
     }
 
     /// HRV and resting heart rate, filed under the nights they followed. Health labels every HRV as SDNN, whatever the
-    /// device measured — Garmin's is RMSSD — so the numbers compare with themselves, not with another brand's.
+    /// device measured, so the numbers compare with themselves, not with another brand's.
     func nights(_ days: ClosedRange<DayKey>, clock: DayClock) async -> Nights {
         guard Self.isAvailable else { return Nights(clock: clock) }
         let range = HKQuery.predicateForSamples(withStart: clock.start(of: days.lowerBound), end: clock.end(of: days.upperBound + 1))
