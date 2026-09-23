@@ -15,7 +15,8 @@ struct ReportsScreen: View {
         let clock = ledger.clock
         let today = ledger.today
         let thisWeek = clock.weekStart(of: today)
-        let firstWeek = min(clock.weekStart(of: ledger.firstDay ?? today), thisWeek - 7 * (weeks - 1))
+        // Back to the first heart reading as well, so the line carries on from before the log began.
+        let firstWeek = min(clock.weekStart(of: [ledger.firstDay, nights.first].compactMap(\.self).min() ?? today), thisWeek - 7 * (weeks - 1))
         let stats = stride(from: firstWeek.number, through: thisWeek.number, by: 7).map { ledger.week(starting: DayKey(number: $0), goal: prefs.goal) }
         let shown = stats.suffix(weeks)
         let days = max(shown[shown.startIndex].start, ledger.firstDay ?? today)...today
@@ -40,12 +41,12 @@ struct ReportsScreen: View {
         }
         .sheet(isPresented: $settingGoal) { GoalSheet(goal: prefs.goal) }
         // Again on coming back: the watch syncs last night some time after the app was last open.
-        .task(id: [firstWeek.number, today.number, prefs.readsHeart ? 1 : 0, demoMode ? 1 : 0, scenePhase == .active ? 1 : 0]) {
+        .task(id: [today.number, prefs.readsHeart ? 1 : 0, demoMode ? 1 : 0, scenePhase == .active ? 1 : 0]) {
             guard scenePhase == .active else { return }
             #if DEBUG
             if demoMode { nights = Seed.nights(ledger); return }
             #endif
-            nights = prefs.readsHeart ? await Health.shared.nights(firstWeek...today, clock: clock) : Nights(byDay: [:])
+            nights = prefs.readsHeart ? await Health.shared.nights(clock: clock) : Nights(byDay: [:])
         }
     }
 }
@@ -66,26 +67,33 @@ private struct HeartPoint: Equatable, Identifiable {
     let date: Date
     let value: Double
     let reading: HeartReading
-    /// A run of consecutive readings; a missing night starts a new one, so the line breaks rather than bridging it.
+    /// A run of consecutive readings; a missing night starts a new one.
     let run: Int
-    var id: String { "\(reading.rawValue)\(date.timeIntervalSinceReferenceDate)" }
-    var series: String { "\(reading.rawValue)\(run)" }
-
     /// Alone in its run, so there's no line to draw it with.
     var alone = false
+    /// One end of a dashed line across nights with no reading. It joins what was measured either side of the gap and
+    /// claims nothing about what's in it.
+    var bridge = false
+    var id: String { "\(series)@\(date.timeIntervalSinceReferenceDate)" }
+    var series: String { "\(reading.rawValue)\(bridge ? "~" : "")\(run)" }
 
-    static func line(_ reading: HeartReading, _ days: [DayKey], at date: (DayKey) -> Date, value: (DayKey) -> Double?) -> [HeartPoint] {
+    /// `before` is the last reading ahead of the first day, however old, so a line that went quiet before the chart
+    /// begins still comes in from the left rather than starting cold.
+    static func line(_ reading: HeartReading, _ days: [DayKey], before: DayKey? = nil, at date: (DayKey) -> Date, value: (DayKey) -> Double?) -> [HeartPoint] {
         var run = 0
-        let points = days.compactMap { day -> HeartPoint? in
+        var points = days.compactMap { day -> HeartPoint? in
             guard let value = value(day) else { run += 1; return nil }
             return HeartPoint(date: date(day), value: value, reading: reading, run: run)
         }
         let sizes = Dictionary(grouping: points, by: \.run).mapValues(\.count)
-        return points.map { point in
-            var point = point
-            point.alone = sizes[point.run] == 1
-            return point
+        for i in points.indices { points[i].alone = sizes[points[i].run] == 1 }
+        let anchor = before.flatMap { day in value(day).map { HeartPoint(date: date(day), value: $0, reading: reading, run: -1) } }
+        let ends = ([anchor].compactMap(\.self) + points)
+        let bridges = zip(ends, ends.dropFirst()).enumerated().flatMap { index, pair -> [HeartPoint] in
+            guard pair.0.run != pair.1.run else { return [] }
+            return [pair.0, pair.1].map { HeartPoint(date: $0.date, value: $0.value, reading: reading, run: index, bridge: true) }
         }
+        return points + bridges
     }
 }
 
@@ -166,7 +174,7 @@ private struct ProgressCard: View {
         let calendar = ledger.clock.calendar
         let today = ledger.today
         // Everything back to `history` days is drawn; the chart shows a window of it and scrolls through the rest.
-        let start = max(ledger.firstDay ?? today - 27, today - history)
+        let start = max([ledger.firstDay, nights.first].compactMap(\.self).min() ?? today - 27, today - history)
         // Never show more days than there are; a window wider than the data leaves it stranded at the left.
         let days = min(Int((window / pinch).rounded()), start.distance(to: today + 15))
         let past = start...today
@@ -212,11 +220,12 @@ private struct ProgressCard: View {
         let hearts = switch heart {
         case .nightly:
             [HeartReading.hrv, .resting].flatMap { reading in
-                HeartPoint.line(reading, nightsShown, at: noon) { nights[$0]?[keyPath: reading.value] }
+                HeartPoint.line(reading, nightsShown, before: nights.last(reading.value, before: start), at: noon) { nights[$0]?[keyPath: reading.value] }
             }
         case .averaged:
+            // The anchor is averaged the same way; a lone old reading with no week around it isn't one.
             [HeartReading.hrv, .resting].flatMap { reading in
-                HeartPoint.line(reading, nightsShown, at: noon) { nights.mean(reading.value, over: ($0 - 6)...$0) }
+                HeartPoint.line(reading, nightsShown, before: nights.last(reading.value, before: start), at: noon) { nights.mean(reading.value, over: ($0 - 6)...$0) }
             }
         }
 
@@ -234,7 +243,7 @@ private struct ProgressCard: View {
             .font(.subheadline)
             .foregroundStyle(.secondary)
             ProgressPlot(drank: drank, behind: behind, ahead: ahead, heart: hearts, heartScale: HeartScale(hearts, top: top), dots: heart == .nightly,
-                         now: now, top: top, days: days, initialX: (today - (days - 4)).date(in: calendar))
+                         domain: start.date(in: calendar)...(today + 15).date(in: calendar), now: now, top: top, days: days, initialX: (today - (days - 4)).date(in: calendar))
             // Simultaneous, or the chart's own scrolling swallows it and nothing zooms.
             .simultaneousGesture(
                 MagnifyGesture(minimumScaleDelta: 0.05)
@@ -307,6 +316,8 @@ private struct ProgressPlot: View, Equatable {
     let heart: [HeartPoint]
     let heartScale: HeartScale?
     let dots: Bool
+    /// Pinned, or a line's anchor from months back would stretch the scroll all the way to it.
+    let domain: ClosedRange<Date>
     let now: Date
     let top: Double
     let days: Int
@@ -335,9 +346,9 @@ private struct ProgressPlot: View, Equatable {
             if let heartScale {
                 ForEach(heart) { point in
                     LineMark(x: .value("Day", point.date), y: .value("Units", heartScale.y(point.value)), series: .value("Line", point.series))
-                        .foregroundStyle(point.reading.color)
-                        .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                    if dots || point.alone {
+                        .foregroundStyle(point.reading.color.opacity(point.bridge ? 0.6 : 1))
+                        .lineStyle(StrokeStyle(lineWidth: point.bridge ? 1.5 : 2, lineCap: .round, lineJoin: .round, dash: point.bridge ? [3, 4] : []))
+                    if !point.bridge, dots || point.alone {
                         PointMark(x: .value("Day", point.date), y: .value("Units", heartScale.y(point.value)))
                             .foregroundStyle(point.reading.color)
                             .symbolSize(24)
@@ -357,6 +368,7 @@ private struct ProgressPlot: View, Equatable {
         .chartXAxis {
             AxisMarks(values: .stride(by: .day, count: max(1, days / 5))) { AxisGridLine(); AxisValueLabel(format: .dateTime.day().month(.abbreviated)) }
         }
+        .chartXScale(domain: domain)
         .chartScrollableAxes(.horizontal)
         .chartXVisibleDomain(length: Double(days) * 86_400)
         .chartScrollPosition(initialX: initialX)
@@ -584,7 +596,7 @@ private struct WeeksCard: View {
                 Spacer()
                 Text("scroll back").font(.caption).foregroundStyle(.tertiary)
             }
-            HeartLegend(points: hearts, suffix: ", weekly")
+            HeartLegend(points: hearts, suffix: "")
         }
     }
 }
@@ -625,9 +637,9 @@ private struct WeeksPlot: View, Equatable {
             if let heartScale {
                 ForEach(heart) { point in
                     LineMark(x: .value("Week", point.date, unit: .weekOfYear), y: .value("Units", heartScale.y(point.value)), series: .value("Line", point.series))
-                        .foregroundStyle(point.reading.color)
-                        .lineStyle(StrokeStyle(lineWidth: point.reading == .resting ? 2.5 : 1.5, lineCap: .round, lineJoin: .round))
-                    if point.alone {
+                        .foregroundStyle(point.reading.color.opacity(point.bridge ? 0.6 : 1))
+                        .lineStyle(StrokeStyle(lineWidth: (point.reading == .resting ? 2.5 : 1.5) * (point.bridge ? 0.6 : 1), lineCap: .round, lineJoin: .round, dash: point.bridge ? [3, 4] : []))
+                    if !point.bridge, point.alone {
                         PointMark(x: .value("Week", point.date, unit: .weekOfYear), y: .value("Units", heartScale.y(point.value)))
                             .foregroundStyle(point.reading.color)
                             .symbolSize(30)

@@ -96,9 +96,10 @@ import os
 
     /// HRV and resting heart rate, filed under the nights they followed. Health labels every HRV as SDNN, whatever the
     /// device measured, so the numbers compare with themselves, not with another brand's.
-    func nights(_ days: ClosedRange<DayKey>, clock: DayClock) async -> Nights {
+    /// However far back Health goes: what came before the log is the baseline worth comparing with.
+    func nights(clock: DayClock) async -> Nights {
         guard Self.isAvailable else { return Nights(clock: clock) }
-        let range = HKQuery.predicateForSamples(withStart: clock.start(of: days.lowerBound), end: clock.end(of: days.upperBound + 1))
+        let range = HKQuery.predicateForSamples(withStart: nil, end: .now)
         let read = { (type: HKQuantityType, unit: HKUnit) async -> [(Date, Double)] in
             let query = HKSampleQueryDescriptor(predicates: [.quantitySample(type: type, predicate: range)], sortDescriptors: [])
             do {

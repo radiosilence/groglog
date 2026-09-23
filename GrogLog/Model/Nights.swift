@@ -14,6 +14,13 @@ nonisolated struct Nights: Equatable {
 
     var isEmpty: Bool { byDay.isEmpty }
 
+    var first: DayKey? { byDay.keys.min() }
+
+    /// The latest night before this one with a reading, however long ago.
+    func last(_ reading: KeyPath<Night, Double?>, before day: DayKey) -> DayKey? {
+        byDay.filter { $0.key < day && $0.value[keyPath: reading] != nil }.keys.max()
+    }
+
     /// Files readings under the night they followed. HRV is only taken overnight — a daytime spot reading after a walk
     /// says nothing about the night — and a night with several is their mean.
     init(hrv: [(Date, Double)] = [], restingHR: [(Date, Double)] = [], clock: DayClock) {

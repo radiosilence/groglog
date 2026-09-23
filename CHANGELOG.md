@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Heart readings go back as far as Health has them, not just to when the log started, so there's a before to compare with. Weeks and nights with no reading are crossed by a faint dashed line rather than left to restart the line cold — it joins what was measured and isn't a measurement itself. Where the last reading is older than the chart, the dash comes in from off the left.
+
 - The Day chart has the day before yesterday on it too, faintly, named by its weekday. One day against the one before is a coin toss; three in a row is a pattern.
 - Units are on the left of every chart, so a chart carrying heart readings has somewhere else to put them: bpm and ms down the right. A week or a run of nights with a single reading shows as a dot, since there's no line to draw through one point.
 
