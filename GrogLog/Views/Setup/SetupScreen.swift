@@ -27,7 +27,7 @@ struct SetupScreen: View {
             } footer: {
                 // The guidance the pace limits come from assumes a clinician judged the person suitable
                 // and reviews them as they go. This does neither, and shouldn't be read as if it did.
-                Text("Set how fast to cut down and get a daily and weekly budget.\n\nThis isn't medical advice. It's for sticking to the plan your GP or alcohol service gave you. If you're dependent, don't stop suddenly without their help.")
+                Text("Choose a rate of reduction to set a daily and weekly budget.\n\nGrogLog does not provide medical advice. It is intended to help you follow a plan agreed with your GP or alcohol service. If you are dependent on alcohol, do not stop suddenly without medical support.")
             }
 
             Section {
