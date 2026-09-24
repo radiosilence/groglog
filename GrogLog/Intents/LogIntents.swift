@@ -33,14 +33,14 @@ nonisolated struct ServeEntity: AppEntity {
 
 nonisolated struct ServeQuery: EntityQuery {
     func entities(for identifiers: [String]) async throws -> [ServeEntity] {
-        let logbook = await Store.logbook
+        let logbook = try await Store.logbook()
         return try await logbook.writer.read { db in
             try identifiers.compactMap { try Serve.matching($0, db) }.map(ServeEntity.init)
         }
     }
 
     func suggestedEntities() async throws -> [ServeEntity] {
-        let logbook = await Store.logbook
+        let logbook = try await Store.logbook()
         return try await logbook.writer.read { try Serve.grid($0).map(ServeEntity.init) }
     }
 }
@@ -59,7 +59,7 @@ struct LogDrinkIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        let logbook = await Store.logbook
+        let logbook = try await Store.logbook()
         guard let pour = try await logbook.writer.read({ try Serve.matching(serve.id, $0) }) else { throw DrinkGone() }
         logbook.log(pour, at: [.now])
 
@@ -70,10 +70,7 @@ struct LogDrinkIntent: AppIntent {
         guard let budget = ledger.dailyBudget(on: day, goal: goal) else {
             return .result(dialog: "\(units.unitsText) units today.")
         }
-        let left = budget - units
-        return .result(dialog: left >= 0
-            ? "\(units.unitsText) units today, \(left.unitsText) of \(budget.unitsText) left."
-            : "\(units.unitsText) units today, \((-left).unitsText) over \(budget.unitsText).")
+        return .result(dialog: "\(units.unitsText) units today, \(units.leftText(of: budget)).")
     }
 }
 
@@ -82,7 +79,7 @@ nonisolated struct MarkDayAlcoholFreeIntent: AppIntent {
     static let description = IntentDescription("Marks today as a day without a drink. A day left unmarked isn't a dry one — it's one that wasn't logged.")
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        let logbook = await Store.logbook
+        let logbook = try await Store.logbook()
         let day = logbook.clock.today
         // Logging a drink clears the mark, so setting it on a day that already has drinks would only lie until the next retotal.
         let count = try await logbook.writer.read { try Day.fetchOne($0, key: day.number)?.count ?? 0 }

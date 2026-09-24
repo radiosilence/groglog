@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Average week on Reports, and the four-week figure the goal screen offers as a starting point, leave out days nobody logged instead of counting them as dry. A week with two nights missing had read as a light week.
+- An import that marks a day alcohol-free keeps any spend already set by hand for that day. It used to replace the whole day and lose it.
+- Widgets and Shortcuts read the goal and the day's end hour when they run, not when their process started. A widget's process can outlive a change made in the app, and it went on drawing the old budget.
+- A log that cannot be opened shows the reason instead of crashing on launch, and an intent fails with that error instead of taking the widget down with it.
+- The budget line reads the same on both widgets and in Shortcuts ("2.5 of 4.5 left", "1.3 over 4.5"). The three copies of it had drifted apart.
+- Catalogue prices are looked up by name and kind directly, not by scanning every brand for each size of each search result.
+
 - A Sleep card on Reports shows each night by stage (deep, core, REM, awake) with the units drunk the evening before, and compares last night's time asleep and REM share with the week before. Alcohol suppresses REM most of all, so the share is the figure to watch. It has its own switch in Setup, separate from heart readings.
 - Resting heart rate is labelled RHR.
 

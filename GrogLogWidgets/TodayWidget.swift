@@ -36,6 +36,12 @@ struct TodayEntry: TimelineEntry {
     /// Tiles to log from, in the Log grid's order.
     var tiles: [ServeEntity] = []
 
+    /// The line under the total on both widgets: what's left of the day, or that it was dry.
+    var detail: String {
+        if isDry { return "Alcohol-free" }
+        return budget.map { units.leftText(of: $0) } ?? "today"
+    }
+
     /// The budget draining through the day. Once it's gone the line sits at zero rather than going negative,
     /// because "how far under" stops being the question.
     var burndown: [CurvePoint] {
@@ -56,13 +62,13 @@ struct TodayProvider: TimelineProvider {
     /// One entry, good until the day ends — the app reloads the timeline itself whenever anything is logged.
     func getTimeline(in context: Context, completion: @escaping (Timeline<TodayEntry>) -> Void) {
         Task {
-            let clock = Store.logbook.clock
+            let clock = Prefs().clock
             completion(Timeline(entries: [await today()], policy: .after(clock.end(of: clock.today))))
         }
     }
 
     private func today() async -> TodayEntry {
-        let logbook = Store.logbook
+        guard let logbook = try? Store.logbook() else { return TodayEntry() }
         let goal = Store.goal
         let day = logbook.clock.today
         let read = try? await logbook.writer.read { db in
@@ -109,7 +115,7 @@ struct TodayView: View {
         default:
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(entry.units.unitsText) u").font(.title2.bold())
-                Text(detail).font(.caption).foregroundStyle(.secondary)
+                Text(entry.detail).font(.caption).foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -119,14 +125,6 @@ struct TodayView: View {
         if entry.isDry { return "Dry today" }
         guard let budget = entry.budget else { return "\(entry.units.unitsText) u today" }
         return "\(entry.units.unitsText) of \(budget.unitsText) u"
-    }
-
-    /// Over the budget reads as how far over, rather than as a negative amount left.
-    private var detail: String {
-        if entry.isDry { return "Alcohol-free" }
-        guard let budget = entry.budget else { return "today" }
-        let left = budget - entry.units
-        return left >= 0 ? "\(left.unitsText) of \(budget.unitsText) left" : "\((-left).unitsText) over \(budget.unitsText)"
     }
 }
 
@@ -160,7 +158,7 @@ struct LogView: View {
     private var summary: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("\(entry.units.unitsText) u").font(.title2.bold())
-            Text(detail)
+            Text(entry.detail)
                 .font(.caption2)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
@@ -179,13 +177,6 @@ struct LogView: View {
                 }
             }
         }
-    }
-
-    private var detail: String {
-        if entry.isDry { return "Alcohol-free" }
-        guard let budget = entry.budget else { return "today" }
-        let left = budget - entry.units
-        return left >= 0 ? "\(left.unitsText) left of \(budget.unitsText)" : "\((-left).unitsText) over \(budget.unitsText)"
     }
 }
 

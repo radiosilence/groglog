@@ -26,6 +26,13 @@ nonisolated extension Double {
     func money(_ currency: String) -> String { formatted(.currency(code: currency)) }
     var volumeText: String { "\(Int(self)) ml" }
     var abvText: String { "\(formatted(.number.precision(.fractionLength(0...1))))%" }
+
+    /// What's left of a budget with this much used, or how far past it: "2.5 of 4.5 left", "1.3 over 4.5".
+    /// Over reads as how far over, never as a negative amount left.
+    func leftText(of budget: Double) -> String {
+        let left = budget - self
+        return left >= 0 ? "\(left.unitsText) of \(budget.unitsText) left" : "\((-left).unitsText) over \(budget.unitsText)"
+    }
 }
 
 struct Card<Content: View>: View {

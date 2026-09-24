@@ -873,8 +873,8 @@ private struct SummaryTiles: View {
         let totals = stats.reduce(DayTotals()) { $0 + $1.totals }
         let dry = stats.reduce(0) { $0 + $1.dryDays }
         let unlogged = stats.reduce(0) { $0 + $1.unloggedDays }
-        let fullWeeks = stats.dropLast().filter { $0.unloggedDays < 7 }
-        let average = fullWeeks.isEmpty ? nil : fullWeeks.reduce(0) { $0 + $1.totals.units } / Double(fullWeeks.count)
+        // Complete weeks only: this one is still being drunk.
+        let average = stats.count > 1 ? ledger.weeklyAverage(over: stats[0].start...(stats[stats.count - 1].start - 1)) : nil
 
         LazyVGrid(columns: [GridItem(spacing: 12), GridItem(spacing: 12)], spacing: 12) {
             Tile(title: "Average week", value: average.map { "\($0.unitsText) u" } ?? "—")

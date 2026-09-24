@@ -220,7 +220,9 @@ nonisolated enum Exporter {
             for record in backup.days {
                 guard let day = DayKey(record.date), !daysWithPours.contains(day.number) else { continue }
                 if record.status == "alcohol_free" {
-                    try Day(number: day.number, isAlcoholFree: true).save(db)
+                    var row = try Day.fetchOne(db, key: day.number) ?? Day(number: day.number)
+                    row.isAlcoholFree = true
+                    try row.save(db)
                 }
                 if let spent = record.spentByHand {
                     var row = try Day.fetchOne(db, key: day.number) ?? Day(number: day.number)

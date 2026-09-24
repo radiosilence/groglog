@@ -140,6 +140,17 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(try ledger(logbook).status(on: day) != .drank)
     }
 
+    /// A week with nights missing is a week of unknowns, not a light one.
+    @Test func theWeeklyAverageLeavesOutDaysNobodyLogged() throws {
+        let (logbook, drink) = try logbook()
+        let monday = DayKey(year: 2026, month: 9, day: 14)
+        logbook.log(Serve(drink), at: [date(2026, 9, 14, 20), date(2026, 9, 15, 20)])
+        logbook.setAlcoholFree(true, on: monday + 2)
+        let average = try #require(try ledger(logbook).weeklyAverage(over: monday...(monday + 6)))
+        #expect(abs(average - Units.of(ml: 568, abv: 5) * 2 / 3 * 7) < 0.0001, "two pints over three logged days, at seven days a week")
+        #expect(try ledger(logbook).weeklyAverage(over: (monday - 7)...(monday - 1)) == nil)
+    }
+
     @Test func handSetSpendStandsUntilCleared() throws {
         let (logbook, drink) = try logbook()
         let day = DayKey(year: 2026, month: 9, day: 19)
@@ -661,6 +672,17 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(restored.0 == drinks && restored.1 == favourites && restored.2 == 1)
     }
 
+    @Test func importingADryDayKeepsASpendSetByHand() throws {
+        let prefs = prefs()
+        let database = try AppDatabase.inMemory()
+        let day = DayKey(year: 2026, month: 9, day: 11)
+        Logbook(writer: database.writer, clock: prefs.clock).setSpend(12, on: day)
+        let json = #"{"days": [{"date": "2026-09-11", "status": "alcohol_free"}]}"#
+        try Exporter.restore(Data(json.utf8), writer: database.writer, prefs: prefs)
+        let row = try #require(try database.reader.read { try Day.fetchOne($0, key: day.number) })
+        #expect(row.isAlcoholFree && row.costOverride == 12)
+    }
+
     @Test func importsDailyTotalsFromAnotherApp() throws {
         let prefs = prefs()
         let database = try AppDatabase.inMemory()
@@ -742,5 +764,13 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         // "USING COVERING INDEX" counts — it's the better plan, not a different one.
         #expect(plans.allSatisfy { $0.contains("SEARCH pour USING") }, "\(plans)")
         #expect(!plans.contains { $0.contains("SCAN pour") }, "\(plans)")
+    }
+}
+
+@Suite struct BudgetTextTests {
+    @Test func overReadsAsHowFarOverNotANegativeLeft() {
+        #expect(2.0.leftText(of: 4.5) == "2.5 of 4.5 left")
+        #expect(5.8.leftText(of: 4.5) == "1.3 over 4.5")
+        #expect(4.5.leftText(of: 4.5) == "0.0 of 4.5 left")
     }
 }

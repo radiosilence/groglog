@@ -7,20 +7,24 @@ struct Store {
     let database: AppDatabase
     let prefs: Prefs
 
-    /// One handle to the real log per process — shared with the app's own when it happens to be running.
-    static let real = live()
+    /// One handle to the real log per process, shared with the app's own when it happens to be running. A log that
+    /// won't open is kept as the error, so the app can say what went wrong and an intent can fail with it.
+    static let real = Result { try live() }
 
-    static var logbook: Logbook { real.logbook }
-
-    static var goal: Goal { real.prefs.goal }
-
-    var logbook: Logbook { Logbook(writer: database.writer, clock: prefs.clock, mirrorsToHealth: prefs.mirrorsToHealth) }
-
-    private static func live() -> Store {
+    /// Settings are read afresh on every call rather than taken from `real`: a widget's process can outlive a change
+    /// the app makes to them, and would otherwise draw yesterday's goal.
+    static func logbook() throws -> Logbook {
         let prefs = Prefs()
-        let database = try! AppDatabase.onDisk()
+        return Logbook(writer: try real.get().database.writer, clock: prefs.clock, mirrorsToHealth: prefs.mirrorsToHealth)
+    }
+
+    static var goal: Goal { Prefs().goal }
+
+    private static func live() throws -> Store {
+        let prefs = Prefs()
+        let database = try AppDatabase.onDisk()
         let logbook = Logbook(writer: database.writer, clock: prefs.clock)
-        try! Seed.drinksIfNeeded(logbook)
+        try Seed.drinksIfNeeded(logbook)
         #if DEBUG
         // `-importBackup <path>` merges a backup file on launch, for moving data between builds.
         if let path = UserDefaults.standard.string(forKey: "importBackup"), let data = FileManager.default.contents(atPath: path) {

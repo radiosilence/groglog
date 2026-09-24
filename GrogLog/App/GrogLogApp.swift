@@ -10,17 +10,27 @@ struct GrogLogApp: App {
 
     var body: some Scene {
         WindowGroup {
-            let store = demoMode ? demo ?? real : real
-            RootView()
-                .id(store.id)
-                .environment(store.prefs)
-                .databaseContext(.readWrite { store.database.writer })
-                .tint(.grog)
-                .onChange(of: demoMode, initial: true) {
-                    #if DEBUG
-                    if demoMode, demo == nil { demo = .demo() }
-                    #endif
+            Group {
+                switch demoMode ? demo.map { .success($0) } ?? real : real {
+                case .success(let store):
+                    RootView()
+                        .id(store.id)
+                        .environment(store.prefs)
+                        .databaseContext(.readWrite { store.database.writer })
+                case .failure(let error):
+                    ContentUnavailableView(
+                        "The log could not be opened",
+                        systemImage: "exclamationmark.triangle",
+                        description: Text("Nothing has been changed. Close GrogLog fully and open it again. If this keeps happening, the reason is: \(error.localizedDescription)")
+                    )
                 }
+            }
+            .tint(.grog)
+            .onChange(of: demoMode, initial: true) {
+                #if DEBUG
+                if demoMode, demo == nil { demo = .demo() }
+                #endif
+            }
         }
     }
 }

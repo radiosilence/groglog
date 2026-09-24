@@ -978,6 +978,9 @@ nonisolated enum Catalog {
         brand.serves.map { CatalogItem(name: brand.name, category: brand.category, vessel: $0.size.vessel, volumeMl: $0.size.ml, abv: brand.abv, price: $0.price) }
     }
 
+    /// Brands by `key`, for the price and identity lookups that run once per drink per size on every keystroke.
+    private static let byKey: [String: CatalogBrand] = Dictionary(brands.map { (key($0.name, $0.category), $0) }, uniquingKeysWith: { first, _ in first })
+
     static let brandsByCategory: [DrinkCategory: [CatalogBrand]] = Dictionary(grouping: brands, by: \.category)
 
     /// What a brand is searched by, folded once — searching is per keystroke over a couple of thousand
@@ -990,13 +993,13 @@ nonisolated enum Catalog {
     /// Whether a drink is still exactly as the catalogue has it — copied in when it was logged and never touched.
     /// Change its name, kind or strength and it stops matching, which is the point: it's yours from then on.
     static func holds(name: String, category: DrinkCategory, abv: Double) -> Bool {
-        brands.contains { $0.name == name && $0.category == category && $0.abv == abv }
+        byKey[key(name, category)]?.abv == abv
     }
 
     /// What a drink of this name in this size normally costs: a brand's own price, else a generic's starting one.
     /// Nil where nothing is known, so a caller can tell "we don't price this" from "this is free".
     static func price(name: String, category: DrinkCategory, vessel: Vessel, ml: Double) -> Double? {
-        if let brand = brands.first(where: { $0.name == name && $0.category == category }) {
+        if let brand = byKey[key(name, category)] {
             let found = price(brand, vessel, ml)
             return found > 0 ? found : nil
         }

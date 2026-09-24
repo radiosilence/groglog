@@ -106,4 +106,10 @@ import Testing
     @Test func aGenericIsNotACatalogueBrand() {
         #expect(!Catalog.holds(name: "Beer", category: .beer, abv: DrinkCategory.beer.defaultABV))
     }
+
+    /// Lookups go by name and kind, so two brands sharing both would leave one of them unreachable.
+    @Test func noTwoBrandsShareANameAndKind() {
+        let keys = Catalog.brands.map { Catalog.key($0.name, $0.category) }
+        #expect(Set(keys).count == keys.count, "\(Dictionary(grouping: keys, by: \.self).filter { $1.count > 1 }.keys.sorted())")
+    }
 }

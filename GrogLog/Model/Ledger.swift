@@ -155,12 +155,18 @@ nonisolated struct Ledger: Equatable {
         )
     }
 
-    /// Mean weekly units over the last `weeks` complete weeks — the natural starting point for a reduction plan.
+    /// Units a week at the rate drunk on the logged days in `range`. Unlogged days are left out rather than counted
+    /// as dry, so a week with two nights missing isn't read as a light one. Nil when nothing in it was logged.
+    func weeklyAverage(over range: ClosedRange<DayKey>) -> Double? {
+        let logged = range.filter(isLogged)
+        guard !logged.isEmpty else { return nil }
+        return logged.reduce(0) { $0 + totals(on: $1).units } / Double(logged.count) * 7
+    }
+
+    /// The same over the last `weeks` complete weeks: the natural starting point for a reduction plan.
     func recentWeeklyAverage(weeks: Int = 4) -> Double? {
         let thisWeek = clock.weekStart(of: today)
-        let starts = (1...weeks).map { thisWeek - 7 * $0 }.filter { start in firstDay.map { start + 7 > $0 } ?? false }
-        guard !starts.isEmpty else { return nil }
-        return starts.map { week(starting: $0, goal: Goal()).totals.units }.reduce(0, +) / Double(starts.count)
+        return weeklyAverage(over: (thisWeek - 7 * weeks)...(thisWeek - 1))
     }
 
     // MARK: Budget
