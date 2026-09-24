@@ -74,3 +74,42 @@ import Testing
         #expect(nights.mean(\.hrv, over: (friday - 6)...friday, atLeast: 2) == 45)
     }
 }
+
+@Suite struct SleepingHeartRateTests {
+    private let calendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/London")!
+        return calendar
+    }()
+    private var clock: DayClock { DayClock(rolloverHour: 5, calendar: calendar) }
+    private let tuesday = DayKey(year: 2026, month: 9, day: 22)
+
+    private func at(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: 9, day: day, hour: hour, minute: minute))!
+    }
+
+    @Test func aLateBedtimeStillBelongsToTheEveningBefore() {
+        let asleep = [DateInterval(start: at(23, 4, 36), end: at(23, 9, 38))]
+        let nights = Nights(asleep: asleep, heartRate: [(at(23, 6), 60), (at(23, 7), 70)], clock: clock)
+        #expect(nights[tuesday]?.sleepingHR == 65)
+    }
+
+    @Test func awakeInTheNightAndBeforeSleepAreLeftOut() {
+        let asleep = [
+            DateInterval(start: at(23, 1), end: at(23, 3)),
+            DateInterval(start: at(23, 3, 30), end: at(23, 7)),
+        ]
+        let beats = [(at(23, 0, 30), 90.0), (at(23, 2), 60), (at(23, 3, 15), 95), (at(23, 5), 64), (at(23, 8), 88)]
+        #expect(Nights(asleep: asleep, heartRate: beats, clock: clock)[tuesday]?.sleepingHR == 62)
+    }
+
+    @Test func oneSpanPerNightToFetchWithin() {
+        let asleep = [
+            DateInterval(start: at(22, 0, 27), end: at(22, 1, 41)),
+            DateInterval(start: at(22, 1, 49), end: at(22, 9, 22)),
+            DateInterval(start: at(23, 4, 36), end: at(23, 9, 38)),
+        ]
+        let spans = Health.nightSpans(asleep, clock: clock).sorted { $0.start < $1.start }
+        #expect(spans == [DateInterval(start: at(22, 0, 27), end: at(22, 9, 22)), DateInterval(start: at(23, 4, 36), end: at(23, 9, 38))])
+    }
+}

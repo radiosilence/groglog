@@ -56,11 +56,37 @@ private enum HeartLines {
     case nightly, averaged
 }
 
-private enum HeartReading: String {
-    case hrv = "HRV", resting = "Resting HR"
+private enum HeartReading: String, CaseIterable {
+    case hrv = "HRV", resting = "Resting HR", sleeping = "Asleep HR"
 
-    var color: Color { self == .hrv ? .hrv : .pulse }
-    var value: KeyPath<Night, Double?> { self == .hrv ? \.hrv : \.restingHR }
+    var color: Color {
+        switch self {
+        case .hrv: .hrv
+        case .resting: .pulse
+        case .sleeping: .sleeping
+        }
+    }
+
+    var value: KeyPath<Night, Double?> {
+        switch self {
+        case .hrv: \.hrv
+        case .resting: \.restingHR
+        case .sleeping: \.sleepingHR
+        }
+    }
+
+    var unit: String { self == .hrv ? "ms" : "bpm" }
+
+    var short: String {
+        switch self {
+        case .hrv: "HRV"
+        case .resting: "Resting"
+        case .sleeping: "Asleep"
+        }
+    }
+
+    /// HRV falls after a heavy night; heart rate rises.
+    func isWorse(_ change: Double) -> Bool { self == .hrv ? change < 0 : change > 0 }
 }
 
 private struct HeartPoint: Equatable, Identifiable {
@@ -139,12 +165,12 @@ private struct HeartLegend: View {
     let suffix: String
 
     var body: some View {
-        let readings = [HeartReading.hrv, .resting].filter { reading in points.contains { $0.reading == reading } }
+        let readings = HeartReading.allCases.filter { reading in points.contains { $0.reading == reading } }
         if !readings.isEmpty {
             HStack(spacing: 16) {
-                ForEach(readings, id: \.self) { LegendKey(label: "\($0.rawValue)\(suffix)", color: $0.color) }
+                ForEach(readings, id: \.self) { LegendKey(label: "\($0.short)\(suffix)", color: $0.color) }
                 Spacer()
-                Text("\(readings.map { $0 == .hrv ? "ms" : "bpm" }.joined(separator: " · ")), right axis").font(.caption).foregroundStyle(.tertiary)
+                Text(Set(readings.map(\.unit)).sorted(by: >).joined(separator: " · ")).font(.caption).foregroundStyle(.tertiary)
             }
         }
     }
@@ -230,7 +256,7 @@ private struct ProgressCard: View {
         let nightsShown = Array(start..<today)
         let hearts = switch heart {
         case .nightly:
-            [HeartReading.hrv, .resting].flatMap { reading in
+            HeartReading.allCases.flatMap { reading in
                 HeartPoint.line(reading, nightsShown, before: nights.last(reading.value, before: start), at: noon) { nights[$0]?[keyPath: reading.value] }
             }
         case .averaged:
@@ -285,15 +311,13 @@ private struct ProgressCard: View {
         let week = (lastNight - 7)...(lastNight - 1)
         switch heart {
         case .nightly:
-            // Down is the bad direction for HRV and up is for resting rate, so each is coloured by what it means.
-            let lines = [HeartReading.hrv, .resting].compactMap { reading -> Text? in
+            let lines = HeartReading.allCases.compactMap { reading -> Text? in
                 guard let value = nights[lastNight]?[keyPath: reading.value] else { return nil }
-                let unit = reading == .hrv ? "ms" : "bpm"
                 let change = nights.mean(reading.value, over: week).map { value - $0 } ?? 0
-                let worse = reading == .hrv ? change < 0 : change > 0
+                let worse = reading.isWorse(change)
                 let against = Text(abs(change) < 1 ? "" : ", \(Int(abs(change).rounded())) \(change < 0 ? "under" : "over") the week before")
                     .foregroundStyle(worse ? Color.over : Color.dry)
-                return Text("\(reading == .hrv ? "HRV" : "Resting") last night \(Int(value.rounded())) \(unit)\(against)")
+                return Text("\(reading.short) last night \(Int(value.rounded())) \(reading.unit)\(against)")
             }
             ForEach(lines.indices, id: \.self) { lines[$0] }
         case .averaged:

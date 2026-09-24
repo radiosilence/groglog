@@ -7,6 +7,7 @@ extension Color {
     static let over = Color(red: 0.88, green: 0.24, blue: 0.30)
     static let hrv = Color(red: 0.45, green: 0.42, blue: 0.95)
     static let pulse = Color(red: 0.93, green: 0.36, blue: 0.62)
+    static let sleeping = Color(red: 0.25, green: 0.62, blue: 0.95)
 
     /// Teal for a day inside its budget, amber just over, sliding to red the further past it goes.
     static func heat(units: Double, budget: Double?) -> Color {

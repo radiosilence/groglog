@@ -37,7 +37,7 @@ targets:
     settings:
       base:
         INFOPLIST_KEY_NSHealthUpdateUsageDescription: GrogLog copies what you log into Health, so other apps can read it.
-        INFOPLIST_KEY_NSHealthShareUsageDescription: GrogLog reads your overnight HRV and resting heart rate to chart them against what you drank the night before.
+        INFOPLIST_KEY_NSHealthShareUsageDescription: GrogLog reads your sleep, heart rate and HRV to chart them against what you drank the night before.
         PRODUCT_BUNDLE_IDENTIFIER: cc.blit.groglog
         MARKETING_VERSION: 0.1.0
         CURRENT_PROJECT_VERSION: 1

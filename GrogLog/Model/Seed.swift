@@ -126,7 +126,8 @@ nonisolated enum Seed {
             let week = ((day - 6)...day).map(units).reduce(0, +) / 7
             byDay[day] = Night(
                 hrv: 64 - units(day) * 0.45 - week * 0.35 + Double.random(in: -4...4, using: &rng),
-                restingHR: 51 + units(day) * 0.12 + week * 0.22 + Double.random(in: -1.5...1.5, using: &rng)
+                restingHR: 51 + units(day) * 0.12 + week * 0.22 + Double.random(in: -1.5...1.5, using: &rng),
+                sleepingHR: 48 + units(day) * 0.35 + week * 0.1 + Double.random(in: -1.5...1.5, using: &rng)
             )
         }
         return Nights(byDay: byDay)

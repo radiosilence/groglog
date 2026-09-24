@@ -1,10 +1,13 @@
 import Foundation
 
-/// What the body said after a drinking day: overnight HRV in ms and resting heart rate in bpm, from whatever writes
-/// them into Health. A night with no reading is missing, not zero, and stays out of every average.
+/// What the body said after a drinking day: overnight HRV in ms, and resting and sleeping heart rate in bpm, from
+/// whatever writes them into Health. A night with no reading is missing, not zero, and stays out of every average.
 nonisolated struct Night: Equatable {
     var hrv: Double?
     var restingHR: Double?
+    /// The mean of the heart rate while asleep. Nearer the night than resting rate, which a watch works out over a
+    /// whole day.
+    var sleepingHR: Double?
 }
 
 nonisolated struct Nights: Equatable {
@@ -23,13 +26,26 @@ nonisolated struct Nights: Equatable {
 
     /// Files readings under the night they followed. HRV is only taken overnight — a daytime spot reading after a walk
     /// says nothing about the night — and a night with several is their mean.
-    init(hrv: [(Date, Double)] = [], restingHR: [(Date, Double)] = [], clock: DayClock) {
+    /// Sleeping rate takes only the beats inside an asleep stage: time awake in the night is left out, and a bedtime
+    /// after midnight still belongs to the evening before.
+    init(hrv: [(Date, Double)] = [], restingHR: [(Date, Double)] = [], asleep: [DateInterval] = [], heartRate: [(Date, Double)] = [], clock: DayClock) {
         let overnight = hrv.filter { clock.isOvernight($0.0) }
         for (day, values) in Dictionary(grouping: overnight, by: { clock.night(for: $0.0) }) {
             byDay[day, default: Night()].hrv = values.map(\.1).mean
         }
         for (day, values) in Dictionary(grouping: restingHR, by: { clock.night(for: $0.0) }) {
             byDay[day, default: Night()].restingHR = values.map(\.1).mean
+        }
+        let asleep = asleep.sorted { $0.start < $1.start }
+        var sleeping: [DayKey: [Double]] = [:]
+        var i = 0
+        for (date, value) in heartRate.sorted(by: { $0.0 < $1.0 }) {
+            while i < asleep.count, asleep[i].end <= date { i += 1 }
+            guard i < asleep.count, asleep[i].contains(date) else { continue }
+            sleeping[clock.night(for: asleep[i].start), default: []].append(value)
+        }
+        for (day, values) in sleeping {
+            byDay[day, default: Night()].sleepingHR = values.mean
         }
     }
 

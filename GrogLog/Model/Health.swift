@@ -16,6 +16,8 @@ import os
     private let energy = HKQuantityType(.dietaryEnergyConsumed)
     private let hrv = HKQuantityType(.heartRateVariabilitySDNN)
     private let restingHR = HKQuantityType(.restingHeartRate)
+    private let heartRate = HKQuantityType(.heartRate)
+    private let sleep = HKCategoryType(.sleepAnalysis)
     private let log = Logger(subsystem: "cc.blit.groglog", category: "health")
     private var queue: Task<Void, Never>?
 
@@ -86,7 +88,7 @@ import os
     func allowReading() async -> Bool {
         guard Self.isAvailable else { return false }
         do {
-            try await store.requestAuthorization(toShare: [], read: [hrv, restingHR])
+            try await store.requestAuthorization(toShare: [], read: [hrv, restingHR, heartRate, sleep])
             return true
         } catch {
             log.error("Health wouldn't authorise reading: \(error)")
@@ -94,13 +96,18 @@ import os
         }
     }
 
-    /// HRV and resting heart rate, filed under the nights they followed. Health labels every HRV as SDNN, whatever the
-    /// device measured, so the numbers compare with themselves, not with another brand's.
+    /// HRV, resting and sleeping heart rate, filed under the nights they followed. Health labels every HRV as SDNN,
+    /// whatever the device measured, so the numbers compare with themselves, not with another brand's.
     /// However far back Health goes: what came before the log is the baseline worth comparing with.
     func nights(clock: DayClock) async -> Nights {
         guard Self.isAvailable else { return Nights(clock: clock) }
-        let range = HKQuery.predicateForSamples(withStart: nil, end: .now)
-        let read = { (type: HKQuantityType, unit: HKUnit) async -> [(Date, Double)] in
+        // Asks only for what hasn't been asked before, so this is silent after the first time.
+        _ = await allowReading()
+        // Within these spans, or all of it without any.
+        let read = { (type: HKQuantityType, unit: HKUnit, spans: [DateInterval]?) async -> [(Date, Double)] in
+            let range = spans.map { spans in
+                NSCompoundPredicate(orPredicateWithSubpredicates: spans.map { HKQuery.predicateForSamples(withStart: $0.start, end: $0.end) })
+            } ?? HKQuery.predicateForSamples(withStart: nil, end: .now)
             let query = HKSampleQueryDescriptor(predicates: [.quantitySample(type: type, predicate: range)], sortDescriptors: [])
             do {
                 return try await query.result(for: self.store).map {
@@ -111,7 +118,37 @@ import os
                 return []
             }
         }
-        return Nights(hrv: await read(hrv, .secondUnit(with: .milli)), restingHR: await read(restingHR, .count().unitDivided(by: .minute())), clock: clock)
+        let asleep = await asleepStages()
+        let bpm = HKUnit.count().unitDivided(by: .minute())
+        return Nights(
+            hrv: await read(hrv, .secondUnit(with: .milli), nil),
+            restingHR: await read(restingHR, bpm, nil),
+            asleep: asleep,
+            // A watch can write a heart rate every minute or two for years; only the nights are wanted, so only those
+            // are fetched.
+            heartRate: asleep.isEmpty ? [] : await read(heartRate, bpm, Self.nightSpans(asleep, clock: clock)),
+            clock: clock
+        )
+    }
+
+    private func asleepStages() async -> [DateInterval] {
+        let asleep = HKCategoryValueSleepAnalysis.allAsleepValues.map(\.rawValue)
+        let query = HKSampleQueryDescriptor(predicates: [.categorySample(type: sleep, predicate: HKQuery.predicateForSamples(withStart: nil, end: .now))], sortDescriptors: [])
+        do {
+            return try await query.result(for: store)
+                .filter { asleep.contains($0.value) }
+                .map { DateInterval(start: $0.startDate, end: $0.endDate) }
+        } catch {
+            log.error("Couldn't read sleep: \(error)")
+            return []
+        }
+    }
+
+    /// Each night's first sleep to its last, one span per night, for fetching the heart rate inside them.
+    nonisolated static func nightSpans(_ asleep: [DateInterval], clock: DayClock) -> [DateInterval] {
+        Dictionary(grouping: asleep) { clock.night(for: $0.start) }.values.map { stages in
+            DateInterval(start: stages.map(\.start).min()!, end: stages.map(\.end).max()!)
+        }
     }
 
     private func samples(for entry: Entry) -> [HKQuantitySample] {

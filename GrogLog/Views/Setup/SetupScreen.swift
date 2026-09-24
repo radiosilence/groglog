@@ -68,7 +68,7 @@ struct SetupScreen: View {
                 Section {
                     Toggle("Heart readings from Health", isOn: $prefs.readsHeart)
                 } footer: {
-                    Text("Shows your resting heart rate and HRV on Reports, alongside what you drank the night before. Requires a watch that records them in Health.")
+                    Text("Shows your heart rate during sleep, resting heart rate and HRV on Reports, alongside what you drank the night before. Requires a watch that records them in Health.")
                 }
                 .onChange(of: prefs.readsHeart) { _, on in
                     guard on else { return }
