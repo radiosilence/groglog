@@ -80,7 +80,7 @@ private enum HeartReading: String, CaseIterable {
     var short: String {
         switch self {
         case .hrv: "HRV"
-        case .resting: "Resting"
+        case .resting: "RHR"
         case .sleeping: "Asleep"
         }
     }
@@ -324,7 +324,7 @@ private struct ProgressCard: View {
             let hrv = nights.mean(\.hrv, over: (lastNight - 6)...lastNight)
             let resting = nights.mean(\.restingHR, over: (lastNight - 6)...lastNight)
             if hrv != nil || resting != nil {
-                Text([hrv.map { "HRV \(Int($0.rounded())) ms" }, resting.map { "resting \(Int($0.rounded())) bpm" }].compactMap(\.self).joined(separator: " · ") + " over the last week")
+                Text([hrv.map { "HRV \(Int($0.rounded())) ms" }, resting.map { "RHR \(Int($0.rounded())) bpm" }].compactMap(\.self).joined(separator: " · ") + " over the last week")
             }
         }
     }
