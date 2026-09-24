@@ -22,9 +22,9 @@ nonisolated enum Taper: String, Codable, Sendable, CaseIterable {
     /// What it does, in a line, because the names don't say and a taper is not a thing to guess at.
     var explanation: String {
         switch self {
-        case .dynamic: "Quickens as it falls. Starts at the fastest pace the guidance allows for what you're drinking and speeds up each time the budget passes a threshold, so the hard part is the slow part."
-        case .proportional: "The same share off every time, so it falls quickly at first and eases as it goes. Never quite reaches nothing."
-        case .linear: "The same number of units off every time. Lands on nothing on a day you can name, but takes a bigger share of what's left as it goes."
+        case .dynamic: "Begins at the fastest pace the guidance allows for your current intake, and quickens each time the budget passes a threshold. Progress is slowest at the highest levels."
+        case .proportional: "Removes the same percentage each time. It falls quickly at first and more gently as it goes, approaching zero without reaching it."
+        case .linear: "Removes the same number of units each time and reaches zero on a fixed date. Each cut becomes a larger share of what remains."
         }
     }
 }

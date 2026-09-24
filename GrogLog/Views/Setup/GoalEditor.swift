@@ -89,22 +89,22 @@ struct GoalEditor: View {
                 BurndownPreview(goal: goal, ledger: ledger)
                 ProjectionRow(ledger: ledger, goal: goal)
                 if goal.isFasterThanSafe {
-                    Label("That's more than 10% a day, which UK treatment guidance gives as the ceiling for cutting down without medication. A slower taper is safer.", systemImage: "exclamationmark.triangle.fill")
+                    Label("This is more than 10% a day, which UK treatment guidance sets as the limit for reducing without medication. A slower taper is safer.", systemImage: "exclamationmark.triangle.fill")
                         .font(.subheadline)
                         .foregroundStyle(Color.over)
                 }
                 // The same guidance names 25 units a day as a reason to halve the pace, and NICE gives
                 // two thresholds above it where the answer isn't a slower plan but somebody qualified.
                 if drinking >= Goal.inpatientWeekly {
-                    Label("Over 30 units a day. NICE points to inpatient or residential withdrawal at this level, not to cutting down alone — please talk to your GP or an alcohol service before you start.", systemImage: "cross.case.fill")
+                    Label("Over 30 units a day. At this level NICE recommends inpatient or residential withdrawal rather than reducing alone. Please speak to your GP or an alcohol service before you begin.", systemImage: "cross.case.fill")
                         .font(.subheadline)
                         .foregroundStyle(Color.over)
                 } else if drinking >= Goal.assistedWithdrawalWeekly {
-                    Label("Over 15 units a day. NICE says to consider medically assisted withdrawal at this level — worth speaking to your GP or an alcohol service about support alongside this.", systemImage: "cross.case")
+                    Label("Over 15 units a day. At this level NICE recommends considering medically assisted withdrawal. Please consider speaking to your GP or an alcohol service about support.", systemImage: "cross.case")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 } else if drinking > Goal.slowerAboveWeekly {
-                    Label("Over 25 units a day, guidance suggests cutting no faster than 10% every four days — so the quicker two aren't offered here.", systemImage: "info.circle")
+                    Label("Over 25 units a day, the guidance recommends reducing by no more than 10% every four days, so the faster options are not available.", systemImage: "info.circle")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -112,7 +112,7 @@ struct GoalEditor: View {
                 // And when that's why an option has gone, say so rather than leaving a gap.
                 let opening = goal.openingDrop(from: from)
                 if opening > 0 {
-                    Label("That's \(opening.unitsText) u/day off to start with.", systemImage: "arrow.down.right")
+                    Label("That is \(opening.unitsText) u/day less to begin with.", systemImage: "arrow.down.right")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -120,7 +120,7 @@ struct GoalEditor: View {
                 // a level, and only one worth naming while it's still above the guideline. It's the size of
                 // the cut being warned about, never the amount left, which is the guideline's business.
                 if goal.sharpensWhileItMatters(from: from) {
-                    Label("The same amount comes off whatever's left, so the cut deepens as a share: below \(goal.sharpensBelow.unitsText) u/day it's taking more than 10% of what remains each day. Proportional eases off instead.", systemImage: "exclamationmark.triangle.fill")
+                    Label("The same amount is removed from what remains, so each cut becomes a larger share: below \(goal.sharpensBelow.unitsText) u/day it is more than 10% of what remains each day. Proportional reduces more gently at this point.", systemImage: "exclamationmark.triangle.fill")
                         .font(.subheadline)
                         .foregroundStyle(Color.over)
                 }
@@ -133,14 +133,14 @@ struct GoalEditor: View {
                 let guideline = "The UK low-risk guideline is \(amount(Units.weeklyGuideline))."
                 switch goal.taper {
                 case .dynamic:
-                    Text("\(amount(goal.baselineWeekly)) → \(amount(goal.targetWeekly)) from \(goal.start.formatted(date: .abbreviated, time: .omitted)), quickening as it falls: 10% every four days above 25 u/day, every three under that, and every day under 15. You don't set the pace — it's the fastest the guidance allows for wherever the budget has got to. \(guideline)")
+                    Text("\(amount(goal.baselineWeekly)) → \(amount(goal.targetWeekly)) from \(goal.start.formatted(date: .abbreviated, time: .omitted)). Reduces by 10% every four days above 25 u/day, every three days between 15 and 25, and every day below 15. The pace follows the guidance for the current level rather than being chosen. \(guideline)")
                 case .proportional:
-                    Text("\(amount(goal.baselineWeekly)) → \(amount(goal.targetWeekly)) from \(goal.start.formatted(date: .abbreviated, time: .omitted)), about \(perDay)% less each day. Takes a smaller cut as it goes, so it nears the target without quite landing on it. \(guideline)")
+                    Text("\(amount(goal.baselineWeekly)) → \(amount(goal.targetWeekly)) from \(goal.start.formatted(date: .abbreviated, time: .omitted)), about \(perDay)% less each day. The cuts become smaller as it goes, so it approaches the target without quite reaching it. \(guideline)")
                 case .linear:
-                    Text("\(amount(goal.baselineWeekly)) → \(amount(goal.targetWeekly)) from \(goal.start.formatted(date: .abbreviated, time: .omitted)), \(goal.dailyUnitCut.unitsText) u/day less every day. The same amount off each time, so it lands on the target on a day you can name. \(guideline)")
+                    Text("\(amount(goal.baselineWeekly)) → \(amount(goal.targetWeekly)) from \(goal.start.formatted(date: .abbreviated, time: .omitted)), \(goal.dailyUnitCut.unitsText) u/day less each day. The same amount is removed each time, so it reaches the target on a fixed date. \(guideline)")
                 }
             } else {
-                Text("Pick how fast to cut down and get a daily and weekly unit budget.")
+                Text("Choose a rate of reduction to set a daily and weekly budget.")
             }
         }
         .sheet(isPresented: $showingGuidance) { GuidanceSheet() }
@@ -149,7 +149,7 @@ struct GoalEditor: View {
         // someone who has met them. This screen can only count what you've decided; it can't tell you
         // whether a taper is the right approach, and shouldn't be read as saying that it is.
         Section {
-            Text("A taper is for when cutting down gradually is already the right approach for you. Whether it is, and how fast, is a question for your GP or an alcohol service — GrogLog only keeps count of the plan you set.")
+            Text("A taper is suitable only when gradual reduction is already the right approach for you. Your GP or an alcohol service can advise on whether it is, and at what pace. GrogLog helps you follow the plan you agree with them.")
         } header: {
             Text("Before you start")
         }
@@ -158,12 +158,12 @@ struct GoalEditor: View {
         // the guidance says to stop and get help for, not to taper more slowly through.
         Section {
             Label("A fit or seizure", systemImage: "bolt.fill")
-            Label("Seeing or hearing things that aren't there", systemImage: "eye.trianglebadge.exclamationmark.fill")
+            Label("Seeing or hearing things that are not there", systemImage: "eye.trianglebadge.exclamationmark.fill")
             Label("Confusion, or being unsteady on your feet", systemImage: "figure.fall")
         } header: {
             Text("Call 999 if you get any of these")
         } footer: {
-            Text("Withdrawal can turn serious, and these are the signs that it has. They're an emergency, not a reason to cut down more slowly.")
+            Text("These are signs that withdrawal has become serious. They need emergency care, not a slower reduction.")
         }
         .foregroundStyle(Color.over)
     }
@@ -300,8 +300,8 @@ private struct GuidanceSheet: View {
         NavigationStack {
             List {
                 Section {
-                    Text("No more than 10% a day. That's the ceiling in the DHSC's UK clinical guidelines for alcohol treatment — the first national guideline to put a number on reducing without medication, published November 2025.")
-                    Text("It calls that figure the development group's clinical consensus rather than trial evidence, and the protocol around it assumes a clinician has judged the person suitable and reviews them as they go.")
+                    Text("No more than 10% a day. This limit comes from the DHSC's UK clinical guidelines for alcohol treatment, published in November 2025, the first national guideline to set a figure for reducing without medication.")
+                    Text("The guideline describes this figure as clinical consensus rather than trial evidence, and assumes a clinician has judged the person suitable and reviews their progress.")
                         .foregroundStyle(.secondary)
                     Link("Read chapter 8, harm reduction", destination: URL(string: "https://www.gov.uk/guidance/clinical-guidelines-for-alcohol-treatment/8-harm-reduction")!)
                 } header: {
@@ -309,22 +309,22 @@ private struct GuidanceSheet: View {
                 }
 
                 Section {
-                    Text("Over 25 units a day, the same guidance suggests no faster than 10% every four days, and says the same of being over 65 or in poor health.")
-                    Text("Between 15 and 25 the step to every three days is ours, not theirs. NICE considers assisted withdrawal over 15 units a day, and running at the outright ceiling unsupervised while still drinking that much isn't what the ceiling was written for.")
+                    Text("Over 25 units a day, the same guidance recommends no more than 10% every four days. It says the same for people over 65 or in poor health.")
+                    Text("The step to every three days between 15 and 25 units is GrogLog's own, not the guideline's. NICE recommends considering assisted withdrawal above 15 units a day, and the 10% limit was not written for unsupervised reduction at that level.")
                         .foregroundStyle(.secondary)
                 } header: {
                     Text("Why it starts slower")
                 }
 
                 Section {
-                    Text("Over 15 units a day, NICE says to consider medically assisted withdrawal. Over 30, it points to inpatient or residential care rather than cutting down alone.")
+                    Text("Over 15 units a day, NICE recommends considering medically assisted withdrawal. Over 30, it recommends inpatient or residential care rather than reducing alone.")
                     Link("NICE CG115", destination: URL(string: "https://www.nice.org.uk/guidance/cg115")!)
                 } header: {
                     Text("When to ask for help")
                 }
 
                 Section {
-                    Text("GrogLog doesn't recommend a plan — it keeps count of the one you set. Whether tapering is the right approach for you, and how fast, is a question for your GP or an alcohol service.")
+                    Text("GrogLog does not provide medical advice. It is intended to help you follow a plan agreed with your GP or alcohol service.")
                 }
             }
             .navigationTitle("Where this comes from")
