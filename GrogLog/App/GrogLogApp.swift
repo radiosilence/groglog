@@ -11,7 +11,7 @@ struct GrogLogApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                switch demoMode ? demo.map { .success($0) } ?? real : real {
+                switch demoMode ? demo.map({ .success($0) }) ?? real : real {
                 case .success(let store):
                     RootView()
                         .id(store.id)
