@@ -127,7 +127,14 @@ nonisolated enum Seed {
             byDay[day] = Night(
                 hrv: 64 - units(day) * 0.45 - week * 0.35 + Double.random(in: -4...4, using: &rng),
                 restingHR: 51 + units(day) * 0.12 + week * 0.22 + Double.random(in: -1.5...1.5, using: &rng),
-                sleepingHR: 48 + units(day) * 0.35 + week * 0.1 + Double.random(in: -1.5...1.5, using: &rng)
+                sleepingHR: 48 + units(day) * 0.35 + week * 0.1 + Double.random(in: -1.5...1.5, using: &rng),
+                // Drink shortens the night a little and takes most of it out of REM.
+                sleep: Sleep(
+                    deep: (1.4 - units(day) * 0.01 + Double.random(in: -0.2...0.2, using: &rng)) * 3600,
+                    core: (4 - units(day) * 0.01 + Double.random(in: -0.4...0.4, using: &rng)) * 3600,
+                    rem: max(0.2, 1.8 - units(day) * 0.04 + Double.random(in: -0.2...0.2, using: &rng)) * 3600,
+                    awake: (0.3 + units(day) * 0.02 + Double.random(in: 0...0.2, using: &rng)) * 3600
+                )
             )
         }
         return Nights(byDay: byDay)

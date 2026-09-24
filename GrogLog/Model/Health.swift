@@ -96,11 +96,12 @@ import os
         }
     }
 
-    /// HRV, resting and sleeping heart rate, filed under the nights they followed. Health labels every HRV as SDNN,
-    /// whatever the device measured, so the numbers compare with themselves, not with another brand's.
-    /// However far back Health goes: what came before the log is the baseline worth comparing with.
-    func nights(clock: DayClock) async -> Nights {
-        guard Self.isAvailable else { return Nights(clock: clock) }
+    /// Heart readings and sleep, filed under the nights they followed, however far back Health goes: what came before
+    /// the log is the baseline worth comparing with. Health labels every HRV as SDNN whatever the device measured, so
+    /// the numbers compare with themselves, not with another brand's. Sleep is read for heart rate as well, since it
+    /// says which beats were asleep.
+    func nights(clock: DayClock, heart: Bool, sleep readsSleep: Bool) async -> Nights {
+        guard Self.isAvailable, heart || readsSleep else { return Nights(clock: clock) }
         // Asks only for what hasn't been asked before, so this is silent after the first time.
         _ = await allowReading()
         // Within these spans, or all of it without any.
@@ -118,26 +119,35 @@ import os
                 return []
             }
         }
-        let asleep = await asleepStages()
+        let spans = await sleepSpans()
         let bpm = HKUnit.count().unitDivided(by: .minute())
-        return Nights(
-            hrv: await read(hrv, .secondUnit(with: .milli), nil),
-            restingHR: await read(restingHR, bpm, nil),
-            asleep: asleep,
+        let nights = Nights(
+            hrv: heart ? await read(hrv, .secondUnit(with: .milli), nil) : [],
+            restingHR: heart ? await read(restingHR, bpm, nil) : [],
+            sleep: spans,
             // A watch can write a heart rate every minute or two for years; only the nights are wanted, so only those
             // are fetched.
-            heartRate: asleep.isEmpty ? [] : await read(heartRate, bpm, Self.nightSpans(asleep, clock: clock)),
+            heartRate: heart && !spans.isEmpty ? await read(heartRate, bpm, Self.nightSpans(spans, clock: clock)) : [],
             clock: clock
         )
+        guard !readsSleep else { return nights }
+        return Nights(byDay: nights.byDay.mapValues { var night = $0; night.sleep = nil; return night })
     }
 
-    private func asleepStages() async -> [DateInterval] {
-        let asleep = HKCategoryValueSleepAnalysis.allAsleepValues.map(\.rawValue)
+    private func sleepSpans() async -> [SleepSpan] {
         let query = HKSampleQueryDescriptor(predicates: [.categorySample(type: sleep, predicate: HKQuery.predicateForSamples(withStart: nil, end: .now))], sortDescriptors: [])
         do {
-            return try await query.result(for: store)
-                .filter { asleep.contains($0.value) }
-                .map { DateInterval(start: $0.startDate, end: $0.endDate) }
+            return try await query.result(for: store).compactMap { sample in
+                let stage: SleepStage? = switch HKCategoryValueSleepAnalysis(rawValue: sample.value) {
+                case .awake: .awake
+                case .asleepCore: .core
+                case .asleepDeep: .deep
+                case .asleepREM: .rem
+                case .asleepUnspecified: .unstaged
+                default: nil
+                }
+                return stage.map { SleepSpan(interval: DateInterval(start: sample.startDate, end: sample.endDate), stage: $0, source: sample.sourceRevision.source.bundleIdentifier) }
+            }
         } catch {
             log.error("Couldn't read sleep: \(error)")
             return []
@@ -145,9 +155,10 @@ import os
     }
 
     /// Each night's first sleep to its last, one span per night, for fetching the heart rate inside them.
-    nonisolated static func nightSpans(_ asleep: [DateInterval], clock: DayClock) -> [DateInterval] {
-        Dictionary(grouping: asleep) { clock.night(for: $0.start) }.values.map { stages in
-            DateInterval(start: stages.map(\.start).min()!, end: stages.map(\.end).max()!)
+    nonisolated static func nightSpans(_ spans: [SleepSpan], clock: DayClock) -> [DateInterval] {
+        Nights.sleepByNight(spans, clock: clock).values.map { spans in
+            let asleep = spans.filter { $0.stage != .awake }.map(\.interval)
+            return DateInterval(start: asleep.map(\.start).min() ?? spans[0].interval.start, end: asleep.map(\.end).max() ?? spans[0].interval.end)
         }
     }
 

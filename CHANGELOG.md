@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- A Sleep card on Reports shows each night by stage (deep, core, REM, awake) with the units drunk the evening before, and compares last night's time asleep and REM share with the week before. Alcohol suppresses REM most of all, so the share is the figure to watch. It has its own switch in Setup, separate from heart readings.
+- Resting heart rate is labelled RHR.
+
 - Heart rate while asleep on Weekly progress, each night against the evening before it. It's the average of the readings taken during sleep, awake spells left out, which answers for one night more directly than resting rate: a watch works that out over a whole day. Needs a watch that writes sleep and heart rate to Health; a Garmin does.
 
 - Setup and the goal sheet are written in a plainer, more measured register. The medical guidance reads as guidance, and the app is clear that it helps you follow a plan rather than offering one.

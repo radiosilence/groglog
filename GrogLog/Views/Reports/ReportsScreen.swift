@@ -25,6 +25,9 @@ struct ReportsScreen: View {
             VStack(spacing: 16) {
                 ProgressCard(title: "Weekly progress", days: 10, history: 60, ledger: ledger, goal: prefs.goal, nights: nights, heart: .nightly) { settingGoal = true }
                 ProgressCard(title: "Monthly progress", days: 35, history: 120, ledger: ledger, goal: prefs.goal, nights: nights, heart: .averaged) { settingGoal = true }
+                if nights.byDay.values.contains(where: { $0.sleep != nil }) {
+                    SleepCard(ledger: ledger, nights: nights)
+                }
                 WeekCard(ledger: ledger, goal: prefs.goal)
                 MonthCard(ledger: ledger)
                 WeeksCard(stats: stats, nights: nights, weeks: $weeks)
@@ -41,12 +44,12 @@ struct ReportsScreen: View {
         }
         .sheet(isPresented: $settingGoal) { GoalSheet(goal: prefs.goal) }
         // Again on coming back: the watch syncs last night some time after the app was last open.
-        .task(id: [today.number, prefs.readsHeart ? 1 : 0, demoMode ? 1 : 0, scenePhase == .active ? 1 : 0]) {
+        .task(id: [today.number, prefs.readsHeart ? 1 : 0, prefs.readsSleep ? 1 : 0, demoMode ? 1 : 0, scenePhase == .active ? 1 : 0]) {
             guard scenePhase == .active else { return }
             #if DEBUG
             if demoMode { nights = Seed.nights(ledger); return }
             #endif
-            nights = prefs.readsHeart ? await Health.shared.nights(clock: clock) : Nights(byDay: [:])
+            nights = await Health.shared.nights(clock: clock, heart: prefs.readsHeart, sleep: prefs.readsSleep)
         }
     }
 }
@@ -411,6 +414,159 @@ private struct ProgressPlot: View, Equatable {
         .chartXVisibleDomain(length: Double(days) * 86_400)
         .chartScrollPosition(x: $x)
         .frame(height: 220)
+    }
+}
+
+/// Each night's sleep by stage, over what was drunk the evening before it.
+private struct SleepCard: View {
+    let ledger: Ledger
+    let nights: Nights
+    /// Held so a redraw doesn't send the chart back to the start of its range.
+    @State private var scrolledTo: Date?
+
+    var body: some View {
+        let calendar = ledger.clock.calendar
+        let today = ledger.today
+        let slept = nights.byDay.filter { $0.value.sleep != nil }.keys
+        let days = Array(max(slept.min() ?? today, today - 90)..<today)
+        let noon = { (day: DayKey) in day.date(in: calendar).addingTimeInterval(12 * 3600) }
+        let bars = days.flatMap { day -> [SleepBar] in
+            guard let sleep = nights[day]?.sleep else { return [] }
+            return [SleepBar.Stage.deep, .core, .rem, .awake].map { stage in
+                let seconds = switch stage {
+                case .deep: sleep.deep
+                case .core: sleep.core + sleep.unstaged
+                case .rem: sleep.rem
+                case .awake: sleep.awake
+                }
+                return SleepBar(date: noon(day), stage: stage, hours: seconds / 3600)
+            }
+        }
+        let drank = days.compactMap { day in
+            ledger.isLogged(day) ? BudgetPoint(date: noon(day), units: ledger.totals(on: day).units) : nil
+        }
+        let lastNight = days.last { nights[$0]?.sleep != nil }
+
+        Card(title: "Sleep") {
+            if let lastNight, let sleep = nights[lastNight]?.sleep {
+                summary(sleep, on: lastNight, week: (lastNight - 7)...(lastNight - 1))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            SleepPlot(bars: bars, drank: drank, x: Binding(get: { scrolledTo ?? (today - 13).date(in: calendar) }, set: { scrolledTo = $0 }))
+            HStack(spacing: 12) {
+                ForEach([SleepBar.Stage.deep, .core, .rem, .awake], id: \.self) { LegendKey(label: $0.label, color: $0.color, bar: true) }
+                LegendKey(label: "Drank", color: .grog)
+            }
+            .lineLimit(1)
+        }
+    }
+
+    /// Time asleep and REM against the week before. Alcohol takes REM first, so its share says more than the total.
+    private func summary(_ sleep: Sleep, on night: DayKey, week: ClosedRange<DayKey>) -> some View {
+        let before = week.compactMap { nights[$0]?.sleep }
+        let usual = { (value: (Sleep) -> Double?) -> Double? in
+            let values = before.compactMap(value)
+            return values.count >= 3 ? values.mean : nil
+        }
+        let when = night == ledger.today - 1
+            ? "Last night"
+            : night.date(in: ledger.clock.calendar).formatted(.dateTime.weekday(.wide))
+        let asleepChange = usual { $0.asleep }.map { sleep.asleep - $0 }
+        let remChange = sleep.remShare.flatMap { share in usual { $0.remShare }.map { (share - $0) * 100 } }
+        let against = { (change: Double?, text: String) -> Text in
+            guard let change, text != "" else { return Text("") }
+            return Text(", \(text)").foregroundStyle(change < 0 ? Color.over : Color.dry)
+        }
+        let asleepText = asleepChange.flatMap { abs($0) < 300 ? nil : "\(Self.duration(abs($0))) \($0 < 0 ? "less" : "more") than the week before" } ?? ""
+        let remText = remChange.flatMap { abs($0) < 1 ? nil : "\(Int(abs($0).rounded())) points \($0 < 0 ? "under" : "over") the week before" } ?? ""
+        return VStack(alignment: .leading, spacing: 2) {
+            Text("\(when) \(Self.duration(sleep.asleep)) asleep\(against(asleepChange, asleepText))")
+            if let share = sleep.remShare {
+                Text("REM \(Self.duration(sleep.rem)), \(Int((share * 100).rounded()))% of sleep\(against(remChange, remText))")
+            }
+        }
+    }
+
+    static func duration(_ seconds: Double) -> String {
+        let minutes = Int((seconds / 60).rounded())
+        return minutes >= 60 ? "\(minutes / 60) h \(minutes % 60) m" : "\(minutes) m"
+    }
+}
+
+private struct SleepBar: Equatable {
+    enum Stage {
+        case deep, core, rem, awake
+
+        var label: String {
+            switch self {
+            case .deep: "Deep"
+            case .core: "Core"
+            case .rem: "REM"
+            case .awake: "Awake"
+            }
+        }
+
+        var color: Color {
+            switch self {
+            case .deep: .deepSleep
+            case .core: .coreSleep
+            case .rem: .remSleep
+            case .awake: .gray.opacity(0.35)
+            }
+        }
+    }
+
+    let date: Date
+    let stage: Stage
+    let hours: Double
+}
+
+private struct SleepPlot: View, Equatable {
+    let bars: [SleepBar]
+    let drank: [BudgetPoint]
+    @Binding var x: Date
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.bars == rhs.bars && lhs.drank == rhs.drank }
+
+    var body: some View {
+        let nightly = Dictionary(grouping: bars, by: \.date).values.map { $0.map(\.hours).reduce(0, +) }
+        let top = max(10, nightly.max() ?? 0) * 1.1
+        // Units share the height on their own scale, read off the right-hand axis.
+        let most = max(10, drank.map(\.units).max() ?? 0) * 1.1
+        let y = { (units: Double) in units / most * top }
+        let step = most > 60 ? 20.0 : most > 25 ? 10 : 5
+        Chart {
+            ForEach(Array(bars.enumerated()), id: \.offset) { _, bar in
+                BarMark(x: .value("Night", bar.date, unit: .day), y: .value("Hours", bar.hours))
+                    .foregroundStyle(bar.stage.color)
+            }
+            ForEach(drank, id: \.date) { point in
+                LineMark(x: .value("Night", point.date), y: .value("Hours", y(point.units)), series: .value("Line", "Drank"))
+                    .foregroundStyle(Color.grog)
+                    .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                PointMark(x: .value("Night", point.date), y: .value("Hours", y(point.units)))
+                    .foregroundStyle(Color.grog)
+                    .symbolSize(20)
+            }
+        }
+        .chartYScale(domain: 0...top)
+        .chartYAxis {
+            AxisMarks(position: .leading, values: .stride(by: 2)) { value in
+                AxisGridLine()
+                AxisValueLabel { Text("\(Int(value.as(Double.self) ?? 0))") }
+            }
+            AxisMarks(position: .trailing, values: Array(stride(from: 0, through: most, by: step)).map(y)) { value in
+                AxisValueLabel { Text("\(Int(((value.as(Double.self) ?? 0) / top * most).rounded()))") }
+            }
+        }
+        .chartXAxis {
+            AxisMarks(values: .stride(by: .day, count: 3)) { AxisGridLine(); AxisValueLabel(format: .dateTime.day().month(.abbreviated)) }
+        }
+        .chartScrollableAxes(.horizontal)
+        .chartXVisibleDomain(length: 14 * 86_400)
+        .chartScrollPosition(x: $x)
+        .frame(height: 200)
     }
 }
 

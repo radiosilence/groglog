@@ -9,6 +9,7 @@ import Observation
     var goal: Goal { didSet { store.set(try? JSONEncoder().encode(goal), forKey: "goal") } }
     var mirrorsToHealth: Bool { didSet { store.set(mirrorsToHealth, forKey: "mirrorsToHealth") } }
     var readsHeart: Bool { didSet { store.set(readsHeart, forKey: "readsHeart") } }
+    var readsSleep: Bool { didSet { store.set(readsSleep, forKey: "readsSleep") } }
 
     init(store: UserDefaults = .shared) {
         self.store = store
@@ -17,6 +18,7 @@ import Observation
         goal = store.data(forKey: "goal").flatMap { try? JSONDecoder().decode(Goal.self, from: $0) } ?? Goal()
         mirrorsToHealth = store.bool(forKey: "mirrorsToHealth")
         readsHeart = store.bool(forKey: "readsHeart")
+        readsSleep = store.bool(forKey: "readsSleep")
     }
 
     var clock: DayClock { DayClock(rolloverHour: rolloverHour) }

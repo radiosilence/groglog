@@ -88,26 +88,55 @@ import Testing
         calendar.date(from: DateComponents(year: 2026, month: 9, day: day, hour: hour, minute: minute))!
     }
 
+    private func span(_ start: Date, _ end: Date, _ stage: SleepStage = .core, _ source: String = "watch") -> SleepSpan {
+        SleepSpan(interval: DateInterval(start: start, end: end), stage: stage, source: source)
+    }
+
+    @Test func stagesAddUpAndAwakeIsNotSleep() {
+        let spans = [
+            span(at(23, 0), at(23, 1), .deep),
+            span(at(23, 1), at(23, 1, 30), .awake),
+            span(at(23, 1, 30), at(23, 3), .rem),
+            span(at(23, 3), at(23, 7), .core),
+        ]
+        let sleep = Nights(sleep: spans, clock: clock)[tuesday]?.sleep
+        #expect(sleep?.asleep == 6.5 * 3600)
+        #expect(sleep?.awake == 1800)
+        #expect(sleep?.remShare == 1.5 / 6.5)
+    }
+
+    @Test func twoDevicesOnOneNightCountOnce() {
+        let spans = [
+            span(at(23, 0), at(23, 7), .core, "garmin"),
+            span(at(23, 1), at(23, 5), .unstaged, "phone"),
+        ]
+        let sleep = Nights(sleep: spans, clock: clock)[tuesday]?.sleep
+        #expect(sleep?.asleep == 7.0 * 3600)
+        #expect(sleep?.unstaged == 0)
+    }
+
     @Test func aLateBedtimeStillBelongsToTheEveningBefore() {
-        let asleep = [DateInterval(start: at(23, 4, 36), end: at(23, 9, 38))]
-        let nights = Nights(asleep: asleep, heartRate: [(at(23, 6), 60), (at(23, 7), 70)], clock: clock)
+        let asleep = [span(at(23, 4, 36), at(23, 9, 38))]
+        let nights = Nights(sleep: asleep, heartRate: [(at(23, 6), 60), (at(23, 7), 70)], clock: clock)
         #expect(nights[tuesday]?.sleepingHR == 65)
     }
 
     @Test func awakeInTheNightAndBeforeSleepAreLeftOut() {
         let asleep = [
-            DateInterval(start: at(23, 1), end: at(23, 3)),
-            DateInterval(start: at(23, 3, 30), end: at(23, 7)),
+            span(at(23, 1), at(23, 3)),
+            span(at(23, 3), at(23, 3, 30), .awake),
+            span(at(23, 3, 30), at(23, 7)),
         ]
         let beats = [(at(23, 0, 30), 90.0), (at(23, 2), 60), (at(23, 3, 15), 95), (at(23, 5), 64), (at(23, 8), 88)]
-        #expect(Nights(asleep: asleep, heartRate: beats, clock: clock)[tuesday]?.sleepingHR == 62)
+        #expect(Nights(sleep: asleep, heartRate: beats, clock: clock)[tuesday]?.sleepingHR == 62)
     }
 
     @Test func oneSpanPerNightToFetchWithin() {
         let asleep = [
-            DateInterval(start: at(22, 0, 27), end: at(22, 1, 41)),
-            DateInterval(start: at(22, 1, 49), end: at(22, 9, 22)),
-            DateInterval(start: at(23, 4, 36), end: at(23, 9, 38)),
+            span(at(22, 0, 27), at(22, 1, 41)),
+            span(at(22, 1, 41), at(22, 1, 49), .awake),
+            span(at(22, 1, 49), at(22, 9, 22)),
+            span(at(23, 4, 36), at(23, 9, 38)),
         ]
         let spans = Health.nightSpans(asleep, clock: clock).sorted { $0.start < $1.start }
         #expect(spans == [DateInterval(start: at(22, 0, 27), end: at(22, 9, 22)), DateInterval(start: at(23, 4, 36), end: at(23, 9, 38))])

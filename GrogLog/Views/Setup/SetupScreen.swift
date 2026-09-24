@@ -74,6 +74,16 @@ struct SetupScreen: View {
                     guard on else { return }
                     Task { prefs.readsHeart = await Health.shared.allowReading() }
                 }
+
+                Section {
+                    Toggle("Sleep from Health", isOn: $prefs.readsSleep)
+                } footer: {
+                    Text("Shows each night's sleep by stage on Reports, alongside what you drank the evening before. Requires a watch that records sleep in Health.")
+                }
+                .onChange(of: prefs.readsSleep) { _, on in
+                    guard on else { return }
+                    Task { prefs.readsSleep = await Health.shared.allowReading() }
+                }
             }
 
             Section {

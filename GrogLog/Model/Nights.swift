@@ -8,6 +8,33 @@ nonisolated struct Night: Equatable {
     /// The mean of the heart rate while asleep. Nearer the night than resting rate, which a watch works out over a
     /// whole day.
     var sleepingHR: Double?
+    var sleep: Sleep?
+}
+
+/// A night's sleep by stage, in seconds.
+nonisolated struct Sleep: Equatable {
+    var deep = 0.0
+    var core = 0.0
+    var rem = 0.0
+    /// Asleep with no stage given, as older watches record it.
+    var unstaged = 0.0
+    var awake = 0.0
+
+    var asleep: Double { deep + core + rem + unstaged }
+
+    /// Only where the night was staged; a share of unstaged sleep would read as no REM at all.
+    var remShare: Double? { unstaged == 0 && asleep > 0 ? rem / asleep : nil }
+}
+
+nonisolated enum SleepStage {
+    case awake, core, deep, rem, unstaged
+}
+
+nonisolated struct SleepSpan: Equatable {
+    let interval: DateInterval
+    let stage: SleepStage
+    /// Which device recorded it. Two that both recorded a night would count it twice, so only one is taken.
+    let source: String
 }
 
 nonisolated struct Nights: Equatable {
@@ -26,9 +53,9 @@ nonisolated struct Nights: Equatable {
 
     /// Files readings under the night they followed. HRV is only taken overnight — a daytime spot reading after a walk
     /// says nothing about the night — and a night with several is their mean.
-    /// Sleeping rate takes only the beats inside an asleep stage: time awake in the night is left out, and a bedtime
-    /// after midnight still belongs to the evening before.
-    init(hrv: [(Date, Double)] = [], restingHR: [(Date, Double)] = [], asleep: [DateInterval] = [], heartRate: [(Date, Double)] = [], clock: DayClock) {
+    /// Sleep goes to the evening before by when it began, so a bedtime after midnight still counts for that evening.
+    /// Sleeping rate takes only the beats inside an asleep stage, leaving out time awake in the night.
+    init(hrv: [(Date, Double)] = [], restingHR: [(Date, Double)] = [], sleep: [SleepSpan] = [], heartRate: [(Date, Double)] = [], clock: DayClock) {
         let overnight = hrv.filter { clock.isOvernight($0.0) }
         for (day, values) in Dictionary(grouping: overnight, by: { clock.night(for: $0.0) }) {
             byDay[day, default: Night()].hrv = values.map(\.1).mean
@@ -36,7 +63,22 @@ nonisolated struct Nights: Equatable {
         for (day, values) in Dictionary(grouping: restingHR, by: { clock.night(for: $0.0) }) {
             byDay[day, default: Night()].restingHR = values.map(\.1).mean
         }
-        let asleep = asleep.sorted { $0.start < $1.start }
+        var asleep: [DateInterval] = []
+        for (day, spans) in Nights.sleepByNight(sleep, clock: clock) {
+            var night = Sleep()
+            for span in spans {
+                switch span.stage {
+                case .deep: night.deep += span.interval.duration
+                case .core: night.core += span.interval.duration
+                case .rem: night.rem += span.interval.duration
+                case .unstaged: night.unstaged += span.interval.duration
+                case .awake: night.awake += span.interval.duration
+                }
+            }
+            byDay[day, default: Night()].sleep = night
+            asleep += spans.filter { $0.stage != .awake }.map(\.interval)
+        }
+        asleep.sort { $0.start < $1.start }
         var sleeping: [DayKey: [Double]] = [:]
         var i = 0
         for (date, value) in heartRate.sorted(by: { $0.0 < $1.0 }) {
@@ -50,6 +92,17 @@ nonisolated struct Nights: Equatable {
     }
 
     init(byDay: [DayKey: Night]) { self.byDay = byDay }
+
+    /// Each night's spans from the one device that recorded the most sleep that night.
+    static func sleepByNight(_ spans: [SleepSpan], clock: DayClock) -> [DayKey: [SleepSpan]] {
+        Dictionary(grouping: spans) { clock.night(for: $0.interval.start) }.mapValues { spans in
+            let bySource = Dictionary(grouping: spans, by: \.source)
+            return bySource.max { a, b in
+                let asleep = { (spans: [SleepSpan]) in spans.filter { $0.stage != .awake }.map(\.interval.duration).reduce(0, +) }
+                return asleep(a.value) < asleep(b.value)
+            }!.value
+        }
+    }
 
     /// The mean over a stretch of nights, or nothing if too few of them have a reading to say anything.
     func mean(_ reading: KeyPath<Night, Double?>, over days: ClosedRange<DayKey>, atLeast minimum: Int = 3) -> Double? {

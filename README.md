@@ -23,7 +23,7 @@ Written because Drinkaware's Drink Coach is low-friction but slow, allows one dr
 | Log | The picker for today. Search, tap, long-press, undo. |
 | Calendar | History; tap a day to see or backfill it, long-press to mark it dry. |
 | Day | Running units through the day vs yesterday and the week's average day, the day's budget draining, and what it cost. |
-| Reports | Weekly and monthly progress (daily units against the budget, with the fortnight ahead — scroll and pinch — and heart readings when Health has them), this week and this month against earlier ones, weekly bars, streaks, spend. |
+| Reports | Weekly and monthly progress (daily units against the budget, with the fortnight ahead — scroll and pinch — and heart readings when Health has them), sleep by stage against the evening before, this week and this month against earlier ones, weekly bars, streaks, spend. |
 | Setup | Goal, drinks, day end, currency, export/import. |
 
 Two widgets, both reading the same log: a Lock Screen accessory showing today against the budget that opens onto Log, and a Home Screen one whose tiles log a drink where they stand.
@@ -54,7 +54,7 @@ The JSON import is lenient enough to hand-convert other apps' data — see [docs
 
 Setup › **Copy to Health** mirrors drinks and calories into Apple Health as they're logged. Health counts standard drinks, not UK units — 17.7 ml of alcohol against 10 — so the figures are converted rather than handed over. It's a mirror and never a source: a changed day is rewritten whole from the log, so edits, undos and corrected strengths carry across and the copy can't drift; turning it off takes GrogLog's entries back out. A widget's tap logs in the widget's own process, which can't reach Health, so the app catches those days up when it next comes to the front.
 
-Setup › **Heart readings from Health** reads HRV and resting heart rate for Reports. Read only; nothing about it is written back.
+Setup › **Heart readings from Health** and **Sleep from Health** read heart rate, HRV and sleep stages for Reports. They are separate because each is its own permission in Health and its own card's worth of screen. Reading only; nothing is written back. A night recorded by two devices takes the one that recorded more sleep, since adding them would double it.
 
 Sync (iCloud via `CKSyncEngine`, or a server) is future work; every change already goes through `Logbook` as a transaction, which is where a change log would hook in.
 
