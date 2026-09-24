@@ -40,7 +40,7 @@ struct SetupScreen: View {
                     ForEach(["GBP", "EUR", "USD"], id: \.self) { Text($0) }
                 }
             } footer: {
-                Text("Drinks after midnight count towards the night before.")
+                Text("Drinks after midnight count towards the evening before.")
             }
             // Every entry re-dayed and every day re-totted: seconds on a long log, and not while a picker settles.
             .onChange(of: prefs.rolloverHour) {
@@ -52,7 +52,7 @@ struct SetupScreen: View {
                 Section {
                     Toggle("Copy to Health", isOn: $prefs.mirrorsToHealth)
                 } footer: {
-                    Text("Adds your drinks and calories to Health. Health counts US standard drinks, which are about 1.8 UK units each. Turning this off removes them again.")
+                    Text("Your drinks and calories are added to Health as you log them. Health measures alcohol in US standard drinks, each about 1.8 UK units. Turning this off removes them.")
                 }
                 .onChange(of: prefs.mirrorsToHealth) { _, on in
                     let logbook = database.logbook(prefs)
@@ -68,7 +68,7 @@ struct SetupScreen: View {
                 Section {
                     Toggle("Heart readings from Health", isOn: $prefs.readsHeart)
                 } footer: {
-                    Text("Shows your resting heart rate and HRV on Reports, next to what you drank the night before. Needs a watch that saves them to Health.")
+                    Text("Shows your resting heart rate and HRV on Reports, alongside what you drank the night before. Requires a watch that records them in Health.")
                 }
                 .onChange(of: prefs.readsHeart) { _, on in
                     guard on else { return }
@@ -87,7 +87,7 @@ struct SetupScreen: View {
             } header: {
                 Text("Data")
             } footer: {
-                Text("Your data stays on this phone. Importing a backup adds to what's here and never overwrites it.")
+                Text("Your data stays on this phone. Importing a backup adds to your log and never overwrites it.")
             }
 
             #if DEBUG
@@ -100,7 +100,7 @@ struct SetupScreen: View {
             } header: {
                 Text("Developer")
             } footer: {
-                Text("Swaps in four months of made-up data. Your real log comes back when you turn it off.")
+                Text("Replaces your log with four months of sample data. Your own log returns when this is turned off.")
             }
             #endif
         }
@@ -112,7 +112,7 @@ struct SetupScreen: View {
                 Task { pricesReset = await Task.detached { logbook.resetPrices() }.value }
             }
         } message: {
-            Text("Sets every drink and Log tile back to the catalogue price, including any you've changed. Drinks you've already logged keep the price you paid.")
+            Text("Every drink and Log tile returns to its catalogue price, including any you have changed. Drinks already logged keep the price you paid.")
         }
         .alert("Prices reset", isPresented: Binding(get: { pricesReset != nil }, set: { if !$0 { pricesReset = nil } })) {
             Button("OK") { pricesReset = nil }
