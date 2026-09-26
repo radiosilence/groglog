@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Regional cask ales: Harvey's (Sussex Best, Armada, Old Ale, Imperial Extra Double Stout), Young's, Wadworth, St Austell Proper Job, Spitfire, Boltmaker, Southwold Bitter, Hophead, Hook Norton, Theakston, Oakham, Butcombe, Otter, Exmoor, Castle Rock, Everards, Robinsons, Batemans, Purity, 61 Deep, Brakspear, Ringwood, Titanic Iceberg, Salopian Oracle, and from Scotland Bitter & Twisted, Deuchars, Dark Island, Jarl and Belhaven Best. Strengths are the breweries' current figures, several of which have recently been brewed down to 3.4% for the duty threshold, and a bottle that differs in strength from its cask is its own entry. No pub publishes a price for these by name, so pints take a cask tier by strength; bottles are single shop prices.
+
 - Average week on Reports, and the four-week figure the goal screen offers as a starting point, leave out days nobody logged instead of counting them as dry. A week with two nights missing had read as a light week.
 - An import that marks a day alcohol-free keeps any spend already set by hand for that day. It used to replace the whole day and lose it.
 - Widgets and Shortcuts read the goal and the day's end hour when they run, not when their process started. A widget's process can outlive a change made in the app, and it went on drawing the old budget.

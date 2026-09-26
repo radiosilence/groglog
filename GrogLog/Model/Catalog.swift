@@ -393,6 +393,65 @@ nonisolated enum Catalog {
         ("John Smith's Extra Smooth", .beer, 3.4, [(pint, 4.2), (can440, 1.35)]),
         ("Newcastle Brown Ale", .beer, 4.7, [(bottle500, 1.75)]),
         ("Titanic Plum Porter", .beer, 4.9, [(pint, 5.2), (bottle500, 2.5)]),
+        // Regional cask. No pub publishes a price for these by name, since cask is priced by tier and the
+        // lines rotate, so each pint takes its tier from the looked-up pints above: £4.80 under 4%, £5.10 up
+        // to 4.4%, £5.30 from 4.5%. Bottles are single shop prices. A brewery's bottle is often a different
+        // strength from its cask, and not always stronger: Harvey's Old Ale is 4.3% on cask and 3.6% bottled.
+        // Young's Special London Ale is a separate 6.4% beer, not the bottled Special. Several of these have
+        // been brewed down to the 3.5% duty threshold recently (Adnams Southwold Bitter and Dark Star Hophead
+        // are now 3.4%), so the figures are current ones rather than the ones on older pump clips.
+        ("Harvey's Sussex Best Bitter", .beer, 4.0, [(pint, 5.1), (half, 2.55), (bottle500, 4.0)]),
+        ("Harvey's Armada Ale", .beer, 4.5, [(pint, 5.3), (half, 2.65), (bottle500, 3.15)]),
+        ("Harvey's Old Ale", .beer, 4.3, [(pint, 5.1), (half, 2.55)]),
+        ("Harvey's Old Ale (bottle)", .beer, 3.6, [(bottle500, 3.15)]),
+        ("Harvey's Imperial Extra Double Stout", .beer, 9.0, [(bottle275, 3.49)]),
+        ("Young's London Original", .beer, 3.7, [(pint, 4.8), (half, 2.4)]),
+        ("Young's London Special", .beer, 4.5, [(pint, 5.3), (half, 2.65)]),
+        ("Young's Special London Ale", .beer, 6.4, [(bottle500, 3.36)]),
+        ("Wadworth 6X", .beer, 4.1, [(pint, 5.1), (half, 2.55)]),
+        ("St Austell Proper Job", .beer, 4.5, [(pint, 5.3), (half, 2.65)]),
+        ("St Austell Proper Job (bottle)", .beer, 5.5, [(bottle500, 1.89)]),
+        ("Shepherd Neame Spitfire", .beer, 4.2, [(pint, 5.1), (half, 2.55)]),
+        ("Timothy Taylor's Boltmaker", .beer, 4.0, [(pint, 5.1), (half, 2.55)]),
+        ("Timothy Taylor's Boltmaker (bottle)", .beer, 4.2, [(bottle500, 2.55)]),
+        ("Timothy Taylor's Golden Best", .beer, 3.4, [(pint, 4.8), (half, 2.4)]),
+        ("Adnams Southwold Bitter", .beer, 3.4, [(pint, 4.8), (half, 2.4)]),
+        ("Dark Star Hophead", .beer, 3.4, [(pint, 4.8), (half, 2.4), (bottle500, 2.75)]),
+        ("Hook Norton Hooky", .beer, 3.4, [(pint, 4.8), (half, 2.4)]),
+        ("Hook Norton Old Hooky", .beer, 4.6, [(pint, 5.3), (half, 2.65), (bottle500, 3.19)]),
+        ("Theakston Best Bitter", .beer, 3.8, [(pint, 4.8), (half, 2.4)]),
+        ("Oakham Citra (cask)", .beer, 4.2, [(pint, 5.1), (half, 2.55)]),
+        ("Oakham JHB", .beer, 3.8, [(pint, 4.8), (half, 2.4)]),
+        ("Butcombe Original", .beer, 4.0, [(pint, 5.1), (half, 2.55)]),
+        ("Butcombe Original (bottle)", .beer, 4.5, [(bottle500, 3.5)]),
+        ("Otter Bitter", .beer, 3.6, [(pint, 4.8), (half, 2.4), (bottle500, 4.5)]),
+        ("Exmoor Gold", .beer, 4.5, [(pint, 5.3), (half, 2.65)]),
+        ("Exmoor Gold (bottle)", .beer, 5.0, [(bottle500, 3.1)]),
+        ("Castle Rock Harvest Pale", .beer, 3.8, [(pint, 4.8), (half, 2.4)]),
+        ("Castle Rock Harvest Pale (bottle)", .beer, 4.3, [(bottle500, 2.55)]),
+        ("Everards Tiger", .beer, 4.2, [(pint, 5.1), (half, 2.55)]),
+        ("Robinsons Unicorn", .beer, 4.2, [(pint, 5.1), (half, 2.55)]),
+        ("Batemans XB", .beer, 3.7, [(pint, 4.8), (half, 2.4)]),
+        ("Purity Mad Goose", .beer, 4.2, [(pint, 5.1), (half, 2.55)]),
+        ("Purity Pure UBU", .beer, 4.5, [(pint, 5.3), (half, 2.65), (bottle500, 2.5)]),
+        ("Marston's 61 Deep", .beer, 3.8, [(pint, 4.8), (half, 2.4)]),
+        ("Brakspear Oxford Gold", .beer, 4.0, [(pint, 5.1), (half, 2.55)]),
+        ("Brakspear Oxford Gold (bottle)", .beer, 4.6, [(bottle500, 2.75)]),
+        // Brakspear Bitter's name since 2019, though shops still label the bottle the old way.
+        ("Brakspear Gravity", .beer, 3.4, [(pint, 4.8), (half, 2.4)]),
+        ("Ringwood Razorback", .beer, 3.8, [(pint, 4.8), (half, 2.4)]),
+        ("Titanic Iceberg", .beer, 4.1, [(pint, 5.1), (half, 2.55), (bottle500, 3.39)]),
+        ("Salopian Oracle", .beer, 4.0, [(pint, 5.1), (half, 2.55), (bottle500, 3.2)]),
+        // Scotland. Bitter & Twisted's bottle is 3.8% on the brewery's own shop and 4.2% at the supermarkets,
+        // which is a recent cut not yet on every shelf; the brewery's figure is used.
+        ("Harviestoun Bitter & Twisted", .beer, 3.8, [(pint, 4.8), (half, 2.4), (bottle500, 3.75)]),
+        ("Caledonian Deuchars IPA", .beer, 3.8, [(pint, 4.8), (half, 2.4)]),
+        ("Caledonian Deuchars IPA (bottle)", .beer, 4.4, [(bottle500, 3.19)]),
+        ("Orkney Dark Island", .beer, 4.6, [(pint, 5.3), (half, 2.65), (bottle500, 3.2)]),
+        ("Fyne Ales Jarl", .beer, 3.8, [(pint, 4.8), (half, 2.4), (can440, 3.2)]),
+        // Not cask (there isn't one), but it's what a pint of bitter is in half of Scotland. Priced as the
+        // smooth keg bitters above.
+        ("Belhaven Best", .beer, 3.2, [(pint, 4.2), (bottle500, 1.5)]),
         // Wheat & Belgian
         ("Hoegaarden", .beer, 4.9, [(pint, 6.9), (bottle330, 1.79)]),
         ("Erdinger Weissbier", .beer, 5.3, [(pint, 7.2), (bottle500, 1.75)]),
