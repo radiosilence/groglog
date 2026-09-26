@@ -405,6 +405,14 @@ nonisolated enum Catalog {
         ("Track Sonoma", .beer, 3.8, [(pint, 6.6), (can440, 4)]),
         ("Siren Lumina", .beer, 4.2, [(pint, 6.6), (can330, 2.2)]),
         ("Siren Broken Dream", .stout, 6.5, [(pint, 7.6), (can330, 2.3)]),
+        // Tiny Rebel, at the brewery's own single-can prices.
+        ("Tiny Rebel Clwb Tropica", .beer, 5.0, [(pint, 6.95), (can330, 2.4), (can440, 3.25)]),
+        ("Tiny Rebel Rebel IPA", .beer, 4.3, [(pint, 6.6), (can330, 2.3), (can440, 3)]),
+        ("Tiny Rebel Neon Drift", .beer, 4.8, [(pint, 6.95), (can330, 2.4), (can440, 3.25)]),
+        ("Tiny Rebel Cali Pale", .beer, 4.6, [(pint, 6.95), (can330, 2.35), (can440, 3.25)]),
+        ("Tiny Rebel 313 Craft Lager", .beer, 4.6, [(pint, 6.95), (can330, 2.25)]),
+        ("Tiny Rebel Easy Livin'", .beer, 4.3, [(pint, 6.6), (can330, 2.35)]),
+        ("Tiny Rebel Coal Drop", .stout, 4.1, [(pint, 6.6), (can440, 3)]),
         // Cask & bitter
         ("Fuller's London Pride", .beer, 4.1, [(pint, 5.6), (half, 2.8)]),
         ("Fuller's London Pride (bottle)", .beer, 4.7, [(bottle500, 2.35)]),
