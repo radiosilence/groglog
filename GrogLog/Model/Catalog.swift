@@ -21,8 +21,19 @@ nonisolated struct CatalogBrand: Identifiable {
     /// Craft pints are the tier too, banded by strength off the ones pubs do publish — Camden Pale at
     /// £6.30, Hepcat and Gamma Ray at £6.90, Camden Hells and Punk IPA at £7.05, Elvis Juice at £7.50.
     /// Your pub will differ by a pound either way; it's a starting price, and the drink becomes yours.
-    let serves: [(size: ServeSize, price: Double)]
+    ///
+    /// A drink sold abroad is priced where it's usually bought, in that market's currency, and in pounds as well
+    /// where it's sold here too; keyed by currency code.
+    let prices: [String: [(size: ServeSize, price: Double)]]
     var id: String { name }
+
+    /// Every size any market lists it in, the UK's first.
+    var sizes: [ServeSize] {
+        var seen = Set<ServeSize>()
+        return prices.sorted { $0.key == "GBP" ? true : $1.key == "GBP" ? false : $0.key < $1.key }
+            .flatMap { $0.value.map(\.size) }
+            .filter { seen.insert($0).inserted }
+    }
 }
 
 /// One brand in one of its usual sizes.
@@ -32,7 +43,11 @@ nonisolated struct CatalogItem: Identifiable, Hashable {
     let vessel: Vessel
     let volumeMl: Double
     let abv: Double
-    let price: Double
+
+    /// What it costs in `currency`: priced there if it's sold there, converted from its home market if not.
+    func price(in currency: String = Catalog.currency) -> Double {
+        Catalog.price(name: name, category: category, vessel: vessel, ml: volumeMl, currency: currency) ?? 0
+    }
 
     var id: String { "\(name)|\(vessel.rawValue)|\(Int(volumeMl))" }
     var units: Double { Units.of(ml: volumeMl, abv: abv) }
@@ -1031,10 +1046,36 @@ nonisolated enum Catalog {
         ("Jammy Dodger", .cocktail, 16.7, [(.init(.shot, 30), 4.89)]),
     ]
 
-    static let brands: [CatalogBrand] = entries.map { CatalogBrand(name: $0.0, category: $0.1, abv: $0.2, serves: $0.3) }
+    /// Drinks priced in the market they're usually bought in, one block per currency. A drink also in the list
+    /// above takes these as its home prices alongside its pounds, so it must be the same strength; a different
+    /// strength is a different drink, and takes a different name.
+    private static let markets: [(currency: String, entries: [(String, DrinkCategory, Double, [(ServeSize, Double)])])] = []
+
+    static let brands: [CatalogBrand] = {
+        var order: [String] = []
+        var merged: [String: (name: String, category: DrinkCategory, abv: Double, prices: [String: [(size: ServeSize, price: Double)]])] = [:]
+        for (currency, list) in [("GBP", entries)] + markets {
+            for (name, category, abv, serves) in list {
+                let id = key(name, category)
+                if merged[id] == nil {
+                    order.append(id)
+                    merged[id] = (name, category, abv, [:])
+                }
+                assert(merged[id]?.abv == abv, "\(name) is listed at two strengths")
+                merged[id]?.prices[currency, default: []] += serves.map { (size: $0.0, price: $0.1) }
+            }
+        }
+        return order.compactMap { merged[$0] }.map { CatalogBrand(name: $0.name, category: $0.category, abv: $0.abv, prices: $0.prices) }
+    }()
 
     static let items: [CatalogItem] = brands.flatMap { brand in
-        brand.serves.map { CatalogItem(name: brand.name, category: brand.category, vessel: $0.size.vessel, volumeMl: $0.size.ml, abv: brand.abv, price: $0.price) }
+        brand.sizes.map { CatalogItem(name: brand.name, category: brand.category, vessel: $0.vessel, volumeMl: $0.ml, abv: brand.abv) }
+    }
+
+    /// The currency prices are wanted in: the one set in Setup, which lives in the shared defaults so the widgets
+    /// and intents price the same way the app does.
+    static var currency: String {
+        UserDefaults.shared.string(forKey: "currency") ?? Locale.current.currency?.identifier ?? "GBP"
     }
 
     /// Brands by `key`, for the price and identity lookups that run once per drink per size on every keystroke.
@@ -1057,21 +1098,33 @@ nonisolated enum Catalog {
 
     /// What a drink of this name in this size normally costs: a brand's own price, else a generic's starting one.
     /// Nil where nothing is known, so a caller can tell "we don't price this" from "this is free".
-    static func price(name: String, category: DrinkCategory, vessel: Vessel, ml: Double) -> Double? {
+    static func price(name: String, category: DrinkCategory, vessel: Vessel, ml: Double, currency: String = currency) -> Double? {
         if let brand = byKey[key(name, category)] {
-            let found = price(brand, vessel, ml)
+            let found = price(brand, vessel, ml, currency: currency)
             return found > 0 ? found : nil
         }
-        return Seed.price(name: name, vessel: vessel, ml: ml)
+        return Seed.price(name: name, vessel: vessel, ml: ml).flatMap { Rates.convert($0, from: "GBP", to: currency) }
     }
 
     /// A size the brand isn't listed in scales from the nearest serve of the same vessel before any other:
     /// a 440 ml bottle is the 330's price and a third, not a pint's less a fifth. Draught and packaged are
     /// different trades and their prices don't divide into one another.
-    static func price(_ brand: CatalogBrand, _ vessel: Vessel, _ ml: Double) -> Double {
-        if let exact = brand.serves.first(where: { $0.size.vessel == vessel && $0.size.ml == ml }) { return exact.price }
-        let alike = brand.serves.filter { $0.size.vessel == vessel }
-        guard let nearest = alike.min(by: { abs($0.size.ml - ml) < abs($1.size.ml - ml) }) ?? brand.serves.first
+    ///
+    /// A drink sold in `currency`'s market is priced from that market alone. One that isn't is converted from
+    /// wherever it is priced, the UK first, at the bundled rates: a Polish beer in złoty for someone in Kraków,
+    /// in pounds for someone buying it in Lewisham.
+    static func price(_ brand: CatalogBrand, _ vessel: Vessel, _ ml: Double, currency: String = currency) -> Double {
+        if let serves = brand.prices[currency] { return price(serves, vessel, ml) }
+        for (source, serves) in brand.prices.sorted(by: { $0.key == "GBP" ? true : $1.key == "GBP" ? false : $0.key < $1.key }) {
+            if let converted = Rates.convert(price(serves, vessel, ml), from: source, to: currency) { return converted }
+        }
+        return 0
+    }
+
+    private static func price(_ serves: [(size: ServeSize, price: Double)], _ vessel: Vessel, _ ml: Double) -> Double {
+        if let exact = serves.first(where: { $0.size.vessel == vessel && $0.size.ml == ml }) { return exact.price }
+        let alike = serves.filter { $0.size.vessel == vessel }
+        guard let nearest = alike.min(by: { abs($0.size.ml - ml) < abs($1.size.ml - ml) }) ?? serves.first
         else { return 0 }
         return nearest.price * ml / nearest.size.ml
     }

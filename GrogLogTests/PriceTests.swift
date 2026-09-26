@@ -7,7 +7,7 @@ import Testing
 @Suite struct PriceTests {
     @Test func everySizeOfEveryBrandCostsSomething() {
         for brand in Catalog.brands {
-            for serve in brand.serves {
+            for serve in brand.prices.values.flatMap({ $0 }) {
                 #expect(serve.price > 0, "\(brand.name) \(serve.size.label)")
             }
         }

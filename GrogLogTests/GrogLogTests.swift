@@ -729,7 +729,7 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
     @Test func everyBrandIsListedOnceAndHasSizes() {
         #expect(Set(Catalog.brands.map(\.name)).count == Catalog.brands.count)
         #expect(Set(Catalog.items.map(\.id)).count == Catalog.items.count)
-        #expect(Catalog.brands.allSatisfy { !$0.serves.isEmpty })
+        #expect(Catalog.brands.allSatisfy { !$0.prices.isEmpty && $0.prices.values.allSatisfy { !$0.isEmpty } })
         // The ceiling is a white cider bottle, the one serve that isn't a glassful.
         #expect(Catalog.items.allSatisfy { $0.volumeMl >= 10 && $0.volumeMl <= 2500 })
     }

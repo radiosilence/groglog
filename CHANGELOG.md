@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The catalogue prices a drink in your currency. A drink can carry prices from the market it's usually bought in, in that market's money, as well as in pounds; one that isn't priced in your currency is converted at a bundled snapshot of the ECB's reference rates, dated in `Rates.swift`, rather than shown in pounds with a euro sign. Setup offers every currency those rates cover. Drinks already copied in keep the price they were copied at.
+
 - Regional cask ales: Harvey's (Sussex Best, Armada, Old Ale, Imperial Extra Double Stout), Young's, Wadworth, St Austell Proper Job, Spitfire, Boltmaker, Southwold Bitter, Hophead, Hook Norton, Theakston, Oakham, Butcombe, Otter, Exmoor, Castle Rock, Everards, Robinsons, Batemans, Purity, 61 Deep, Brakspear, Ringwood, Titanic Iceberg, Salopian Oracle, and from Scotland Bitter & Twisted, Deuchars, Dark Island, Jarl and Belhaven Best. Strengths are the breweries' current figures, several of which have recently been brewed down to 3.4% for the duty threshold, and a bottle that differs in strength from its cask is its own entry. No pub publishes a price for these by name, so pints take a cask tier by strength; bottles are single shop prices.
 
 - Average week on Reports, and the four-week figure the goal screen offers as a starting point, leave out days nobody logged instead of counting them as dry. A week with two nights missing had read as a light week.

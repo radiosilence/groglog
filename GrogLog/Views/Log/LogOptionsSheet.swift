@@ -127,7 +127,7 @@ struct LogOptionsSheet: View {
     private func usualPrice(for choice: Choice) -> Double {
         if let pinned = favourite(for: choice)?.price { return pinned }
         if let drink = choice.drink { return drink.price(for: size.vessel, ml: size.ml) }
-        return choice.brand.map { Catalog.price($0, size.vessel, size.ml) } ?? 0
+        return choice.brand.map { Catalog.price($0, size.vessel, size.ml, currency: prefs.currency) } ?? 0
     }
 
     private func favourite(for choice: Choice) -> Favourite? {
@@ -147,7 +147,7 @@ struct LogOptionsSheet: View {
     /// Catalogue picks become your own drinks, first had at this size.
     private func resolve(_ choice: Choice) -> Drink? {
         if let drink = choice.drink { return drink }
-        let price = choice.brand.map { Catalog.price($0, size.vessel, size.ml) } ?? 0
+        let price = choice.brand.map { Catalog.price($0, size.vessel, size.ml, currency: prefs.currency) } ?? 0
         let drink = database.logbook(prefs).drink(named: choice.name, category: choice.category, abv: choice.abv, vessel: size.vessel, volumeMl: size.ml, price: price)
         if let drink { selected = drink.id.uuidString }
         return drink

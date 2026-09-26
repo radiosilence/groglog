@@ -37,7 +37,7 @@ struct SetupScreen: View {
                     ForEach(0..<9) { Text(ledger.clock.hourLabel(Double($0 - prefs.rolloverHour))).tag($0) }
                 }
                 Picker("Currency", selection: $prefs.currency) {
-                    ForEach(["GBP", "EUR", "USD"], id: \.self) { Text($0) }
+                    ForEach(Rates.currencies, id: \.self) { Text($0) }
                 }
             } footer: {
                 Text("Drinks after midnight count towards the evening before.")
