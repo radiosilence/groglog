@@ -323,8 +323,12 @@ nonisolated enum Catalog {
         ("Five Points Pale", .beer, 4.4, [(pint, 4)]),
         ("Five Points XPA", .beer, 4.0, [(pint, 6.6), (can330, 2.99)]),
         ("Five Points Railway Porter", .beer, 4.8, [(pint, 6.95), (can330, 2.95)]),
-        ("Signature Brew Studio Lager", .beer, 4.0, [(pint, 6.6), (can330, 1.58)]),
-        ("Signature Brew Backstage IPA", .beer, 5.6, [(pint, 7.2), (can330, 2.67)]),
+        // Signature Brew's core range is in 440s now, sold in sixes and up, so those cans are the brewery's
+        // six-pack rate. Backstage is 5.2% on the brewery's shop, down from 5.6%. Lo-Fi is the 0.5% one.
+        ("Signature Brew Studio Lager", .beer, 4.0, [(pint, 6.6), (can330, 1.58), (can440, 2.83)]),
+        ("Signature Brew Roadie IPA", .beer, 4.3, [(pint, 6.6), (can330, 2.33), (can440, 2.83)]),
+        ("Signature Brew Haze Machine", .beer, 4.8, [(pint, 6.95), (can440, 2.67)]),
+        ("Signature Brew Backstage IPA", .beer, 5.2, [(pint, 6.95), (can440, 3.17)]),
         ("Beavertown Bloody 'Ell", .beer, 5.5, [(pint, 7.2), (can330, 2.75)]),
         // Nanobot is Beavertown's low-alcohol one, but 2.8% is still drink — it's the 0.3% Lazer Crush
         // that stays out.

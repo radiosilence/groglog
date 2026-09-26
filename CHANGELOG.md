@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Signature Brew's current core range: Roadie IPA and Haze Machine join Studio Lager and Backstage IPA, with the 440ml cans the brewery now sells. Backstage is 5.2%, the brewery's current figure, down from 5.6%.
 - More British beer: Fuller's bottles (1845, Golden Pride, Honey Dew, Griffin Gold, Black Cab, Imperial Stout, Vintage Ale), Gale's HSB and Seafarers, Dark Star's American Pale Ale, Revelation and Espresso, St Austell's Korev, Big Job, Cornish Best, Hicks and Mena Dhu, Nicholson's Pale Ale, Master Brew and Whitstable Bay, Robinsons' Dizzy Blonde, Trooper and Old Tom, Hooky Gold and Mild, the Thwaites range, Courage Best and Directors, Butty Bach, HPA, Summer Lightning, Rebellion IPA, Cambridge Bitter and East London's Foundation. Irish: Foreign Extra, Hop House 13, Kilkenny, Belhaven Black, Tullamore and Powers.
 - Eastern European beer at single-bottle prices (Perła Export and Miodowa, Łomża Jasne, Budvar Dark, Zlatý Bažant, Švyturys, Kalnapilis, Utenos, Aldaris, Cēsu, Viru, Obolon Magnat, Karlovačko), and Polish vodka and its liqueurs at a UK Polish shop's prices: Żubrówka, Wyborowa, Luksusowa, Sobieski, Pan Tadeusz, Belvedere, Chopin, Krupnik, Żołądkowa Gorzka and Soplica.
 - Strengths corrected where the brewer has changed them: Tyskie is 5.0% as brewed for the UK, and Ghost Ship is 4.1%.
