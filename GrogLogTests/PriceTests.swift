@@ -75,7 +75,7 @@ import Testing
         let pint = Drink(name: asahi.name, category: asahi.category, abv: asahi.abv,
                          vessel: .pint, volumeMl: 568, price: Catalog.price(asahi, .pint, 568))
         #expect(abs(pint.price(for: .bottle, ml: 330) - Catalog.price(asahi, .bottle, 330)) < 0.001)
-        #expect(pint.price(for: .bottle, ml: 330) < 2)
+        #expect(pint.price(for: .bottle, ml: 330) < pint.price * 330 / 568)
         // Its own size is its own price, whatever else changes.
         #expect(pint.price(for: .pint, ml: 568) == pint.price)
     }
@@ -88,6 +88,17 @@ import Testing
                          vessel: .pint, volumeMl: 568, price: 5)
         #expect(mine.price(for: .pint, ml: 568) == 5)
         #expect(abs(mine.price(for: .bottle, ml: 330) - Catalog.price(asahi, .bottle, 330)) < 0.001)
+    }
+
+    /// A drink priced only in pounds is converted for someone paying in another currency, and never for someone
+    /// paying in pounds.
+    @Test func aPriceIsConvertedIntoYourCurrency() throws {
+        let asahi = try #require(Catalog.brands.first { $0.name == "Asahi Super Dry" })
+        let pounds = Catalog.price(asahi, .pint, 568, currency: "GBP")
+        let euros = Catalog.price(asahi, .pint, 568, currency: "EUR")
+        #expect(pounds == asahi.prices["GBP"]?.first { $0.size.vessel == .pint }?.price)
+        #expect(abs(euros - pounds * Rates.perPound["EUR"]!) < 0.001)
+        #expect(Catalog.price(asahi, .pint, 568, currency: "XXX") == 0)
     }
 
     /// A drink of your own invention has nothing to look up, so its price is all there is to go on.
