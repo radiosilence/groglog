@@ -3,7 +3,9 @@ import SwiftUI
 
 struct CalendarScreen: View {
     let ledger: Ledger
+    let reselects: Int
     @Environment(Prefs.self) private var prefs
+    @State private var position = ScrollPosition(edge: .bottom)
 
     var body: some View {
         let calendar = ledger.clock.calendar
@@ -22,6 +24,9 @@ struct CalendarScreen: View {
             .padding(.bottom)
         }
         .defaultScrollAnchor(.bottom)
+        .scrollPosition($position)
+        // Runs a turn later than the system's own scroll to the top, so this one wins.
+        .onChange(of: reselects) { Task { withAnimation { position.scrollTo(edge: .bottom) } } }
         .safeAreaInset(edge: .top, spacing: 0) {
             WeekdayHeader(calendar: calendar)
         }

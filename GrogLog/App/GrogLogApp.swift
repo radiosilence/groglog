@@ -41,15 +41,21 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     /// Opens on Log; `-tab <name>` picks another, for screenshots.
     @State private var tab = UserDefaults.standard.string(forKey: "tab") ?? "log"
+    @State private var calendarReselects = 0
 
     var body: some View {
         let today = prefs.clock.today
-        TabView(selection: $tab) {
+        // Tapping the selected tab again is the system's scroll-to-top, but the calendar's top is its oldest month.
+        let selection = Binding(get: { tab }, set: {
+            if $0 == tab, $0 == "calendar" { calendarReselects += 1 }
+            tab = $0
+        })
+        TabView(selection: selection) {
             Tab("Log", systemImage: "plus.circle", value: "log") {
                 NavigationStack { LedgerReader { LogScreen(ledger: $0) } }
             }
             Tab("Calendar", systemImage: "calendar", value: "calendar") {
-                NavigationStack { LedgerReader { CalendarScreen(ledger: $0) } }
+                NavigationStack { LedgerReader { CalendarScreen(ledger: $0, reselects: calendarReselects) } }
             }
             Tab("Day", systemImage: "chart.line.uptrend.xyaxis", value: "day") {
                 // `-dayOffset 1` opens on yesterday, for screenshots that show a day that's over.
