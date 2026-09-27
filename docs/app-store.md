@@ -9,7 +9,7 @@ as written; the limits are Apple's.
 - **Subtitle** (30): Drink diary for cutting down
 - **Primary category:** Health & Fitness
 - **Secondary category:** Lifestyle
-- **Copyright:** © 2026 Jeimuzu Heavy Industries
+- **Copyright:** © 2026 James Cleveland
 - **Marketing URL:** https://groglog.io
 - **Support URL:** https://groglog.io/support.html
 - **Privacy Policy URL:** https://groglog.io/privacy.html

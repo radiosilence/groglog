@@ -33,4 +33,5 @@ by hand. The version shown in the App Store is `MARKETING_VERSION` in `project.y
 
 `scripts/store-screenshots.sh <dir>` takes the 6.9-inch set App Store Connect requires, from the demo data with
 Apple's standard status bar. The website uses the same images, so re-run it and copy them into `site/public/screens`
-when the app changes visibly.
+when the app changes visibly. Then run `scripts/render-share-image.sh`, which builds the site's link-preview image
+(`site/public/share.png`, 1200×630) from the app icon and two of those screenshots.
