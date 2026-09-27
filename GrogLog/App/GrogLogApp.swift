@@ -52,7 +52,8 @@ struct RootView: View {
                 NavigationStack { LedgerReader { CalendarScreen(ledger: $0) } }
             }
             Tab("Day", systemImage: "chart.line.uptrend.xyaxis", value: "day") {
-                NavigationStack { DayPager(day: today).id(today) }
+                // `-dayOffset 1` opens on yesterday, for screenshots that show a day that's over.
+                NavigationStack { DayPager(day: today - UserDefaults.standard.integer(forKey: "dayOffset")).id(today) }
             }
             Tab("Reports", systemImage: "chart.bar.xaxis", value: "reports") {
                 NavigationStack { LedgerReader { ReportsScreen(ledger: $0) } }

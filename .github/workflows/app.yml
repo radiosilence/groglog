@@ -1,0 +1,62 @@
+name: App
+
+# Tests every push and pull request; every push to main is also archived, signed and uploaded to TestFlight. Submitting
+# a build for App Store review is left to App Store Connect, where the release notes and screenshots live.
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "site/**"
+      - ".github/workflows/site.yml"
+      - "docs/**"
+      - "**.md"
+  pull_request:
+
+concurrency:
+  group: app-${{ github.ref }}
+  # A newer push supersedes a TestFlight upload that hasn't finished; on a PR it only saves runner time.
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install toolchain
+        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
+
+      - name: Use the newest Xcode on the runner
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+
+      - name: Test
+        run: scripts/ci-test.sh
+
+  testflight:
+    runs-on: macos-26
+    needs: test
+    # Skipped rather than failed until the signing secrets exist; see docs/releasing.md.
+    if: github.ref == 'refs/heads/main' && vars.APPLE_TEAM_ID != ''
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install toolchain
+        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
+
+      - name: Use the newest Xcode on the runner
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+
+      # Signing is Xcode's cloud-managed kind, authenticated with an App Store Connect API key: no certificate or
+      # profile is kept in the repository or its secrets, and nothing has to be renewed by hand.
+      - name: Archive and upload
+        env:
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY: ${{ secrets.ASC_KEY }}
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: scripts/testflight.sh

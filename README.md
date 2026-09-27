@@ -72,3 +72,5 @@ Requires Xcode 26+ / iOS 26. The app icon is rendered from the pint glyph by `sc
 `scripts/phone.sh [Debug|Release]` builds, installs and launches on the connected iPhone; installing over the app keeps its data.
 
 Tests: `xcodebuild -scheme GrogLog -destination 'platform=iOS Simulator,name=iPhone 18 Pro' test`.
+
+CI tests every push and uploads every passing push to `main` to TestFlight; see [docs/releasing.md](docs/releasing.md). The App Store listing is kept in [docs/app-store.md](docs/app-store.md).

@@ -77,15 +77,17 @@ nonisolated enum Seed {
                     ? min(1, Double(date - taperFrom) / Double(max(1, today.components.day - taperFrom)))
                     : 0
 
-                if thisMonth && dryRun.contains(date) {
+                // Yesterday is always an evening out, so a screenshot of it has a day to show.
+                let yesterday = offset == 1
+                if thisMonth && dryRun.contains(date) && !yesterday {
                     try Day(number: day.number, isAlcoholFree: true).save(db)
                     continue
                 }
-                if !onTheWine, Double.random(in: 0..<1, using: &rng) < (taper > 0 ? 0.1 + taper * 0.3 : 0.08) {
+                if !onTheWine, Double.random(in: 0..<1, using: &rng) < (taper > 0 ? 0.1 + taper * 0.3 : 0.08), !yesterday {
                     try Day(number: day.number, isAlcoholFree: true).save(db)
                     continue
                 }
-                if !thisMonth, Double.random(in: 0..<1, using: &rng) < 0.05 { continue }
+                if !thisMonth, Double.random(in: 0..<1, using: &rng) < 0.05, !yesterday { continue }
 
                 // Easing down rather than lurching: the taper sets the level, the noise is small.
                 let target = onTheWine
