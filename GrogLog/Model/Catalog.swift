@@ -329,6 +329,17 @@ nonisolated enum Catalog {
         ("Signature Brew Roadie IPA", .beer, 4.3, [(pint, 6.6), (can330, 2.33), (can440, 2.83)]),
         ("Signature Brew Haze Machine", .beer, 4.8, [(pint, 6.95), (can440, 2.67)]),
         ("Signature Brew Backstage IPA", .beer, 5.2, [(pint, 6.95), (can440, 3.17)]),
+        // Portobello, from W10. The bottles are Ocado's single prices. The cask beers take the cask tier and
+        // the keg ones the craft tier. Westway is 3.8% on cask and 4% bottled.
+        ("Portobello London Pilsner", .beer, 4.6, [(pint, 6.95), (bottle330, 2.2)]),
+        ("Portobello Notting Helles", .beer, 4.0, [(pint, 6.6)]),
+        ("Portobello V.E.S.P.A.", .beer, 4.2, [(pint, 6.6)]),
+        ("Portobello Stiff Lip IPA", .beer, 5.0, [(pint, 6.95), (bottle500, 2.75)]),
+        ("Portobello Polari", .beer, 4.2, [(pint, 6.6)]),
+        ("Portobello Westway Pale Ale", .beer, 3.8, [(pint, 4.8)]),
+        ("Portobello Westway Pale Ale (bottle)", .beer, 4.0, [(bottle330, 2.2)]),
+        ("Portobello Star", .beer, 4.3, [(pint, 5.1), (bottle500, 2.45)]),
+        ("Portobello Market Porter", .beer, 4.6, [(pint, 5.3), (bottle500, 3)]),
         ("Beavertown Bloody 'Ell", .beer, 5.5, [(pint, 7.2), (can330, 2.75)]),
         // Nanobot is Beavertown's low-alcohol one, but 2.8% is still drink — it's the 0.3% Lazer Crush
         // that stays out.

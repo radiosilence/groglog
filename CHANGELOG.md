@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Portobello: London Pilsner, Notting Helles, V.E.S.P.A., Stiff Lip, Polari, Westway, Star and Market Porter. Westway is 3.8% on cask and 4% in the bottle, so it is two entries.
 - groglog.io: a home page, privacy policy and support page, with the App Store screenshots.
 
 - Builds go to TestFlight: every push to main that passes the tests is signed and uploaded by CI. The App Store listing, its screenshots and the export-compliance answer are set up alongside.
