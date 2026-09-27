@@ -59,9 +59,12 @@ import Testing
         let rebuild = ContinuousClock().measure { logbook.rebuild() }
 
         print("scale: bulk \(bulk), taps \(taps.map { $0.formatted(.units(allowed: [.milliseconds])) }), screens \(screens), rebuild \(rebuild)")
-        #expect(bulk < .seconds(3))
-        #expect(taps.allSatisfy { $0 < .milliseconds(30) })
-        #expect(screens < .milliseconds(250))
-        #expect(rebuild < .seconds(3))
+        // The limits are for a laptop. A shared CI runner is several times slower and uneven with it, so there they
+        // get four times the room: still far short of what a real regression costs, which is orders of magnitude.
+        let room = ProcessInfo.processInfo.environment["CI"] == nil ? 1.0 : 4.0
+        #expect(bulk < .seconds(3) * room)
+        #expect(taps.allSatisfy { $0 < .milliseconds(30) * room })
+        #expect(screens < .milliseconds(250) * room)
+        #expect(rebuild < .seconds(3) * room)
     }
 }
