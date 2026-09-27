@@ -73,4 +73,4 @@ Requires Xcode 26+ / iOS 26. The app icon is rendered from the pint glyph by `sc
 
 Tests: `xcodebuild -scheme GrogLog -destination 'platform=iOS Simulator,name=iPhone 18 Pro' test`.
 
-CI tests every push and uploads every passing push to `main` to TestFlight; see [docs/releasing.md](docs/releasing.md). The App Store listing is kept in [docs/app-store.md](docs/app-store.md).
+CI tests every push and uploads every passing push to `main` to TestFlight; see [docs/releasing.md](docs/releasing.md). The App Store listing is kept in [docs/app-store.md](docs/app-store.md). The website, groglog.io, is `site/`: static pages served by nano-web, published as an image and deployed by jaritanet.

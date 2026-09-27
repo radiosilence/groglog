@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- groglog.io: a home page, privacy policy and support page, with the App Store screenshots.
+
 - Builds go to TestFlight: every push to main that passes the tests is signed and uploaded by CI. The App Store listing, its screenshots and the export-compliance answer are set up alongside.
 
 - Tiny Rebel: Clwb Tropica, Rebel IPA, Neon Drift, Cali Pale, 313 Craft Lager, Easy Livin' and Coal Drop, at the brewery's own single-can prices.
