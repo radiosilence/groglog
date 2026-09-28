@@ -8,3 +8,7 @@ phone config="Debug":
     xcodebuild -project GrogLog.xcodeproj -scheme GrogLog -configuration {{config}} -destination "id=$PHONE" -derivedDataPath build -allowProvisioningUpdates build -quiet
     xcrun devicectl device install app --device "$PHONE" "build/Build/Products/{{config}}-iphoneos/GrogLog.app"
     xcrun devicectl device process launch --device "$PHONE" cc.blit.groglog
+
+# The App Store listing, builds and review, from the terminal. See scripts/app-store.py.
+store command="status":
+    scripts/app-store.py {{command}}

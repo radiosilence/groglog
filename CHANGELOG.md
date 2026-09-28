@@ -9,7 +9,7 @@
 - Portobello: London Pilsner, Notting Helles, V.E.S.P.A., Stiff Lip, Polari, Westway, Star and Market Porter. Westway is 3.8% on cask and 4% in the bottle, so it is two entries.
 - groglog.io: a home page, privacy policy and support page, with the App Store screenshots.
 
-- Builds go to TestFlight: every push to main that passes the tests is signed and uploaded by CI. The App Store listing, its screenshots and the export-compliance answer are set up alongside.
+- Builds go to TestFlight: every push to main that passes the tests is signed and uploaded by CI. The App Store listing, its screenshots and the export-compliance answer are set up alongside. `just store` drives the listing, screenshots and review submission from the terminal, from `docs/app-store.md`.
 
 - Tiny Rebel: Clwb Tropica, Rebel IPA, Neon Drift, Cali Pale, 313 Craft Lager, Easy Livin' and Coal Drop, at the brewery's own single-can prices.
 - Signature Brew's current core range: Roadie IPA and Haze Machine join Studio Lager and Backstage IPA, with the 440ml cans the brewery now sells. Backstage is 5.2%, the brewery's current figure, down from 5.6%.

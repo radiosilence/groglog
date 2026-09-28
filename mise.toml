@@ -1,3 +1,10 @@
 [tools]
 just = "latest"
+uv = "latest"
 xcodegen = "latest"
+
+[env]
+# App Store Connect API key for scripts/app-store.py and scripts/testflight.sh. Identifiers only: the key itself lives in
+# ~/.appstoreconnect/private_keys, and in the ASC_KEY secret on CI.
+ASC_KEY_ID = "9G3FHWD2RH"
+ASC_ISSUER_ID = "54135b80-f695-46ac-9a60-9fbd67c80da6"

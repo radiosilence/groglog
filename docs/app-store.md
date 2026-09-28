@@ -1,7 +1,7 @@
 # App Store listing
 
-What App Store Connect asks for, kept here so a change to the listing is reviewed like any other. Paste each field in
-as written; the limits are Apple's.
+What App Store Connect asks for, kept here so a change to the listing is reviewed like any other. `just store listing`
+sends it to App Store Connect; the limits in brackets are Apple's.
 
 ## App information
 

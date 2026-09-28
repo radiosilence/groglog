@@ -1,8 +1,9 @@
 # Releasing
 
 Every push to `main` that passes the tests is archived, signed and uploaded to App Store Connect by
-`.github/workflows/app.yml`, and appears in TestFlight once Apple has processed it. Putting a build up for App Store
-review is done in App Store Connect, where the listing lives (see [app-store.md](app-store.md)).
+`.github/workflows/app.yml`, and appears in TestFlight once Apple has processed it. The listing and review submission
+are driven from the terminal by `scripts/app-store.py` (`just store <command>`), so the App Store Connect website is
+needed only for what Apple offers no API for.
 
 Signing is Xcode's cloud-managed kind, authenticated with an App Store Connect API key, so no certificate or
 provisioning profile is kept anywhere and nothing needs renewing. `scripts/testflight.sh` is the whole of it and runs
@@ -26,6 +27,21 @@ Until `APPLE_TEAM_ID` is set, the upload job is skipped and only the tests run.
 
 An internal TestFlight group with access to all builds hands each processed upload to its testers without anyone
 having to add it; internal testers must be App Store Connect users.
+
+## Releasing a version
+
+1. Raise `MARKETING_VERSION` in `project.yml` and push; CI uploads the build.
+2. For an update, add a `## What's new` section to [app-store.md](app-store.md). Apple requires release notes on every
+   version after the first and refuses them on the first.
+3. `just store listing` pushes app-store.md to the listing, creating the version in App Store Connect if needed.
+   `just store screenshots` retakes the screenshots and replaces the listing's set, when the app has changed visibly.
+4. `just store submit` attaches the newest processed build of that version and submits it for review. An approved
+   version is released straight away.
+
+`just store` on its own shows the versions, recent builds and review state.
+
+The script reads the API key from `~/.appstoreconnect/private_keys/AuthKey_<ASC_KEY_ID>.p8`; the key and issuer IDs
+are in `mise.toml`. App Privacy, the EU trader declaration and agreements have no API and are set on the website, once.
 
 ## Build numbers
 
