@@ -24,6 +24,9 @@ Once, in App Store Connect and GitHub:
 
 Until `APPLE_TEAM_ID` is set, the upload job is skipped and only the tests run.
 
+An internal TestFlight group with access to all builds hands each processed upload to its testers without anyone
+having to add it; internal testers must be App Store Connect users.
+
 ## Build numbers
 
 A CI build's number is 1000 plus the workflow run number, so it always rises and can never collide with one uploaded
