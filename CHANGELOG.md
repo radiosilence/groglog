@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Version 1.0.0, the first App Store release.
+
 - Tapping the Calendar tab while on it goes to this month. It had gone to the top, which is the oldest month shown.
 
 - Portobello: London Pilsner, Notting Helles, V.E.S.P.A., Stiff Lip, Polari, Westway, Star and Market Porter. Westway is 3.8% on cask and 4% in the bottle, so it is two entries.
