@@ -5,7 +5,7 @@ as written; the limits are Apple's.
 
 ## App information
 
-- **Name:** GrogLog
+- **Name:** GrogLog Drink Tracker
 - **Subtitle** (30): Drink diary for cutting down
 - **Primary category:** Health & Fitness
 - **Secondary category:** Lifestyle
