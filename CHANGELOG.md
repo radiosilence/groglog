@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- House pours to search by: vodka, gin, whisky, bourbon, white, dark and spiced rum, brandy and cognac.
+- Whisky: about fifty more, from Grant's and Teacher's through the Speyside and Islay malts to Redbreast, the bourbons, Japanese blends, Penderyn and Cotswolds. Cognac and brandy, the better-known gins, vodkas, rums, Patrón and a mezcal, and De Kuyper Cherry Brandy, Drambuie and Licor 43.
+- Balkan and Central European spirits at UK specialist shops' prices: Maraska and Badel pelinkovac, Gorki List, šljivovica, travarica, loza, Maraschino, vinjak, Bulgarian rakia and pelin, Unicum, Becherovka, slivovitz, Ouzo 12, Metaxa, Yeni Rakı and tsipouro.
+- Vermouth, port and sherry by name (Martini, Noilly Prat, Lillet, Taylor's, Cockburn's, Tio Pepe, Croft), Freixenet, Mionetto, Chandon and Nyetimber, Dassai 45 sake, Chamisul soju, erguotou, Chang and Saigon beer, Thatchers Rosé, Old Mout Berries & Cherries and Crabbie's.
 - Supermarket wine: 47 bottles at their regular single-bottle price. French appellations from Châteauneuf-du-Pape and Burgundy to Muscadet; Barolo, Amarone, Rioja Reserva and Gran Reserva, Ribera del Duero and a few New World regions; and the brands on every shelf, from Yellow Tail and Casillero del Diablo to Whispering Angel. A glass is priced as its share of the bottle.
 - Closing "Where this comes from" no longer closes the Goal sheet with it, which discarded the goal being edited.
 - A search on the Log screen with no matches says so and offers to add the drink under the name searched for. Absinthe is in the catalogue, at 68%.
