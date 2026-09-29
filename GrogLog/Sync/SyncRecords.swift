@@ -114,6 +114,15 @@ nonisolated struct SyncRecords: Sendable {
         }
     }
 
+    /// The CloudKit environment `syncState` and `syncRecord` describe, or nil before the first sync.
+    var environment: String? {
+        get throws { try writer.read { try String.fetchOne($0, sql: "SELECT environment FROM syncState WHERE id = 1") } }
+    }
+
+    func setEnvironment(_ environment: String) throws {
+        try writer.write { try $0.execute(sql: "UPDATE syncState SET environment = ? WHERE id = 1", arguments: [environment]) }
+    }
+
     func save(_ state: CKSyncEngine.State.Serialization) throws {
         let data = try JSONEncoder().encode(state)
         try writer.write { try $0.execute(sql: "UPDATE syncState SET engine = ? WHERE id = 1", arguments: [data]) }

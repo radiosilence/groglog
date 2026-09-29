@@ -29,8 +29,18 @@ nonisolated final class Sync: CKSyncEngineDelegate, Sendable {
     func start() {
         guard engine.withLock({ $0 == nil }) else { return }
         do {
+            // Builds from Xcode are signed for CloudKit's development environment, TestFlight and App Store builds
+            // for production. Sync state from the other one says nothing about what this one has.
+            #if DEBUG
+            let environment = "development"
+            #else
+            let environment = "production"
+            #endif
+            if try records.engineState == nil || records.environment != environment {
+                try records.queueEverything()
+                try records.setEnvironment(environment)
+            }
             let state = try records.engineState
-            if state == nil { try records.queueEverything() }
             let database = CKContainer(identifier: Self.container).privateCloudDatabase
             var configuration = CKSyncEngine.Configuration(database: database, stateSerialization: try records.engineState, delegate: self)
             configuration.automaticallySync = true

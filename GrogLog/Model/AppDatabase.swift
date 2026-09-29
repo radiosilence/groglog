@@ -180,6 +180,14 @@ nonisolated struct AppDatabase: Sendable {
                 BEGIN \(note(dayName("OLD"))); END;
                 """)
         }
+        // Which CloudKit environment the sync state belongs to. A build from Xcode syncs with development and a
+        // TestFlight or App Store build with production: separate databases, so a phone moving between them has to
+        // send everything again rather than trust what the other one acknowledged.
+        migrator.registerMigration("v5-sync-environment") { db in
+            try db.alter(table: "syncState") { t in
+                t.add(column: "environment", .text)
+            }
+        }
         return migrator
     }
 }

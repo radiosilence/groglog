@@ -152,6 +152,23 @@ private let evening = london.date(from: DateComponents(year: 2026, month: 9, day
         #expect(try b.pours()[0].price == 7)
     }
 
+    @Test func queueingEverythingForgetsWhatAnotherEnvironmentAcknowledged() throws {
+        let phone = try Phone()
+        phone.logbook.log(Serve(try phone.drink("Beer")), at: [evening])
+        try phone.records.queueEverything()
+        _ = try phone.send()
+        try phone.records.setEnvironment("development")
+        #expect(try phone.records.pending().isEmpty)
+
+        // What production needs when the phone moves to it: every row again, as new records.
+        try phone.records.queueEverything()
+        try phone.records.setEnvironment("production")
+        let pending = try phone.records.pending()
+        #expect(pending.contains { $0.id.recordName.hasPrefix("pour-") })
+        #expect(try phone.records.environment == "production")
+        #expect(try phone.records.record(for: pending[0].id)?.recordChangeTag == nil)
+    }
+
     @Test func anEntryArrivingBeforeItsDrinkWaitsForIt() throws {
         let a = try Phone(), b = try Phone()
         let lager = Drink(name: "Lager", category: .beer, abv: 4, vessel: .pint, volumeMl: 568)
