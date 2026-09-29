@@ -9,6 +9,7 @@
     scripts/app-store.py listing             push docs/app-store.md to the listing
     scripts/app-store.py screenshots         retake the screenshots and replace the listing's set
     scripts/app-store.py submit              attach this version's newest build and submit it for review
+    scripts/app-store.py withdraw            take the version out of review, to submit a newer build of it
 
 The version is MARKETING_VERSION in project.yml; `listing` and `submit` create it in App Store Connect when it doesn't
 exist yet. App Privacy, trader status and agreements have no API and were set once on the website.
@@ -253,8 +254,25 @@ def submit():
     print(f"{wanted} submitted for review; it is released when Apple approves it")
 
 
+def withdraw():
+    a = app()
+    waiting = get("/v1/reviewSubmissions", **{"filter[app]": a["id"], "filter[state]": "WAITING_FOR_REVIEW,IN_REVIEW"})["data"]
+    if not waiting:
+        sys.exit("Nothing is in review.")
+    for s in waiting:
+        patch("reviewSubmissions", s["id"], {"canceled": True})
+    # Apple cancels in the background; the version can't be submitted again until it has.
+    for _ in range(30):
+        states = {s["attributes"]["state"] for s in get("/v1/reviewSubmissions", **{"filter[app]": a["id"], "limit": 5})["data"]}
+        if not states & {"WAITING_FOR_REVIEW", "IN_REVIEW", "CANCELING"}:
+            print("Withdrawn from review; `submit` sends it again with the newest build")
+            return
+        time.sleep(10)
+    sys.exit("Still cancelling after five minutes; check `status` before submitting again.")
+
+
 if __name__ == "__main__":
-    commands = {"status": status, "listing": listing, "screenshots": screenshots, "submit": submit}
+    commands = {"status": status, "listing": listing, "screenshots": screenshots, "submit": submit, "withdraw": withdraw}
     if len(sys.argv) != 2 or sys.argv[1] not in commands:
         sys.exit(__doc__)
     commands[sys.argv[1]]()
