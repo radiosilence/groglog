@@ -114,7 +114,8 @@ struct SetupScreen: View {
                     Label("Support", systemImage: "questionmark.circle")
                 }
             } footer: {
-                Text("GrogLog \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")")
+                let info = { (key: String) in Bundle.main.object(forInfoDictionaryKey: key) as? String ?? "" }
+                Text("GrogLog \(info("CFBundleShortVersionString")) (\(info("CFBundleVersion")))")
             }
 
             #if DEBUG
