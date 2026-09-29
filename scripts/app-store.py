@@ -91,9 +91,14 @@ def editable_version(app_id, create_if_missing=False):
     """The App Store version for project.yml's version, if it can still be edited."""
     wanted = marketing_version()
     versions = get(f"/v1/apps/{app_id}/appStoreVersions", **{"filter[platform]": "IOS", "limit": 20})["data"]
-    live = ("READY_FOR_SALE", "REPLACED_WITH_NEW_VERSION", "REMOVED_FROM_SALE", "DEVELOPER_REMOVED_FROM_SALE")
+    # Only a version nobody has submitted, or one Apple sent back, can be changed. One in review blocks a new one.
+    editable = ("PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED", "INVALID_BINARY")
+    busy = ("WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_DEVELOPER_RELEASE", "PROCESSING_FOR_APP_STORE", "PENDING_APPLE_RELEASE")
     for v in versions:
-        if v["attributes"]["appVersionState"] not in live and v["attributes"]["appStoreState"] not in live:
+        state = v["attributes"]["appStoreState"]
+        if state in busy:
+            sys.exit(f"{v['attributes']['versionString']} is {state}; a new version can't be prepared until it's released or rejected.")
+        if state in editable:
             if v["attributes"]["versionString"] != wanted:
                 # An unreleased version is renamed rather than left beside a second one; Apple allows only one.
                 v = patch("appStoreVersions", v["id"], {"versionString": wanted})["data"]
