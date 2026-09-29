@@ -106,6 +106,17 @@ struct SetupScreen: View {
                 Text(prefs.syncsWithICloud ? "Importing a backup adds to your log and never overwrites it." : "Your data stays on this phone. Importing a backup adds to your log and never overwrites it.")
             }
 
+            Section {
+                Link(destination: URL(string: "https://groglog.io/privacy.html")!) {
+                    Label("Privacy policy", systemImage: "hand.raised")
+                }
+                Link(destination: URL(string: "https://groglog.io/support.html")!) {
+                    Label("Support", systemImage: "questionmark.circle")
+                }
+            } footer: {
+                Text("GrogLog \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")")
+            }
+
             #if DEBUG
             Section {
                 Toggle("Demo mode", isOn: $demoMode)

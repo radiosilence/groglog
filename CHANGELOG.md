@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Setup links to the privacy policy and support page, and shows the version.
 - iCloud sync (1.1.0). The log is kept in your own iCloud account, so it comes back on a new iPhone. Two phones' logs merge rather than overwrite, and turning sync off or signing out of iCloud deletes nothing. The goal, the currency and the hour the day ends sync too, through iCloud's key-value store; the Health switches stay per phone. The privacy page says where the copy lives and how to remove it.
 
 ## 1.0.0

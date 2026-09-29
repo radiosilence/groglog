@@ -77,7 +77,9 @@ alcohol,units,drinking,cut down,sober,taper,drink tracker,dry,sobriety,beer,wine
 No sign-in is needed. The app starts empty: tap a drink on the Log tab to log it, and set a reduction goal from the
 target button on Reports. Apple Health is optional and off by default; it is used to write logged drinks to Health
 and, separately, to read heart rate, HRV and sleep for the Reports tab, with each switch in Setup. iCloud sync is on
-by default and keeps the log in the user's private CloudKit database; it can be turned off in Setup.
+by default and keeps what the user has typed in (drinks, days, goal) in their private CloudKit database; nothing read
+from Apple Health is stored, in iCloud or anywhere else, and sync can be turned off in Setup. The privacy policy and
+support page are linked from Setup.
 
 ## Screenshots
 
