@@ -1140,7 +1140,6 @@ nonisolated enum Catalog {
         ("Bolla Pinot Grigio delle Venezie", .whiteWine, 11.5, [(wineBottle, 13.54)]),
         ("Coldwater Creek Merlot", .redWine, 12.0, [(glass125, 2.35), (glass175, 3.21), (glass250, 4.35)]),
         ("Grant Burge Barossa Ink Shiraz", .redWine, 14.0, [(glass125, 3.45), (glass175, 4.79), (glass250, 6.49), (wineBottle, 17.41)]),
-        ("Trivento Reserve Malbec", .redWine, 12.5, [(wineBottle, 15.53)]),
         ("Mount Rozier Pinot Noir Reserve", .redWine, 12.5, [(wineBottle, 13.54)]),
         ("Coldwater Creek Rosé", .rose, 11.5, [(glass125, 2.35), (glass175, 3.21), (glass250, 4.35)]),
         ("Villa Maria Blush Sauvignon", .rose, 12.0, [(glass125, 3.15), (glass175, 4.35), (glass250, 5.89), (wineBottle, 17.41)]),
