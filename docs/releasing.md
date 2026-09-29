@@ -28,6 +28,9 @@ Until `APPLE_TEAM_ID` is set, the upload job is skipped and only the tests run.
 An internal TestFlight group with access to all builds hands each processed upload to its testers without anyone
 having to add it; internal testers must be App Store Connect users.
 
+Outside testers join through the public group's link, https://testflight.apple.com/join/GKQQyk7P. A build reaches them
+only once it has been added to that group and passed Apple's beta review, which the first build of each version needs.
+
 ## Releasing a version
 
 1. Raise `MARKETING_VERSION` in `project.yml` and push; CI uploads the build.
