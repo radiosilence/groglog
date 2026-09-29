@@ -30,6 +30,14 @@ struct Store {
         if let path = UserDefaults.standard.string(forKey: "importBackup"), let data = FileManager.default.contents(atPath: path) {
             _ = try? Exporter.restore(data, writer: database.writer, prefs: prefs)
         }
+        // `-snapshot YES` writes a consistent copy of the log to the group's Library, the one part of a device's
+        // containers `devicectl` may copy from, for backing up a phone's log or looking at its sync state.
+        if UserDefaults.standard.bool(forKey: "snapshot"),
+           let library = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: AppDatabase.appGroup)?.appending(path: "Library") {
+            let copy = library.appending(path: "groglog-snapshot.sqlite")
+            try? FileManager.default.removeItem(at: copy)
+            try? database.writer.writeWithoutTransaction { try $0.execute(sql: "VACUUM INTO ?", arguments: [copy.path]) }
+        }
         #endif
         return Store(database: database, prefs: prefs)
     }
