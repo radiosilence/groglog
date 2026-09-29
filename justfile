@@ -10,5 +10,5 @@ phone config="Debug":
     xcrun devicectl device process launch --device "$PHONE" cc.blit.groglog
 
 # The App Store listing, builds and review, from the terminal. See scripts/app-store.py.
-store command="status":
-    scripts/app-store.py {{command}}
+store command="status" *args:
+    scripts/app-store.py {{command}} {{args}}

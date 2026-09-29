@@ -10,6 +10,7 @@
     scripts/app-store.py screenshots         retake the screenshots and replace the listing's set
     scripts/app-store.py submit              attach this version's newest build and submit it for review
     scripts/app-store.py withdraw            take the version out of review, to submit a newer build of it
+    scripts/app-store.py whats-new BUILD     set a TestFlight build's What to Test from CHANGELOG.md
 
 The version is MARKETING_VERSION in project.yml; `listing` and `submit` create it in App Store Connect when it doesn't
 exist yet. App Privacy, trader status and agreements have no API and were set once on the website.
@@ -271,8 +272,49 @@ def withdraw():
     sys.exit("Still cancelling after five minutes; check `status` before submitting again.")
 
 
+def changelog_notes(version):
+    """The version's CHANGELOG.md section as plain text, or Unreleased when it has none yet."""
+    text = (ROOT / "CHANGELOG.md").read_text()
+    section = lambda heading: (m := re.search(rf"^## {re.escape(heading)}\n(.*?)(?=^## |\Z)", text, re.S | re.M)) and m.group(1).strip()
+    body = section(version) or section("Unreleased") or ""
+    body = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", body)
+    body = re.sub(r"\*\*|`", "", body)
+    body = re.sub(r"\n{3,}", "\n\n", body)
+    # App Store Connect caps the field at 4000 characters.
+    if len(body) > 4000:
+        body = body[:body.rfind("\n", 0, 3950)] + "\n\n…and more in CHANGELOG.md"
+    return body
+
+
+def whats_new(build_number):
+    """Waits for the build to finish processing, then sets what testers see when they install it."""
+    a = app()
+    version = marketing_version()
+    text = changelog_notes(version)
+    if not text:
+        sys.exit(f"No changelog section for {version}")
+    deadline = time.time() + 45 * 60
+    while True:
+        builds = get("/v1/builds", **{"filter[app]": a["id"], "filter[version]": build_number, "filter[preReleaseVersion.version]": version})["data"]
+        state = builds[0]["attributes"]["processingState"] if builds else "NOT_YET_LISTED"
+        if state == "VALID":
+            break
+        if state in ("FAILED", "INVALID") or time.time() > deadline:
+            sys.exit(f"Build {build_number} is {state}")
+        print(f"Build {build_number}: {state}, waiting")
+        time.sleep(30)
+    build = builds[0]
+    locale = a["attributes"]["primaryLocale"]
+    held = next((l for l in get(f"/v1/builds/{build['id']}/betaBuildLocalizations")["data"] if l["attributes"]["locale"] == locale), None)
+    if held:
+        patch("betaBuildLocalizations", held["id"], {"whatsNew": text})
+    else:
+        create("betaBuildLocalizations", {"locale": locale, "whatsNew": text}, {"build": rel("builds", build["id"])})
+    print(f"What to Test set for {version} ({build_number}): {len(text)} characters")
+
+
 if __name__ == "__main__":
-    commands = {"status": status, "listing": listing, "screenshots": screenshots, "submit": submit, "withdraw": withdraw}
-    if len(sys.argv) != 2 or sys.argv[1] not in commands:
+    commands = {"status": status, "listing": listing, "screenshots": screenshots, "submit": submit, "withdraw": withdraw, "whats-new": whats_new}
+    if len(sys.argv) < 2 or sys.argv[1] not in commands:
         sys.exit(__doc__)
-    commands[sys.argv[1]]()
+    commands[sys.argv[1]](*sys.argv[2:])
