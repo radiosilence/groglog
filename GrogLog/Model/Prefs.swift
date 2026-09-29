@@ -10,6 +10,7 @@ import Observation
     var mirrorsToHealth: Bool { didSet { store.set(mirrorsToHealth, forKey: "mirrorsToHealth") } }
     var readsHeart: Bool { didSet { store.set(readsHeart, forKey: "readsHeart") } }
     var readsSleep: Bool { didSet { store.set(readsSleep, forKey: "readsSleep") } }
+    var syncsWithICloud: Bool { didSet { store.set(syncsWithICloud, forKey: "syncsWithICloud") } }
 
     init(store: UserDefaults = .shared) {
         self.store = store
@@ -19,6 +20,7 @@ import Observation
         mirrorsToHealth = store.bool(forKey: "mirrorsToHealth")
         readsHeart = store.bool(forKey: "readsHeart")
         readsSleep = store.bool(forKey: "readsSleep")
+        syncsWithICloud = store.object(forKey: "syncsWithICloud") as? Bool ?? true
     }
 
     var clock: DayClock { DayClock(rolloverHour: rolloverHour) }

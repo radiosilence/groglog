@@ -22,7 +22,7 @@ The questionnaire asks how often the app refers to alcohol. GrogLog is about not
 
 ## App Privacy
 
-**Data Not Collected.** The app makes no network requests and has no account, analytics or advertising SDK. Health
+**Data Not Collected.** The app has no account, server, analytics or advertising SDK. iCloud sync stores the log in the user's private CloudKit database, which the developer cannot read; Apple does not count that as collected. Health
 data it reads or writes never leaves the device, which Apple's definition of "collected" excludes.
 
 ## Promotional text (170)
@@ -61,6 +61,11 @@ anywhere. You can export all of it whenever you want. GrogLog is free, with noth
 
 GrogLog does not provide medical advice. It is intended to help you follow a plan agreed with your GP or an alcohol
 service. If you are dependent on alcohol, stopping suddenly can be dangerous: please speak to a doctor before you begin.
+
+## What's new
+
+iCloud sync. Your log is kept in your own iCloud account, so it comes back on a new iPhone. Only you can read it,
+and you can turn it off in Setup.
 
 ## Keywords (100)
 

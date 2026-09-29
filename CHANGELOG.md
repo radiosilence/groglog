@@ -2,7 +2,11 @@
 
 ## Unreleased
 
-- Version 1.0.0, the first App Store release.
+- iCloud sync (1.1.0). The log is kept in your own iCloud account, so it comes back on a new iPhone. Two phones' logs merge rather than overwrite, and turning sync off or signing out of iCloud deletes nothing. The privacy page says where the copy lives and how to remove it.
+
+## 1.0.0
+
+- The first App Store release.
 
 - Tapping the Calendar tab while on it goes to this month. It had gone to the top, which is the oldest month shown.
 

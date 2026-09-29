@@ -8,6 +8,9 @@ struct GrogLogApp: App {
     @State private var real = Store.real
     @State private var demo: Store?
 
+    /// The real log's setting, whichever log is on screen.
+    private var syncing: Bool { (try? real.get())?.prefs.syncsWithICloud ?? false }
+
     var body: some Scene {
         WindowGroup {
             Group {
@@ -26,6 +29,9 @@ struct GrogLogApp: App {
                 }
             }
             .tint(.grog)
+            .onChange(of: syncing, initial: true) { _, on in
+                if on { Sync.shared?.start() } else { Sync.shared?.stop() }
+            }
             .onChange(of: demoMode, initial: true) {
                 #if DEBUG
                 if demoMode, demo == nil { demo = .demo() }
@@ -76,6 +82,7 @@ struct RootView: View {
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active, let writer = try? database.writer else { return }
             try? writer.write { try $0.notifyChanges(in: .fullDatabase) }
+            Sync.shared?.queuePending()
             // A widget's tap logs in the widget's process, which has no Health entitlement, so its drinks reach
             // Health from here. Rewriting a day that didn't change leaves it as it was.
             if prefs.mirrorsToHealth {

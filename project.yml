@@ -34,8 +34,13 @@ targets:
         com.apple.security.application-groups: [group.cc.blit.groglog]
         com.apple.developer.healthkit: true
         com.apple.developer.healthkit.access: []
+        com.apple.developer.icloud-container-identifiers: [iCloud.cc.blit.groglog]
+        com.apple.developer.icloud-services: [CloudKit]
+        # Changes from another device arrive as silent pushes. Export for the App Store switches this to production.
+        aps-environment: development
     settings:
       base:
+        INFOPLIST_KEY_UIBackgroundModes: remote-notification
         INFOPLIST_KEY_NSHealthUpdateUsageDescription: GrogLog copies what you log into Health, so other apps can read it.
         # Only the system's own encryption (HTTPS, the keychain), which is exempt; saying so here stops every
         # upload asking.
@@ -43,7 +48,7 @@ targets:
         INFOPLIST_KEY_NSHumanReadableCopyright: © 2026 James Cleveland
         INFOPLIST_KEY_NSHealthShareUsageDescription: GrogLog reads your sleep, heart rate and HRV to chart them against what you drank the night before.
         PRODUCT_BUNDLE_IDENTIFIER: cc.blit.groglog
-        MARKETING_VERSION: 1.0.0
+        MARKETING_VERSION: 1.1.0
         CURRENT_PROJECT_VERSION: 1
         TARGETED_DEVICE_FAMILY: "1"
         GENERATE_INFOPLIST_FILE: YES
@@ -83,7 +88,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cc.blit.groglog.widgets
-        MARKETING_VERSION: 1.0.0
+        MARKETING_VERSION: 1.1.0
         CURRENT_PROJECT_VERSION: 1
         TARGETED_DEVICE_FAMILY: "1"
         SKIP_INSTALL: YES

@@ -123,6 +123,63 @@ nonisolated struct AppDatabase: Sendable {
                 try favourite.update(db)
             }
         }
+        // What iCloud sync needs from the database. Triggers note every changed row in `syncPending`, whichever
+        // process made the change: a widget's tap writes here too, and nothing in the widget knows sync exists.
+        // A pending row says only that a record may have changed; what is sent is read from the table when it goes,
+        // so a row saved then deleted is sent once, as a deletion. Changes arriving from iCloud are applied with
+        // `syncApplying` set, so they aren't sent straight back.
+        migrator.registerMigration("v4-sync") { db in
+            try db.create(table: "syncPending") { t in
+                t.primaryKey("recordName", .text)
+                t.column("changedAt", .datetime).notNull()
+            }
+            // The last copy of each record CloudKit acknowledged, as its encoded system fields. Saving over a record
+            // without its change tag is refused as a conflict.
+            try db.create(table: "syncRecord") { t in
+                t.primaryKey("recordName", .text)
+                t.column("systemFields", .blob).notNull()
+            }
+            // Records that arrived before the drink they refer to, applied once it has.
+            try db.create(table: "syncParked") { t in
+                t.primaryKey("recordName", .text)
+                t.column("record", .blob).notNull()
+            }
+            try db.create(table: "syncState") { t in
+                t.primaryKey("id", .integer).check { $0 == 1 }
+                t.column("engine", .blob)
+                t.column("applying", .boolean).notNull().defaults(to: false)
+            }
+            try db.execute(sql: "INSERT INTO syncState (id, applying) VALUES (1, 0)")
+
+            let note = { (name: String) in
+                """
+                INSERT INTO syncPending (recordName, changedAt) VALUES (\(name), strftime('%Y-%m-%d %H:%M:%f', 'now'))
+                ON CONFLICT (recordName) DO UPDATE SET changedAt = excluded.changedAt
+                """
+            }
+            let local = "(SELECT applying FROM syncState WHERE id = 1) = 0"
+            for (table, prefix) in [("drink", "drink"), ("favourite", "favourite"), ("pour", "pour")] {
+                for (event, row) in [("INSERT", "NEW"), ("UPDATE", "NEW"), ("DELETE", "OLD")] {
+                    try db.execute(sql: """
+                        CREATE TRIGGER sync_\(table)_\(event.lowercased()) AFTER \(event) ON \(table) WHEN \(local)
+                        BEGIN \(note("'\(prefix)-' || hex(\(row).id)")); END
+                        """)
+                }
+            }
+            // Only what was set by hand on a day is synced; its totals are worked out from the entries on each device.
+            let dayName = { (row: String) in "'day-' || \(row).number" }
+            try db.execute(sql: """
+                CREATE TRIGGER sync_day_insert AFTER INSERT ON day
+                WHEN \(local) AND (NEW.isAlcoholFree OR NEW.costOverride IS NOT NULL)
+                BEGIN \(note(dayName("NEW"))); END;
+                CREATE TRIGGER sync_day_update AFTER UPDATE OF isAlcoholFree, costOverride ON day
+                WHEN \(local) AND (OLD.isAlcoholFree IS NOT NEW.isAlcoholFree OR OLD.costOverride IS NOT NEW.costOverride)
+                BEGIN \(note(dayName("NEW"))); END;
+                CREATE TRIGGER sync_day_delete AFTER DELETE ON day
+                WHEN \(local) AND (OLD.isAlcoholFree OR OLD.costOverride IS NOT NULL)
+                BEGIN \(note(dayName("OLD"))); END;
+                """)
+        }
         return migrator
     }
 }

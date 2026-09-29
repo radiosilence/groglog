@@ -57,7 +57,17 @@ Setup › **Copy to Health** mirrors drinks and calories into Apple Health as th
 
 Setup › **Heart readings from Health** and **Sleep from Health** read heart rate, HRV and sleep stages for Reports. They are separate because each is its own permission in Health and its own card's worth of screen. Reading only; nothing is written back. A night recorded by two devices takes the one that recorded more sleep, since adding them would double it.
 
-Sync (iCloud via `CKSyncEngine`, or a server) is future work; every change already goes through `Logbook` as a transaction, which is where a change log would hook in.
+## iCloud sync
+
+The log syncs through the user's private CloudKit database with `CKSyncEngine` (`GrogLog/Sync`), so it survives a lost phone and there is still no GrogLog server.
+
+- **Triggers, not call sites, record changes.** Every write to `drink`, `favourite`, `pour` and the hand-set parts of `day` notes the row in `syncPending`, from whichever process made it. A widget's tap is queued by the database and sent when the app next comes to the front.
+- **What is sent is read when it goes.** A pending row names a record, not an operation: if the row exists it is saved, otherwise deleted. Totals are never synced; each device works them out from the entries.
+- **A payload, not a field per column.** Each record carries the row as JSON, so a new column needs no CloudKit schema change.
+- **Merging, not choosing.** Pours, drinks and tiles have random ids, so two phones' logs combine rather than overwrite. Drinks with the same name and type (every phone seeds its own Beer) become the one with the lowest id, which every phone picks without asking the others. The later edit wins a conflict; a drink deleted on one phone while logged on another comes back.
+- **Nothing is deleted on the way out.** Signing out of iCloud, turning sync off or the zone disappearing leaves the phone's log alone; it goes up whole on the next sign-in.
+
+`SyncTests` plays iCloud by passing one in-memory log's records to another.
 
 ## Building
 

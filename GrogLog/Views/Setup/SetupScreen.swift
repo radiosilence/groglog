@@ -87,6 +87,12 @@ struct SetupScreen: View {
             }
 
             Section {
+                Toggle("iCloud sync", isOn: $prefs.syncsWithICloud)
+            } footer: {
+                Text("Keeps your log in your own iCloud account, so it comes back on a new iPhone. Nobody else, including GrogLog's developer, can read it. Turning this off stops syncing and deletes nothing.")
+            }
+
+            Section {
                 ShareLink(item: ExportFile(kind: .markdown, reader: try! database.reader, prefs: prefs), preview: SharePreview("GrogLog log")) {
                     Label("Export for an LLM (Markdown)", systemImage: "text.bubble")
                 }
@@ -97,7 +103,7 @@ struct SetupScreen: View {
             } header: {
                 Text("Data")
             } footer: {
-                Text("Your data stays on this phone. Importing a backup adds to your log and never overwrites it.")
+                Text(prefs.syncsWithICloud ? "Importing a backup adds to your log and never overwrites it." : "Your data stays on this phone. Importing a backup adds to your log and never overwrites it.")
             }
 
             #if DEBUG
