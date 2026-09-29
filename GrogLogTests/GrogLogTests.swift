@@ -712,7 +712,8 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         case .cider: 2...9
         case .redWine, .whiteWine, .rose: 8...16
         case .bubbles: 5...14
-        case .fortified: 12...22
+        // Down to umeshu and Bulgarian pelin, the fruit and aromatised wines filed alongside vermouth and sake.
+        case .fortified: 10...22
         case .spirit: 10...85
         case .alcopop: 3...9
         case .cocktail: 2...35
