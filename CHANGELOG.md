@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Supermarket wine: 47 bottles at their regular single-bottle price. French appellations from Châteauneuf-du-Pape and Burgundy to Muscadet; Barolo, Amarone, Rioja Reserva and Gran Reserva, Ribera del Duero and a few New World regions; and the brands on every shelf, from Yellow Tail and Casillero del Diablo to Whispering Angel. A glass is priced as its share of the bottle.
 - Closing "Where this comes from" no longer closes the Goal sheet with it, which discarded the goal being edited.
 - A search on the Log screen with no matches says so and offers to add the drink under the name searched for. Absinthe is in the catalogue, at 68%.
 - A goal that starts at or under the level low enough to stop says it is already there, rather than giving the start date as the day it gets there.
