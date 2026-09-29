@@ -28,7 +28,7 @@ data it reads or writes never leaves the device, which Apple's definition of "co
 ## Promotional text (170)
 
 Log a drink in one tap, see where the day stands, and follow a plan to drink less. Free, with no account, no adverts
-and nothing sent anywhere.
+and no tracking.
 
 ## Description
 
@@ -56,8 +56,9 @@ If you allow it, GrogLog reads your heart rate, HRV and sleep from Apple Health 
 the evening before. It can also copy your drinks into Health.
 
 PRIVATE AND FREE
-There is no account, no server, no analytics and no advertising. Your log is stored on your phone and never sent
-anywhere. You can export all of it whenever you want. GrogLog is free, with nothing held back for a paid tier.
+There is no account, no server, no analytics and no advertising. Your log is stored on your phone and synced
+through your own iCloud account, so it comes back on a new iPhone; nobody else can read it. You can export all of it
+whenever you want. GrogLog is free, with nothing held back for a paid tier.
 
 GrogLog does not provide medical advice. It is intended to help you follow a plan agreed with your GP or an alcohol
 service. If you are dependent on alcohol, stopping suddenly can be dangerous: please speak to a doctor before you begin.
@@ -75,7 +76,8 @@ alcohol,units,drinking,cut down,sober,taper,drink tracker,dry,sobriety,beer,wine
 
 No sign-in is needed. The app starts empty: tap a drink on the Log tab to log it, and set a reduction goal from the
 target button on Reports. Apple Health is optional and off by default; it is used to write logged drinks to Health
-and, separately, to read heart rate, HRV and sleep for the Reports tab, with each switch in Setup.
+and, separately, to read heart rate, HRV and sleep for the Reports tab, with each switch in Setup. iCloud sync is on
+by default and keeps the log in the user's private CloudKit database; it can be turned off in Setup.
 
 ## Screenshots
 
