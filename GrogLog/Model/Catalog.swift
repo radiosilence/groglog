@@ -846,6 +846,7 @@ nonisolated enum Catalog {
         ("Tia Maria", .spirit, 20.0, [(single, 6.8), (single35, 9.5)]),
         ("Archers", .spirit, 18.0, [(single, 6.8), (single35, 9.5)]),
         ("Sambuca", .spirit, 38.0, [(single, 6.8)]),
+        ("Absinthe", .spirit, 68.0, [(single, 7.4), (single35, 10.35)]),
         ("Fireball", .spirit, 33.0, [(single, 6.8)]),
         ("Courvoisier VS", .spirit, 40.0, [(single, 8.5), (single35, 11.9)]),
         ("Hennessy VS", .spirit, 40.0, [(single, 8.5), (single35, 11.9), (bottle70cl, 32)]),

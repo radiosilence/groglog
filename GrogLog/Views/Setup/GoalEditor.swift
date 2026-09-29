@@ -5,7 +5,7 @@ import SwiftUI
 struct GoalEditor: View {
     let ledger: Ledger
     @Binding var goal: Goal
-    @State private var showingGuidance = false
+    @Binding var showingGuidance: Bool
 
     /// Put the plan back on a pace that's on offer, after something moved that changes which are.
     /// Steps to the quickest still allowed rather than the gentlest, so raising the starting figure
@@ -143,7 +143,6 @@ struct GoalEditor: View {
                 Text("Choose a rate of reduction to set a daily and weekly budget.")
             }
         }
-        .sheet(isPresented: $showingGuidance) { GuidanceSheet() }
 
         // Guidance treats a gradual reduction as something decided on for a particular person, by
         // someone who has met them. This screen can only count what you've decided; it can't tell you
@@ -182,8 +181,14 @@ struct ProjectionRow: View {
                 LabeledContent("\((goal.targetWeekly / 7).unitsText) u/day by", value: format(target))
             }
             if let stop = projection.stoppable {
-                LabeledContent("Low enough to stop by", value: format(stop))
-                    .foregroundStyle(Color.dry)
+                Group {
+                    if stop <= ledger.today {
+                        Text("Already low enough to stop")
+                    } else {
+                        LabeledContent("Low enough to stop by", value: format(stop))
+                    }
+                }
+                .foregroundStyle(Color.dry)
             }
         }
         .font(.subheadline.monospacedDigit())
@@ -196,6 +201,7 @@ struct GoalSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(Prefs.self) private var prefs
     @State private var draft: Goal
+    @State private var showingGuidance = false
 
     init(goal: Goal) {
         var draft = goal
@@ -206,8 +212,11 @@ struct GoalSheet: View {
     var body: some View {
         NavigationStack {
             LedgerReader { ledger in
-                Form { GoalEditor(ledger: ledger, goal: $draft) }
+                Form { GoalEditor(ledger: ledger, goal: $draft, showingGuidance: $showingGuidance) }
             }
+            // Outside the Form: a sheet on a Section is copied onto every row, and dismissing one of those
+            // copies took the Goal sheet down with it.
+            .sheet(isPresented: $showingGuidance) { GuidanceSheet() }
             .navigationTitle("Goal")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

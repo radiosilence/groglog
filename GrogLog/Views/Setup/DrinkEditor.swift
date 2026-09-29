@@ -11,9 +11,9 @@ struct DrinkEditor: View {
     @State private var draft: Drink
     @Query<PourCountRequest> private var timesLogged: Int
 
-    init(drink: Drink?) {
+    init(drink: Drink?, name: String = "") {
         self.drink = drink
-        _draft = State(initialValue: drink ?? Drink(name: "", category: .beer, abv: DrinkCategory.beer.defaultABV, vessel: .pint, volumeMl: 568))
+        _draft = State(initialValue: drink ?? Drink(name: name, category: .beer, abv: DrinkCategory.beer.defaultABV, vessel: .pint, volumeMl: 568))
         _timesLogged = Query(constant: PourCountRequest(drinkId: drink?.id ?? UUID()))
     }
 

@@ -274,7 +274,7 @@ private struct ProgressCard: View {
                 if let todays = ledger.dailyBudget(on: today, goal: goal) {
                     Text("Today's budget \(todays.unitsText) u")
                     if let stop = ledger.projection(goal: goal).stoppable {
-                        Text("Low enough to stop by \(stop.date(in: calendar).formatted(date: .abbreviated, time: .omitted)) at this rate")
+                        Text(stop <= today ? "Already low enough to stop" : "Low enough to stop by \(stop.date(in: calendar).formatted(date: .abbreviated, time: .omitted)) at this rate")
                             .foregroundStyle(Color.dry)
                     }
                 }

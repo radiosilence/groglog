@@ -65,6 +65,19 @@ struct DrinkPicker: View {
                 }
                 .padding(.horizontal)
             }
+
+            let query = search.trimmingCharacters(in: .whitespaces)
+            if !query.isEmpty && tiles.isEmpty && catalog.isEmpty {
+                ContentUnavailableView {
+                    Label("No matches for \u{201C}\(query)\u{201D}", systemImage: "magnifyingglass")
+                } description: {
+                    Text("Add it as a drink with its own strength and size.")
+                } actions: {
+                    Button("Add \u{201C}\(query)\u{201D}") { creating = true }
+                        .buttonStyle(.borderedProminent)
+                }
+                .padding(.top, 40)
+            }
         }
         .scrollDismissesKeyboard(.immediately)
         .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Stella, Rioja, pint…")
@@ -88,7 +101,7 @@ struct DrinkPicker: View {
                 .presentationDetents([.medium])
         }
         .sheet(isPresented: $creating) {
-            DrinkEditor(drink: nil)
+            DrinkEditor(drink: nil, name: search.trimmingCharacters(in: .whitespaces))
         }
         .sensoryFeedback(.impact(weight: .medium), trigger: logged)
         .onAppear {

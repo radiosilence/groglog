@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Closing "Where this comes from" no longer closes the Goal sheet with it, which discarded the goal being edited.
+- A search on the Log screen with no matches says so and offers to add the drink under the name searched for. Absinthe is in the catalogue, at 68%.
+- A goal that starts at or under the level low enough to stop says it is already there, rather than giving the start date as the day it gets there.
 - Setup links to the privacy policy and support page, and shows the version.
 - iCloud sync (1.1.0). The log is kept in your own iCloud account, so it comes back on a new iPhone. Two phones' logs merge rather than overwrite, and turning sync off or signing out of iCloud deletes nothing. The goal, the currency and the hour the day ends sync too, through iCloud's key-value store; the Health switches stay per phone. The privacy page says where the copy lives and how to remove it.
 
