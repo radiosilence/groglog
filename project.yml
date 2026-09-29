@@ -36,6 +36,8 @@ targets:
         com.apple.developer.healthkit.access: []
         com.apple.developer.icloud-container-identifiers: [iCloud.cc.blit.groglog]
         com.apple.developer.icloud-services: [CloudKit]
+        # Settings that belong to the log (goal, currency, when the day ends) sync through the key-value store.
+        com.apple.developer.ubiquity-kvstore-identifier: $(TeamIdentifierPrefix)$(CFBundleIdentifier)
         # Changes from another device arrive as silent pushes. Export for the App Store switches this to production.
         aps-environment: development
     settings:

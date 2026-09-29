@@ -89,7 +89,7 @@ struct SetupScreen: View {
             Section {
                 Toggle("iCloud sync", isOn: $prefs.syncsWithICloud)
             } footer: {
-                Text("Keeps your log in your own iCloud account, so it comes back on a new iPhone. Nobody else, including GrogLog's developer, can read it. Turning this off stops syncing and deletes nothing.")
+                Text("Keeps your log, goal and settings in your own iCloud account, so they come back on a new iPhone. Nobody else, including GrogLog's developer, can read it. Turning this off stops syncing and deletes nothing.")
             }
 
             Section {

@@ -67,6 +67,8 @@ The log syncs through the user's private CloudKit database with `CKSyncEngine` (
 - **Merging, not choosing.** Pours, drinks and tiles have random ids, so two phones' logs combine rather than overwrite. Drinks with the same name and type (every phone seeds its own Beer) become the one with the lowest id, which every phone picks without asking the others. The later edit wins a conflict; a drink deleted on one phone while logged on another comes back.
 - **Nothing is deleted on the way out.** Signing out of iCloud, turning sync off or the zone disappearing leaves the phone's log alone; it goes up whole on the next sign-in.
 
+Settings that belong to the log (goal, currency, the hour the day ends) sync separately through `NSUbiquitousKeyValueStore` (`SettingsSync`); the Health switches stay per device, since each device grants its own Health permission.
+
 `SyncTests` plays iCloud by passing one in-memory log's records to another.
 
 ## Building

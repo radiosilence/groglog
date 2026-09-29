@@ -30,7 +30,13 @@ struct GrogLogApp: App {
             }
             .tint(.grog)
             .onChange(of: syncing, initial: true) { _, on in
-                if on { Sync.shared?.start() } else { Sync.shared?.stop() }
+                if on {
+                    Sync.shared?.start()
+                    SettingsSync.shared?.start()
+                } else {
+                    Sync.shared?.stop()
+                    SettingsSync.shared?.stop()
+                }
             }
             .onChange(of: demoMode, initial: true) {
                 #if DEBUG
