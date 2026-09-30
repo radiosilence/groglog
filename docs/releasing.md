@@ -47,6 +47,9 @@ only once it has been added to that group and passed Apple's beta review, which 
 To replace the build of a version already waiting for review, `just store withdraw` takes it out of review once the
 new build has processed; `just store submit` then attaches that build and sends it again. Review starts over.
 
+When App Review asks for more information, answer in the Review notes section of app-store.md, which `just store
+listing` sends, and attach anything else, such as a screen recording, with `just store review-attachment FILE`.
+
 `just store` on its own shows the versions, recent builds and review state.
 
 The script reads the API key from `~/.appstoreconnect/private_keys/AuthKey_<ASC_KEY_ID>.p8`; the key and issuer IDs

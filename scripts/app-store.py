@@ -11,6 +11,7 @@
     scripts/app-store.py submit              attach this version's newest build and submit it for review
     scripts/app-store.py withdraw            take the version out of review, to submit a newer build of it
     scripts/app-store.py whats-new BUILD     set a TestFlight build's What to Test from CHANGELOG.md
+    scripts/app-store.py review-attachment FILE   attach a file for App Review, such as a screen recording
 
 The version is MARKETING_VERSION in project.yml; `listing` and `submit` create it in App Store Connect when it doesn't
 exist yet. App Privacy, trader status and agreements have no API and were set once on the website.
@@ -272,6 +273,24 @@ def withdraw():
     sys.exit("Still cancelling after five minutes; check `status` before submitting again.")
 
 
+def review_attachment(path):
+    """Attaches a file to the version's App Review information, where the review notes are."""
+    a = app()
+    version = editable_version(a["id"])
+    review = get(f"/v1/appStoreVersions/{version['id']}/appStoreReviewDetail").get("data")
+    if not review:
+        sys.exit("No review contact on this version yet; add it once with the API or website.")
+    f = pathlib.Path(path)
+    data = f.read_bytes()
+    attachment = create("appStoreReviewAttachments", {"fileName": f.name, "fileSize": len(data)},
+                        {"appStoreReviewDetail": rel("appStoreReviewDetails", review["id"])})
+    for op in attachment["attributes"]["uploadOperations"]:
+        headers = {h["name"]: h["value"] for h in op["requestHeaders"]}
+        requests.request(op["method"], op["url"], headers=headers, data=data[op["offset"]:op["offset"] + op["length"]]).raise_for_status()
+    patch("appStoreReviewAttachments", attachment["id"], {"uploaded": True, "sourceFileChecksum": hashlib.md5(data).hexdigest()})
+    print(f"Attached {f.name} for App Review")
+
+
 def changelog_notes(version):
     """The version's CHANGELOG.md section as plain text, or Unreleased when it has none yet."""
     text = (ROOT / "CHANGELOG.md").read_text()
@@ -314,7 +333,7 @@ def whats_new(build_number):
 
 
 if __name__ == "__main__":
-    commands = {"status": status, "listing": listing, "screenshots": screenshots, "submit": submit, "withdraw": withdraw, "whats-new": whats_new}
+    commands = {"status": status, "listing": listing, "screenshots": screenshots, "submit": submit, "withdraw": withdraw, "whats-new": whats_new, "review-attachment": review_attachment}
     if len(sys.argv) < 2 or sys.argv[1] not in commands:
         sys.exit(__doc__)
     commands[sys.argv[1]](*sys.argv[2:])
