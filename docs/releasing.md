@@ -49,6 +49,8 @@ new build has processed; `just store submit` then attaches that build and sends 
 
 When App Review asks for more information, answer in the Review notes section of app-store.md, which `just store
 listing` sends, and attach anything else, such as a screen recording, with `just store review-attachment FILE`.
+The recording App Review asked for with 1.1.0, starting from launch and covering the main flow, is kept outside the
+repository at `~/Documents/GrogLog/app-review-recording-1.1.0-build-1025.mp4`; re-record it when the app changes visibly.
 
 `just store` on its own shows the versions, recent builds and review state.
 
