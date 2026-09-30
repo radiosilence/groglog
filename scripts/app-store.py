@@ -244,7 +244,9 @@ def submit():
     call("PATCH", f"/v1/appStoreVersions/{version['id']}/relationships/build", {"data": {"type": "builds", "id": build["id"]}})
     print(f"Attached build {build['attributes']['version']} to {wanted}")
 
-    pending = [s for s in get("/v1/reviewSubmissions", **{"filter[app]": a["id"], "filter[state]": "READY_FOR_REVIEW"})["data"]]
+    # A version App Review sent back stays in its submission, which is sent again rather than replaced.
+    pending = get("/v1/reviewSubmissions", **{"filter[app]": a["id"], "filter[state]": "UNRESOLVED_ISSUES,READY_FOR_REVIEW"})["data"]
+    pending.sort(key=lambda s: s["attributes"]["state"] != "UNRESOLVED_ISSUES")
     submission = pending[0] if pending else create("reviewSubmissions", {"platform": "IOS"}, {"app": rel("apps", a["id"])})
     items = get(f"/v1/reviewSubmissions/{submission['id']}/items")["data"]
     if not items:
