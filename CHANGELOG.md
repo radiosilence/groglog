@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Heart and sleep history from Health is read and filed by night off the main thread, so Reports no longer stalls on returning to it with years of watch data. Copying the whole log to Health is one pass rather than four round trips a day. Checking what is waiting to sync reads keys rather than encoding every row, and runs off the main thread. Rebuilding the day totals, after an import or a change to the hour the day ends, rewrites them in place and no longer sends every dry day and hand-set spend back up to iCloud.
 - A goal opened while switched off starts today; it had kept the date it was last on, or first launch, and opened weeks into its cuts. "Use my last 4 weeks" re-checks the pace against the new starting figure.
 - An entry or day changed on this phone is kept when another phone's deletion of it arrives, as an older edit already was; unticking a dry day elsewhere had wiped a spend typed here. Widgets refresh when changes arrive from iCloud.
 - Widgets and Shortcuts no longer offer the Units tile, which could only log exactly one unit.

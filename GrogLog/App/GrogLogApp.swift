@@ -88,7 +88,7 @@ struct RootView: View {
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active, let writer = try? database.writer else { return }
             try? writer.write { try $0.notifyChanges(in: .fullDatabase) }
-            Sync.shared?.queuePending()
+            if let sync = Sync.shared { Task.detached { sync.queuePending() } }
             // A widget's tap logs in the widget's process, which has no Health entitlement, so its drinks reach
             // Health from here. Rewriting a day that didn't change leaves it as it was.
             if prefs.mirrorsToHealth {

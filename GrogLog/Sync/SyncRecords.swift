@@ -39,7 +39,7 @@ nonisolated struct SyncRecords: Sendable {
         try writer.read { db in
             try Row.fetchAll(db, sql: "SELECT recordName, changedAt FROM syncPending").map { row in
                 let name: String = row["recordName"]
-                return Pending(id: Self.id(name), changedAt: row["changedAt"], exists: try Self.row(for: name, db) != nil)
+                return Pending(id: Self.id(name), changedAt: row["changedAt"], exists: try Self.exists(name, db))
             }
         }
     }
@@ -300,6 +300,19 @@ nonisolated struct SyncRecords: Sendable {
             guard let number = Int(name.dropFirst("day-".count)), let day = try Day.fetchOne(db, key: number),
                   day.isAlcoholFree || day.costOverride != nil else { return nil }
             return try encoder.encode(DayMark(isAlcoholFree: day.isAlcoholFree, costOverride: day.costOverride))
+        }
+    }
+
+    /// Whether `row(for:)` would find something, by key alone: this runs over the whole queue at every launch and
+    /// return to the app, and encoding each row to learn only that it's there was most of the cost.
+    private static func exists(_ name: String, _ db: Database) throws -> Bool {
+        switch kind(of: name) {
+        case .drink: return try uuid(name).map { try Drink.exists(db, key: $0) } ?? false
+        case .favourite: return try uuid(name).map { try Favourite.exists(db, key: $0) } ?? false
+        case .pour: return try uuid(name).map { try Pour.exists(db, key: $0) } ?? false
+        case .day:
+            guard let number = Int(name.dropFirst("day-".count)), let day = try Day.fetchOne(db, key: number) else { return false }
+            return day.isAlcoholFree || day.costOverride != nil
         }
     }
 

@@ -199,4 +199,18 @@ private let evening = london.date(from: DateComponents(year: 2026, month: 9, day
         try settle(a, b)
         #expect(try b.days().first { $0.number == day.number }?.costOverride == 12)
     }
+
+    @Test func aRebuildSendsNothing() throws {
+        let phone = try Phone()
+        phone.logbook.log(Serve(try phone.drink("Beer")), at: [evening])
+        phone.logbook.setAlcoholFree(true, on: clock.day(for: evening) + 1)
+        phone.logbook.setSpend(20, on: clock.day(for: evening))
+        try phone.records.queueEverything()
+        _ = try phone.send()
+
+        phone.logbook.rebuild()
+        #expect(try phone.records.pending().isEmpty)
+        #expect(try phone.days().map(\.costOverride) == [20, nil])
+        #expect(try phone.days().map(\.isAlcoholFree) == [false, true])
+    }
 }

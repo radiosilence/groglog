@@ -47,9 +47,29 @@ import os
         }
     }
 
+    /// The whole log in one pass: ours out, every entry in. Day by day this was four round trips to Health a day,
+    /// minutes on a long log, with every drink logged meanwhile waiting behind it.
     func mirrorEverything(_ logbook: Logbook) async {
-        let days = (try? await logbook.writer.read { try Day.fetchAll($0).map(\.key) }) ?? []
-        await mirror(Set(days), logbook)
+        let previous = queue
+        let rewrite = Task { await previous?.value; await self.rewriteAll(logbook) }
+        queue = rewrite
+        await rewrite.value
+    }
+
+    private func rewriteAll(_ logbook: Logbook) async {
+        guard Self.isAvailable, store.authorizationStatus(for: beverages) == .sharingAuthorized else { return }
+        do {
+            for type in [beverages, energy] {
+                _ = try await store.deleteObjects(of: type, predicate: HKQuery.predicateForSamples(withStart: .distantPast, end: .distantFuture))
+            }
+            let entries = try await logbook.writer.read { try Pour.including(required: Pour.drink).asRequest(of: Entry.self).fetchAll($0) }
+            let samples = entries.flatMap(samples(for:))
+            for start in stride(from: 0, to: samples.count, by: 2000) {
+                try await store.save(Array(samples[start..<min(start + 2000, samples.count)]))
+            }
+        } catch {
+            log.error("Couldn't mirror the log: \(error)")
+        }
     }
 
     /// Rewrites these days: ours out, the current entries in. Only samples this app wrote are ever removed —
@@ -104,34 +124,42 @@ import os
         guard Self.isAvailable, heart || readsSleep else { return Nights(clock: clock) }
         // Asks only for what hasn't been asked before, so this is silent after the first time.
         _ = await allowReading()
+        let store = store, log = log
         // Within these spans, or all of it without any.
         let read = { (type: HKQuantityType, unit: HKUnit, spans: [DateInterval]?) async -> [(Date, Double)] in
-            let range = spans.map { spans in
-                NSCompoundPredicate(orPredicateWithSubpredicates: spans.map { HKQuery.predicateForSamples(withStart: $0.start, end: $0.end) })
-            } ?? HKQuery.predicateForSamples(withStart: nil, end: .now)
-            let query = HKSampleQueryDescriptor(predicates: [.quantitySample(type: type, predicate: range)], sortDescriptors: [])
             do {
-                return try await query.result(for: self.store).map {
-                    ($0.startDate.addingTimeInterval($0.endDate.timeIntervalSince($0.startDate) / 2), $0.quantity.doubleValue(for: unit))
-                }
+                return try await Self.quantities(type, unit, within: spans, store)
             } catch {
-                self.log.error("Couldn't read \(type): \(error)")
+                log.error("Couldn't read \(type): \(error)")
                 return []
             }
         }
         let spans = await sleepSpans()
         let bpm = HKUnit.count().unitDivided(by: .minute())
-        let nights = Nights(
-            hrv: heart ? await read(hrv, .secondUnit(with: .milli), nil) : [],
-            restingHR: heart ? await read(restingHR, bpm, nil) : [],
-            sleep: spans,
-            // A watch can write a heart rate every minute or two for years; only the nights are wanted, so only those
-            // are fetched.
-            heartRate: heart && !spans.isEmpty ? await read(heartRate, bpm, Self.nightSpans(spans, clock: clock)) : [],
-            clock: clock
-        )
+        let hrvReadings = heart ? await read(hrv, .secondUnit(with: .milli), nil) : []
+        let resting = heart ? await read(restingHR, bpm, nil) : []
+        // A watch can write a heart rate every minute or two for years; only the nights are wanted, so only those
+        // are fetched.
+        let beats = heart && !spans.isEmpty ? await read(heartRate, bpm, Self.nightSpans(spans, clock: clock)) : []
+        let nights = await Self.file(hrv: hrvReadings, restingHR: resting, sleep: spans, heartRate: beats, clock: clock)
         guard !readsSleep else { return nights }
         return Nights(byDay: nights.byDay.mapValues { var night = $0; night.sleep = nil; return night })
+    }
+
+    /// Years of readings are sorted and filed by night here, off the main thread: Reports asks again each time the
+    /// app comes back to it.
+    @concurrent nonisolated private static func quantities(_ type: HKQuantityType, _ unit: HKUnit, within spans: [DateInterval]?, _ store: HKHealthStore) async throws -> [(Date, Double)] {
+        let range = spans.map { spans in
+            NSCompoundPredicate(orPredicateWithSubpredicates: spans.map { HKQuery.predicateForSamples(withStart: $0.start, end: $0.end) })
+        } ?? HKQuery.predicateForSamples(withStart: nil, end: .now)
+        let query = HKSampleQueryDescriptor(predicates: [.quantitySample(type: type, predicate: range)], sortDescriptors: [])
+        return try await query.result(for: store).map {
+            ($0.startDate.addingTimeInterval($0.endDate.timeIntervalSince($0.startDate) / 2), $0.quantity.doubleValue(for: unit))
+        }
+    }
+
+    @concurrent nonisolated private static func file(hrv: [(Date, Double)], restingHR: [(Date, Double)], sleep: [SleepSpan], heartRate: [(Date, Double)], clock: DayClock) async -> Nights {
+        Nights(hrv: hrv, restingHR: restingHR, sleep: sleep, heartRate: heartRate, clock: clock)
     }
 
     private func sleepSpans() async -> [SleepSpan] {

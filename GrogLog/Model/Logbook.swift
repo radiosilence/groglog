@@ -175,20 +175,19 @@ nonisolated struct Logbook: Sendable {
                     }
                 }
             }
-            let dry = try Day.select(Column("number"), as: Int.self).filter(Column("isAlcoholFree")).fetchAll(db)
-            // Marks and hand-set spends aren't derived from entries, so they're carried across the rebuild.
-            let spends = try Day.filter(Column("costOverride") != nil).fetchAll(db).reduce(into: [Int: Double]()) { $0[$1.number] = $1.costOverride }
-            try Day.deleteAll(db)
-            for (number, entries) in Dictionary(grouping: try entries(in: nil, db), by: \.day) {
-                var row = Day(number: number, totals: DayTotals(entries))
-                row.costOverride = spends[number]
-                try row.insert(db)
+            let totals = Dictionary(grouping: try entries(in: nil, db), by: \.day).mapValues { DayTotals($0) }
+            // The totals are rewritten in place. Deleting every day and putting the marks and hand-set spends back
+            // fired the sync triggers, which watch only those, and sent every one of them up again from every phone.
+            for var row in try Day.fetchAll(db) {
+                row.set(totals[row.number] ?? DayTotals())
+                if row.count == 0 && !row.isAlcoholFree && row.costOverride == nil {
+                    try row.delete(db)
+                } else {
+                    try row.update(db)
+                }
             }
-            for number in dry where try !Day.exists(db, key: number) {
-                try Day(number: number, isAlcoholFree: true, costOverride: spends[number]).insert(db)
-            }
-            for (number, amount) in spends where try !Day.exists(db, key: number) {
-                try Day(number: number, costOverride: amount).insert(db)
+            for (number, dayTotals) in totals where try !Day.exists(db, key: number) {
+                try Day(number: number, totals: dayTotals).insert(db)
             }
         }
     }
