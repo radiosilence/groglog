@@ -48,8 +48,8 @@ struct DayScreen: View {
         let spendOverride = ledger.spendOverride(on: day)
 
         List {
-            // The totals float with no background of their own, so sharing a section with the chart left the
-            // chart as the section's second row — square across the top, cut off rather than rounded.
+            // The totals have no background of their own, so they get a section to themselves; sharing one would
+            // make the chart the section's second row, squared off across the top instead of rounded.
             Section {
                 TotalsHeader(totals: totals, budget: budget, currency: prefs.currency)
                     .listRowBackground(Color.clear)
@@ -69,7 +69,7 @@ struct DayScreen: View {
                 }
             } else if prefs.goal.isEnabled {
                 Section("Budget") {
-                    Text("No budget yet — it's worked out from the days logged before this one.")
+                    Text("No budget yet. It is worked out from the days logged before this one.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -88,7 +88,7 @@ struct DayScreen: View {
                     .tint(.primary)
                 } footer: {
                     Text(spendOverride == nil
-                         ? "Added up from what each drink cost. Set the day's total instead if you'd rather not price every round."
+                         ? "Added up from what each drink cost. Set the day's total instead if you would rather not price every round."
                          : "Set by hand for the day. What the drinks cost is ignored until you clear it.")
                 }
             }
@@ -125,7 +125,7 @@ struct DayScreen: View {
                     .tint(.dry)
                 } footer: {
                     Text(status == .unlogged
-                         ? "Nothing logged. Mark it dry or add what you had — unmarked days stay \"not logged\" rather than counting as dry."
+                         ? "Nothing logged. Mark it dry or add what you had. Unmarked days stay \"not logged\" rather than counting as dry."
                          : "Days only count as dry when you say so.")
                 }
             case .future:
@@ -165,8 +165,8 @@ struct DayScreen: View {
     }
 }
 
-/// A day's spend set in one go, for a night you know the damage but not each round. Cleared, it falls back to what
-/// the drinks add up to.
+/// A day's spend set in one go, for a night when the total is known but not each round. Cleared, it falls back to
+/// what the drinks add up to.
 private struct SpendSheet: View {
     let day: DayKey
     let derived: Double
@@ -248,7 +248,7 @@ struct TotalsHeader: View {
     }
 }
 
-/// What's left of the day's budget, draining as you drink rather than filling up.
+/// What remains of the day's budget, draining as drinks are logged rather than filling up.
 struct BudgetBar: View {
     let used: Double
     let budget: Double

@@ -14,7 +14,7 @@
     scripts/app-store.py review-attachment FILE   attach a file for App Review, such as a screen recording
 
 The version is MARKETING_VERSION in project.yml; `listing` and `submit` create it in App Store Connect when it doesn't
-exist yet. App Privacy, trader status and agreements have no API and were set once on the website.
+exist yet. App Privacy, trader status and agreements have no API and are managed on the website.
 
 Authenticates with ASC_KEY_ID and ASC_ISSUER_ID (set in mise.toml) and the key itself, from ASC_KEY (its contents, as
 on CI) or ~/.appstoreconnect/private_keys/AuthKey_<ASC_KEY_ID>.p8, where Xcode's tools also look for it.
@@ -103,7 +103,7 @@ def editable_version(app_id, create_if_missing=False):
             sys.exit(f"{v['attributes']['versionString']} is {state}; a new version can't be prepared until it's released or rejected.")
         if state in editable:
             if v["attributes"]["versionString"] != wanted:
-                # An unreleased version is renamed rather than left beside a second one; Apple allows only one.
+                # Apple allows only one unreleased version, so it is renamed to match.
                 v = patch("appStoreVersions", v["id"], {"versionString": wanted})["data"]
             return v
     if not create_if_missing:
@@ -191,7 +191,7 @@ def listing():
     patch("appStoreVersionLocalizations", version_loc["id"], attributes)
     patch("appStoreVersions", version["id"], {"copyright": doc_field("Copyright")})
 
-    # The contact details are left as set: a phone number doesn't belong in a public repository.
+    # The contact details are not managed here, because a phone number does not belong in a public repository.
     review = get(f"/v1/appStoreVersions/{version['id']}/appStoreReviewDetail").get("data")
     notes = unwrap(doc_section("Review notes"))
     if review:
@@ -244,7 +244,7 @@ def submit():
     call("PATCH", f"/v1/appStoreVersions/{version['id']}/relationships/build", {"data": {"type": "builds", "id": build["id"]}})
     print(f"Attached build {build['attributes']['version']} to {wanted}")
 
-    # A version App Review sent back stays in its submission, which is sent again rather than replaced.
+    # A version App Review sent back stays in its original submission, so that submission is sent again.
     pending = get("/v1/reviewSubmissions", **{"filter[app]": a["id"], "filter[state]": "UNRESOLVED_ISSUES,READY_FOR_REVIEW"})["data"]
     pending.sort(key=lambda s: s["attributes"]["state"] != "UNRESOLVED_ISSUES")
     submission = pending[0] if pending else create("reviewSubmissions", {"platform": "IOS"}, {"app": rel("apps", a["id"])})

@@ -1,18 +1,18 @@
 import Foundation
 
-/// Where the app, its intents and its widgets all get at the log. The app builds its views around it; intents and
-/// widget timelines run outside the view hierarchy, with no environment to read the database from, so they come here.
+/// Shared access to the log for the app, its intents and its widgets. Intents and widget timelines run outside the
+/// view hierarchy, with no environment to read the database from, so they use this.
 struct Store {
     let id = UUID()
     let database: AppDatabase
     let prefs: Prefs
 
-    /// One handle to the real log per process, shared with the app's own when it happens to be running. A log that
-    /// won't open is kept as the error, so the app can say what went wrong and an intent can fail with it.
+    /// One handle to the on-disk log per process. A log that fails to open is kept as the error, so the app can
+    /// report it and an intent can fail with it.
     static let real = Result { try live() }
 
-    /// Settings are read afresh on every call rather than taken from `real`: a widget's process can outlive a change
-    /// the app makes to them, and would otherwise draw yesterday's goal.
+    /// Settings are read afresh on every call rather than cached: a widget's process can outlive a change the app
+    /// makes, and would otherwise draw a stale goal.
     static func logbook() throws -> Logbook {
         let prefs = Prefs()
         return Logbook(writer: try real.get().database.writer, clock: prefs.clock, mirrorsToHealth: prefs.mirrorsToHealth)

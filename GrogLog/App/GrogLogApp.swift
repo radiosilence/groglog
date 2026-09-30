@@ -70,7 +70,7 @@ struct RootView: View {
                 NavigationStack { LedgerReader { CalendarScreen(ledger: $0, reselects: calendarReselects) } }
             }
             Tab("Day", systemImage: "chart.line.uptrend.xyaxis", value: "day") {
-                // `-dayOffset 1` opens on yesterday, for screenshots that show a day that's over.
+                // `-dayOffset 1` opens on yesterday, for screenshots of a finished day.
                 NavigationStack { DayPager(day: today - UserDefaults.standard.integer(forKey: "dayOffset")).id(today) }
             }
             Tab("Reports", systemImage: "chart.bar.xaxis", value: "reports") {
@@ -80,24 +80,24 @@ struct RootView: View {
                 NavigationStack { LedgerReader { SetupScreen(ledger: $0) } }
             }
         }
-        // Reading scenePhase re-evaluates `today` when the app comes back the next morning, and picks up anything
-        // the widget logged while we were away: observations only see writes made through this process, and a
-        // widget is another one. A widget can only be tapped with the app in the background, so coming back is the
-        // moment to ask. The database is told its region changed rather than written to — there's nothing to write,
-        // the drink is already there; the screens just don't know yet.
+        // Reading scenePhase re-evaluates `today` when the app returns on a later day, and picks up drinks the widget
+        // logged in the meantime: observations only see writes made through this process, and the widget runs in
+        // another. A widget can only be tapped with the app in the background, so returning to the foreground is the
+        // moment to check. The database is notified that its region changed instead of being written to, since the
+        // drink is already stored and only the screens are out of date.
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active, let writer = try? database.writer else { return }
             try? writer.write { try $0.notifyChanges(in: .fullDatabase) }
             if let sync = Sync.shared { Task.detached { sync.queuePending() } }
             // A widget's tap logs in the widget's process, which has no Health entitlement, so its drinks reach
-            // Health from here. Rewriting a day that didn't change leaves it as it was.
+            // Health from here. Rewriting an unchanged day leaves it as it was.
             if prefs.mirrorsToHealth {
                 let logbook = database.logbook(prefs)
                 let today = logbook.clock.today
                 Task { await Health.shared.mirror([today - 1, today], logbook) }
             }
         }
-        // The Lock Screen widget: two taps from a locked phone to a logged drink.
+        // The Lock Screen widget's link opens straight onto the Log tab.
         .onOpenURL { if $0.host() == "log" { tab = "log" } }
     }
 }

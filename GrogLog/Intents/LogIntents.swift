@@ -2,19 +2,19 @@ import AppIntents
 import Foundation
 import GRDB
 
-/// Logging as an intent, so a widget button, Shortcuts and the Action Button reach the same `Logbook` transaction
-/// the Log grid does. There is no second write path: totals stay derived and can't drift, whoever made the change.
+/// Logging as an intent, so a widget button, Shortcuts and the Action Button use the same `Logbook` transaction as
+/// the Log grid. With a single write path, totals stay derived and cannot drift.
 
-/// A drink in a size — what a Log tile is — as something an intent can take as a parameter.
+/// A drink in a size, as on a Log tile, in a form an intent can take as a parameter.
 nonisolated struct ServeEntity: AppEntity {
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Drink")
     static let defaultQuery = ServeQuery()
 
-    /// `Serve.key`: the drink, its vessel and its size. The price isn't in it — that's read at logging time.
+    /// `Serve.key`: the drink, its vessel and its size. The price is excluded and read at logging time.
     var id: String
     var name: String
     var size: String
-    /// The same size where there's no room to spell it out — a widget tile.
+    /// The size in short form, for a widget tile.
     var shortSize: String
     var units: Double
 
@@ -47,13 +47,13 @@ nonisolated struct ServeQuery: EntityQuery {
 
 struct LogDrinkIntent: AppIntent {
     static let title: LocalizedStringResource = "Log a Drink"
-    static let description = IntentDescription("Logs a drink now, at the size and price it's pinned at on the Log grid.")
+    static let description = IntentDescription("Logs a drink now, at the size and price pinned on the Log grid.")
 
     @Parameter(title: "Drink") var serve: ServeEntity
 
     init() {}
 
-    /// What a widget's tile is: this drink, logged now.
+    /// A widget tile's action: this drink, logged now.
     init(serve: ServeEntity) {
         self.serve = serve
     }
@@ -76,16 +76,16 @@ struct LogDrinkIntent: AppIntent {
 
 nonisolated struct MarkDayAlcoholFreeIntent: AppIntent {
     static let title: LocalizedStringResource = "Mark Today Alcohol-Free"
-    static let description = IntentDescription("Marks today as a day without a drink. A day left unmarked isn't a dry one — it's one that wasn't logged.")
+    static let description = IntentDescription("Marks today as a day without a drink. A day left unmarked is treated as not logged rather than alcohol-free.")
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let logbook = try await Store.logbook()
         let day = logbook.clock.today
-        // Logging a drink clears the mark, so setting it on a day that already has drinks would only lie until the next retotal.
+        // Logging a drink clears the mark, so marking a day that already has drinks would be wrong until the next retotal.
         let count = try await logbook.writer.read { try Day.fetchOne($0, key: day.number)?.count ?? 0 }
         guard count == 0 else { return .result(dialog: "Today already has \(count) logged.") }
         logbook.setAlcoholFree(true, on: day)
-        return .result(dialog: "Today's marked alcohol-free.")
+        return .result(dialog: "Today is marked alcohol-free.")
     }
 }
 
@@ -107,13 +107,13 @@ nonisolated struct GrogLogShortcuts: AppShortcutsProvider {
 }
 
 nonisolated struct DrinkGone: Error, CustomLocalizedStringResourceConvertible {
-    var localizedStringResource: LocalizedStringResource { "That drink isn't in GrogLog any more." }
+    var localizedStringResource: LocalizedStringResource { "That drink is no longer in GrogLog." }
 }
 
 nonisolated extension Serve {
-    /// The tiles an intent offers: pinned drinks, most recently drunk first, hidden ones out, and not Units, which
-    /// in the app asks how many and here could only log one. The Log grid also
-    /// shows whatever was logged today; a list of suggestions doesn't need to follow the day around.
+    /// The tiles an intent offers: pinned drinks, most recently drunk first, excluding hidden drinks and Units,
+    /// which in the app asks for an amount and here could only log one. Unlike the Log grid, today's other drinks
+    /// are not included, since suggestions need not track the day.
     static func grid(_ db: Database) throws -> [Serve] {
         try Favourite
             .including(required: Favourite.drink)
@@ -124,8 +124,8 @@ nonisolated extension Serve {
             .map(\.serve)
     }
 
-    /// The inverse of `key`: a drink in a size, at the price it's pinned at — or what the drink comes to at that
-    /// size if it isn't pinned any more. Prices are read now rather than carried in the key, because they change.
+    /// The inverse of `key`: a drink in a size at its pinned price, or the drink's derived price at that size if it
+    /// is no longer pinned. Prices are read at call time rather than carried in the key, because they change.
     static func matching(_ key: String, _ db: Database) throws -> Serve? {
         let parts = key.split(separator: "|")
         guard parts.count == 3,

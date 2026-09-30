@@ -1,7 +1,7 @@
 import GRDBQuery
 import SwiftUI
 
-/// The logging surface: your Log-grid favourites plus anything already logged that day, each a drink in a size,
+/// The logging surface: the Log-grid favourites plus anything already logged that day, each a drink in a size,
 /// most recently drunk first. Tap logs one now; long-press to change the drink, size, time or count.
 struct DrinkPicker: View {
     let day: DayKey
@@ -16,10 +16,10 @@ struct DrinkPicker: View {
     @State private var countingUnits = false
     @State private var creating = false
     @State private var logged = 0
-    /// Recency as of when the screen appeared, so tapping a tile doesn't shuffle the grid under your thumb.
+    /// Recency as of when the screen appeared, so tapping a tile does not reorder the grid while it is in use.
     /// Deliberate picks (the long-press sheet, a search result) jump to the front straight away.
     @State private var recency: [String: Date] = [:]
-    /// Bumped per tile each time it's logged, to play the pour.
+    /// Bumped per tile each time it is logged, to play the pour.
     @State private var pulses: [String: Int] = [:]
 
     private let columns = [GridItem(.adaptive(minimum: 104), spacing: 12)]
@@ -112,8 +112,8 @@ struct DrinkPicker: View {
         }
     }
 
-    /// Favourites and the day's drinks — or, when searching, the Log-grid sizes (or default size) of every drink that matches.
-    /// Recently drunk first, then in favourite order. Hidden drinks only show if had that day.
+    /// Favourites and the day's drinks or, when searching, the Log-grid sizes (or default size) of every matching drink.
+    /// Recently drunk first, then in favourite order. Hidden drinks show only if logged that day.
     private var tiles: [Serve] {
         let query = search.trimmingCharacters(in: .whitespaces)
         let favourites = favourites.filter { !$0.drink.isHidden }
@@ -127,9 +127,8 @@ struct DrinkPicker: View {
             serves = drinks
                 .filter { !$0.isHidden && ($0.name.localizedStandardContains(query) || $0.category.label.localizedStandardContains(query)) }
                 .flatMap { drink -> [Serve] in
-                    // Every size it comes in, not just the one it was added as. Searching for Leffe and
-                    // getting only the bottle meant long-pressing a pint of something else to find it,
-                    // or picking the bottle and changing the size — for a drink you'd named exactly.
+                    // Every size it comes in, not only the one it was added as, so a drink found by name can
+                    // be logged at any size without going through the long-press sheet.
                     let pinned = favourites.filter { $0.drink.id == drink.id }
                     return drink.category.sizes(including: ServeSize(drink.vessel, drink.volumeMl)).map { size in
                         pinned.first { $0.favourite.vessel == size.vessel && $0.favourite.volumeMl == size.ml }?.serve
@@ -161,7 +160,7 @@ struct DrinkPicker: View {
         database.logbook(prefs).log(serve, at: [ledger.clock.suggestedTime(for: day, after: pours.last?.timestamp)])
     }
 
-    /// A catalogue pick becomes one of your drinks, first had at this size.
+    /// A catalogue pick becomes one of the user's drinks, first logged at this size.
     private func adopt(_ item: CatalogItem) -> Serve? {
         search = ""
         let price = item.price(in: prefs.currency)
@@ -218,9 +217,9 @@ private struct DrinkTile: View {
                 .rotationEffect(.degrees(pour.tilt), anchor: .bottom)
                 .frame(height: 58)
                 .padding(.bottom, 4)
-            // A seventh of the catalogue is a brewery's name plus a beer's, and the beer's is the half that
-            // tells them apart — six Westons ciders all read "Henry Westons Vi…" otherwise. So it shrinks
-            // to fit before it gives up, and gives up in the middle, where the least is lost.
+            // A seventh of the catalogue is a brewery's name plus a beer's, and the beer's name is what tells
+            // them apart: truncated at the end, six Westons ciders would all read "Henry Westons Vi…". So the
+            // name shrinks to fit first, then truncates in the middle, where the least is lost.
             Text(name)
                 .font(.subheadline.weight(.semibold))
                 .lineLimit(2, reservesSpace: true)
@@ -284,7 +283,7 @@ private extension DrinkTile {
     }
 }
 
-/// What's logged for the day so far, with undo — or a one-tap alcohol-free mark when there's nothing.
+/// What is logged for the day so far, with undo, or a one-tap alcohol-free mark when nothing is.
 private struct DaySummaryBar: View {
     let day: DayKey
     let ledger: Ledger

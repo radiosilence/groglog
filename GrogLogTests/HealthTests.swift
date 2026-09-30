@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @testable import GrogLog
 
-/// Health counts standard drinks, not UK units. Getting this wrong doesn't fail — it just quietly overstates
-/// every reading by three quarters, which is why it's pinned down here.
+/// Health counts standard drinks, not UK units. Getting this wrong raises no error; it silently overstates every
+/// reading by three quarters.
 @Suite struct StandardDrinkTests {
     private func entry(ml: Double, abv: Double) -> Entry {
         let drink = Drink(name: "Beer", category: .beer, abv: abv, vessel: .pint, volumeMl: ml)

@@ -1,9 +1,9 @@
 import Foundation
 import Observation
 
-/// Keeps the settings that belong to the log, rather than to the phone, in iCloud's key-value store: the goal, the
-/// currency and the hour the day ends. A new phone or a reinstall gets them back with the log. The Health switches
-/// stay behind, because each device grants its own Health permission.
+/// Keeps the settings that belong to the log rather than the device in iCloud's key-value store: the goal, the
+/// currency and the day-end hour, so a new device or a reinstall restores them with the log. The Health switches are
+/// excluded because each device grants its own Health permission.
 ///
 /// Settings live in the app group's defaults, where the widgets read them, so changes from iCloud are written there
 /// through `Prefs` like any other change.
@@ -21,7 +21,7 @@ import Observation
         self.logbook = logbook
     }
 
-    /// The real log's. Demo mode's settings are never synced.
+    /// The on-disk log's settings sync. Demo mode's settings are never synced.
     static let shared: SettingsSync? = (try? Store.real.get()).map { store in
         SettingsSync(prefs: store.prefs) {
             Logbook(writer: store.database.writer, clock: store.prefs.clock, mirrorsToHealth: store.prefs.mirrorsToHealth)
@@ -36,8 +36,8 @@ import Observation
             MainActor.assumeIsolated { self?.take(keys) }
         }
         cloud.synchronize()
-        // A setting never changed on this phone takes iCloud's; one that was goes up if iCloud has none. Between two
-        // phones that both set something before syncing, iCloud's copy wins, the same as for any later change.
+        // A setting never changed on this device takes iCloud's value; one that was changed is uploaded if iCloud has
+        // none. If two devices both set a value before syncing, iCloud's copy wins, as for any later change.
         let local = UserDefaults.shared
         take(Self.keys.filter { local.object(forKey: $0) == nil || cloud.object(forKey: $0) != nil })
         for key in Self.keys where cloud.object(forKey: key) == nil { send(key) }
@@ -50,7 +50,8 @@ import Observation
         observer = nil
     }
 
-    /// Applies iCloud's values. Moving the hour the day ends re-days every entry, as it does when changed in Setup.
+    /// Applies iCloud's values. Changing the day-end hour reassigns every entry's day, as it does when changed in
+    /// Setup.
     private func take(_ keys: [String]) {
         for key in keys {
             switch key {
@@ -80,7 +81,7 @@ import Observation
         }
     }
 
-    /// Sends each change made on this phone. Observation fires once per registration, so it re-registers each time.
+    /// Sends each change made on this device. Observation fires once per registration, so it re-registers each time.
     private func watch() {
         guard running else { return }
         let before = (prefs.rolloverHour, prefs.currency, prefs.goal)

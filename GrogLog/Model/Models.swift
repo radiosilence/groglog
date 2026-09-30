@@ -1,8 +1,8 @@
 import Foundation
 import GRDB
 
-/// What a drink is: its name, type and strength. Sizes belong to Log-grid favourites and log entries, so one
-/// Staropramen covers the 440 can and the 660 bottle. The default size and price are what it was first added as.
+/// A drink's identity: name, type and strength. Sizes belong to Log-grid favourites and log entries, so one
+/// Staropramen covers the 440 can and the 660 bottle. The default size and price are those it was first added with.
 nonisolated struct Drink: Codable, Hashable, Identifiable, Sendable, FetchableRecord, PersistableRecord {
     var id = UUID()
     var name: String
@@ -15,11 +15,9 @@ nonisolated struct Drink: Codable, Hashable, Identifiable, Sendable, FetchableRe
     var isHidden = false
     var sortOrder = 0
 
-    /// What this costs in a size. The price it carries belongs to the size it was added in; another size
-    /// is another product at another price, so that one gets looked up rather than worked out from this
-    /// one. Asahi is £7.40 a pint and £1.63 for the 330 ml bottle, and dividing the pint by volume says
-    /// £4.30. Only a drink of your own invention, which the catalogue has never heard of, gets scaled —
-    /// there being nothing else to go on.
+    /// The price in a given size. The stored price belongs to the size the drink was added in; other sizes are
+    /// looked up in the catalogue rather than scaled, since Asahi is £7.40 a pint but £1.63 for a 330 ml bottle,
+    /// not the £4.30 scaling would give. Only drinks unknown to the catalogue are scaled by volume.
     func price(for vessel: Vessel, ml: Double) -> Double {
         if vessel == self.vessel && ml == volumeMl { return price }
         if let known = Catalog.price(name: name, category: category, vessel: vessel, ml: ml) { return known }
@@ -27,7 +25,7 @@ nonisolated struct Drink: Codable, Hashable, Identifiable, Sendable, FetchableRe
     }
 }
 
-/// A drink in a particular size, pinned to the Log grid with the price you usually pay for it.
+/// A drink in a particular size, pinned to the Log grid with its usual price.
 nonisolated struct Favourite: Codable, Hashable, Identifiable, Sendable, FetchableRecord, PersistableRecord {
     var id = UUID()
     var drinkId: UUID
@@ -35,14 +33,14 @@ nonisolated struct Favourite: Codable, Hashable, Identifiable, Sendable, Fetchab
     var volumeMl: Double
     var price: Double
     var sortOrder = 0
-    /// When it was last logged, for putting your usuals first without scanning history.
+    /// When it was last logged, for ordering by recent use without scanning history.
     var lastUsed: Date?
 
     static let drink = belongsTo(Drink.self)
 }
 
-/// A drink actually had: which drink, plus what's particular to this one — when, what size, what it cost.
-/// Name, strength and type come from the drink, so correcting a drink corrects everything logged as it.
+/// A logged drink: which drink, plus when, what size and what it cost. Name, strength and type come from the
+/// drink, so correcting a drink corrects everything logged as it.
 nonisolated struct Pour: Codable, Hashable, Identifiable, Sendable, FetchableRecord, PersistableRecord {
     var id = UUID()
     var drinkId: UUID
@@ -53,7 +51,7 @@ nonisolated struct Pour: Codable, Hashable, Identifiable, Sendable, FetchableRec
     var volumeMl: Double
     /// What it cost at the time. Prices change, so this is copied rather than read from the drink.
     var price: Double
-    /// Calories supplied by another app's import; otherwise they're worked out from the drink.
+    /// Calories supplied by another app's import; otherwise they are derived from the drink.
     var kcalOverride: Double?
 
     static let drink = belongsTo(Drink.self)
@@ -62,8 +60,8 @@ nonisolated struct Pour: Codable, Hashable, Identifiable, Sendable, FetchableRec
 }
 
 /// One drinking day's totals, kept in step with its entries by `Logbook`, plus whether it was marked alcohol-free.
-/// Reports, the calendar and budgets read only these — a few hundred rows a year — never the entries themselves.
-/// A day with neither drinks nor a dry mark has no row: it simply wasn't logged.
+/// Reports, the calendar and budgets read only these (a few hundred rows a year), never the entries. A day with
+/// neither drinks nor a dry mark has no row.
 nonisolated struct Day: Codable, Hashable, Sendable, FetchableRecord, PersistableRecord {
     var number: Int
     var isAlcoholFree = false
@@ -71,14 +69,14 @@ nonisolated struct Day: Codable, Hashable, Sendable, FetchableRecord, Persistabl
     var kcal = 0.0
     var cost = 0.0
     var count = 0
-    /// What the day actually cost, when the drinks' prices aren't worth keeping straight. Cleared, spend falls back to `cost`.
+    /// A manually entered spend for the day, used instead of the sum of prices. When nil, spend is `cost`.
     var costOverride: Double?
 
     var key: DayKey { DayKey(number: number) }
     var spend: Double { costOverride ?? cost }
 }
 
-/// A log entry with its drink — what screens show.
+/// A log entry joined with its drink, as screens display it.
 nonisolated struct Entry: Decodable, Hashable, Identifiable, Sendable, FetchableRecord {
     var pour: Pour
     var drink: Drink
@@ -110,7 +108,7 @@ nonisolated struct FavouriteItem: Decodable, Hashable, Sendable, FetchableRecord
     }
 }
 
-/// A drink in a size, with the price to assume — what a Log tile is, and what a log entry is made from.
+/// A drink in a size with its assumed price: the model behind a Log tile and the source of a new log entry.
 nonisolated struct Serve: Identifiable, Hashable, Sendable {
     let drink: Drink
     let vessel: Vessel

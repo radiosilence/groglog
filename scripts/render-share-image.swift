@@ -1,5 +1,5 @@
 // Renders the link-preview image for groglog.io: 1200×630, the size link previews expect, from the app icon and the
-// site's own screenshots, so the preview never shows an app that isn't the current one.
+// site's own screenshots, so the preview stays in step with the current app.
 // Run via scripts/render-share-image.sh.
 import AppKit
 import SwiftUI

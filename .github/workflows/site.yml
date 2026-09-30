@@ -7,8 +7,8 @@ permissions:
   contents: read
 
 on:
-  # Every push to main, not only site changes: the deployment deploys the image tagged with main's head, so every head
-  # needs one. It's a copy of a few files, so building it costs next to nothing.
+  # Runs on every push to main: the deployment deploys the image tagged with main's head, so every head needs one.
+  # The image is a copy of a few files and is cheap to build.
   push:
     branches: [main]
   pull_request:
@@ -66,13 +66,13 @@ jobs:
       group: site-deploy
       cancel-in-progress: true
     steps:
-      # DEPLOYMENT_PAT needs `actions: write` on radiosilence/jaritanet; it triggers the updater, it doesn't commit.
+      # DEPLOYMENT_PAT needs only `actions: write` on radiosilence/jaritanet, to trigger the updater.
       - name: Ask the deployment to pick this up
         env:
           GH_TOKEN: ${{ secrets.DEPLOYMENT_PAT }}
         run: |
           if [ -z "$GH_TOKEN" ]; then
-            echo "::notice::DEPLOYMENT_PAT isn't set, so the deployment wasn't asked to update"
+            echo "::notice::DEPLOYMENT_PAT is not set, so the deployment was not asked to update"
             exit 0
           fi
           gh workflow run update-apps.yml --repo radiosilence/jaritanet

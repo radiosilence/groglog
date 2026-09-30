@@ -2,9 +2,9 @@ import Foundation
 import Testing
 @testable import GrogLog
 
-/// A stepped taper from 30 a day should change pace twice on the way down — 4 days, then 3, then 1.
-/// The first change is a 29% steepening against the second's threefold one, so it's easy to look at
-/// the curve and see only one. This says both are there.
+/// A stepped taper from 30 a day should change pace twice on the way down: 4 days, then 3, then 1.
+/// The first change is a 29% steepening and the second a threefold one, so the first is easy to miss
+/// on the curve.
 @Suite struct SteppedCurveTests {
     @Test func aThirtyADayPlanChangesPaceTwice() throws {
         let calendar = Calendar(identifier: .gregorian)
@@ -23,9 +23,9 @@ import Testing
     }
 }
 
-/// The stepped taper is solved a rung at a time rather than walked a day at a time. The walk is the
-/// definition, so it lives here and the solution has to agree with it — across every baseline the
-/// picker allows and further out than anyone will taper.
+/// The stepped taper is solved a rung at a time. Walking it a day at a time is the definition, so the
+/// walk lives here and the solution must agree with it across every baseline the picker allows and
+/// further out than any taper runs.
 @Suite struct SteppedClosedFormTests {
     @Test func agreesWithTheWalkEveryDay() throws {
         let calendar = Calendar(identifier: .gregorian)

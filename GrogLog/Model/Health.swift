@@ -4,10 +4,9 @@ import os
 
 /// A copy of the log in Health, for the apps and watches that read from there.
 ///
-/// It is a mirror and never a source: the database is authoritative, and a day is rewritten whole rather than
-/// patched, so an edit, an undo or a corrected strength moves the samples with it and the copy can't drift.
-/// Nothing here is allowed to fail loudly — a refused permission or a missing Health store costs the mirror, not
-/// the drink you just logged.
+/// The database is authoritative and Health only mirrors it. A day is rewritten whole rather than patched, so an
+/// edit, an undo or a corrected strength moves the samples with it and the copy cannot drift. Failures here are
+/// logged and swallowed: a refused permission or a missing Health store must never block logging a drink.
 @MainActor final class Health {
     static let shared = Health()
 
@@ -23,8 +22,8 @@ import os
 
     static var isAvailable: Bool { HKHealthStore.isHealthDataAvailable() }
 
-    /// Asks for permission and copies the whole log across if it's given. Returns what was actually granted, not
-    /// that the sheet was answered, so a refusal leaves the switch off rather than pretending to mirror.
+    /// Asks for permission and copies the whole log across if it is given. Returns whether sharing was granted,
+    /// so a refusal leaves the switch off.
     func enable(_ logbook: Logbook) async -> Bool {
         guard Self.isAvailable else { return false }
         do {
@@ -38,8 +37,7 @@ import os
         return true
     }
 
-    /// Takes GrogLog's samples back out. Health keeps its own copy of everything until told otherwise, and a log
-    /// you've stopped mirroring shouldn't keep answering for you.
+    /// Removes GrogLog's samples, which Health would otherwise keep reporting after mirroring stops.
     func disable() async {
         guard Self.isAvailable else { return }
         for type in [beverages, energy] {
@@ -47,8 +45,8 @@ import os
         }
     }
 
-    /// The whole log in one pass: ours out, every entry in. Day by day this was four round trips to Health a day,
-    /// minutes on a long log, with every drink logged meanwhile waiting behind it.
+    /// Rewrites the whole log in one pass: this app's samples out, every entry in. Going day by day costs four
+    /// round trips per day, which takes minutes on a long log and blocks drinks logged in the meantime.
     func mirrorEverything(_ logbook: Logbook) async {
         let previous = queue
         let rewrite = Task { await previous?.value; await self.rewriteAll(logbook) }
@@ -72,11 +70,11 @@ import os
         }
     }
 
-    /// Rewrites these days: ours out, the current entries in. Only samples this app wrote are ever removed —
-    /// HealthKit won't let an app delete anyone else's.
+    /// Rewrites these days: this app's samples out, the current entries in. HealthKit only lets an app delete the
+    /// samples it wrote.
     ///
-    /// One rewrite at a time. Two pints tapped in quick succession each ask for the day, and run side by side both
-    /// would clear it before either saved, then each save both drinks — four in Health for two drunk.
+    /// Rewrites are serialised. Two drinks logged in quick succession each rewrite the day; run concurrently, both
+    /// would clear it before either saved and each would then save both drinks, doubling the count.
     func mirror(_ days: Set<DayKey>, _ logbook: Logbook) async {
         let previous = queue
         let rewrite = Task { await previous?.value; await self.rewrite(days, logbook) }
@@ -103,8 +101,8 @@ import os
         }
     }
 
-    /// Asks to read heart data. Health never says whether reading was allowed — a refusal just looks like an empty
-    /// store — so this can only report that the question was answered.
+    /// Asks to read heart data. Health never reveals whether reading was allowed (a refusal looks like an empty
+    /// store), so this only reports that the request completed.
     func allowReading() async -> Bool {
         guard Self.isAvailable else { return false }
         do {
@@ -116,16 +114,16 @@ import os
         }
     }
 
-    /// Heart readings and sleep, filed under the nights they followed, however far back Health goes: what came before
-    /// the log is the baseline worth comparing with. Health labels every HRV as SDNN whatever the device measured, so
-    /// the numbers compare with themselves, not with another brand's. Sleep is read for heart rate as well, since it
-    /// says which beats were asleep.
+    /// Heart readings and sleep, filed under the nights they followed, as far back as Health goes: readings from
+    /// before the log began form the baseline. Health labels every HRV as SDNN whatever the device measured, so the
+    /// numbers are only comparable with readings from the same source. Sleep is also read for heart rate, since it
+    /// identifies which beats were asleep.
     func nights(clock: DayClock, heart: Bool, sleep readsSleep: Bool) async -> Nights {
         guard Self.isAvailable, heart || readsSleep else { return Nights(clock: clock) }
-        // Asks only for what hasn't been asked before, so this is silent after the first time.
+        // Only prompts for types not yet requested, so this is silent after the first time.
         _ = await allowReading()
         let store = store, log = log
-        // Within these spans, or all of it without any.
+        // Restricted to the spans when given, otherwise unbounded.
         let read = { (type: HKQuantityType, unit: HKUnit, spans: [DateInterval]?) async -> [(Date, Double)] in
             do {
                 return try await Self.quantities(type, unit, within: spans, store)
@@ -138,16 +136,15 @@ import os
         let bpm = HKUnit.count().unitDivided(by: .minute())
         let hrvReadings = heart ? await read(hrv, .secondUnit(with: .milli), nil) : []
         let resting = heart ? await read(restingHR, bpm, nil) : []
-        // A watch can write a heart rate every minute or two for years; only the nights are wanted, so only those
-        // are fetched.
+        // A watch can write a heart rate every minute or two for years, so only the nights are fetched.
         let beats = heart && !spans.isEmpty ? await read(heartRate, bpm, Self.nightSpans(spans, clock: clock)) : []
         let nights = await Self.file(hrv: hrvReadings, restingHR: resting, sleep: spans, heartRate: beats, clock: clock)
         guard !readsSleep else { return nights }
         return Nights(byDay: nights.byDay.mapValues { var night = $0; night.sleep = nil; return night })
     }
 
-    /// Years of readings are sorted and filed by night here, off the main thread: Reports asks again each time the
-    /// app comes back to it.
+    /// Runs off the main thread: years of readings are filed here, and Reports asks again each time the app returns
+    /// to it.
     @concurrent nonisolated private static func quantities(_ type: HKQuantityType, _ unit: HKUnit, within spans: [DateInterval]?, _ store: HKHealthStore) async throws -> [(Date, Double)] {
         let range = spans.map { spans in
             NSCompoundPredicate(orPredicateWithSubpredicates: spans.map { HKQuery.predicateForSamples(withStart: $0.start, end: $0.end) })
@@ -200,7 +197,7 @@ import os
 }
 
 nonisolated extension Entry {
-    /// Health counts standard drinks, which are not UK units: 17.7 ml of alcohol against 10. Handing it units
-    /// would overstate every reading by three quarters.
+    /// Health counts standard drinks (17.7 ml of alcohol), not UK units (10 ml). Passing units would overstate
+    /// every reading by three quarters.
     var standardDrinks: Double { units * Units.unitMl / Units.standardDrinkMl }
 }

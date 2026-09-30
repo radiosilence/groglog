@@ -13,7 +13,7 @@ nonisolated struct AppDatabase: Sendable {
 
     var reader: any DatabaseReader { writer }
 
-    /// The app group the app and its widgets share. Separate processes get separate sandboxes; this is the overlap.
+    /// The app group shared by the app and its widgets, which run in separate sandboxes.
     static let appGroup = "group.cc.blit.groglog"
 
     /// The real log, in the group container, in WAL mode so reads never wait on a write.
@@ -21,9 +21,9 @@ nonisolated struct AppDatabase: Sendable {
         try AppDatabase(DatabasePool(path: try location().path, configuration: configuration))
     }
 
-    /// The log lived in Application Support before there were widgets, where only the app could reach it. It moves
-    /// across the first time the group container exists. If any part of that fails the old file is still the log, so
-    /// a failed move costs a widget, never a history.
+    /// Builds before widgets kept the log in Application Support, where only the app can reach it. It is moved the
+    /// first time the group container exists. If any step fails the old file remains the log, so a failed move
+    /// breaks the widgets but loses no history.
     private static func location() throws -> URL {
         let files = FileManager.default
         let old = try files.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
@@ -31,8 +31,8 @@ nonisolated struct AppDatabase: Sendable {
         guard let new = files.containerURL(forSecurityApplicationGroupIdentifier: appGroup)?.appending(path: "groglog.sqlite") else { return old }
         guard files.fileExists(atPath: old.path), !files.fileExists(atPath: new.path) else { return new }
         do {
-            // Fold the write-ahead log into the file first, so one move carries the lot and a left-behind -wal
-            // can't strand the newest drinks.
+            // Checkpoint the write-ahead log first so the main file holds everything and a left-behind -wal cannot
+            // strand the newest drinks.
             let pool = try DatabasePool(path: old.path, configuration: configuration)
             try pool.writeWithoutTransaction { try $0.execute(sql: "PRAGMA wal_checkpoint(TRUNCATE)") }
             try pool.close()
@@ -105,9 +105,9 @@ nonisolated struct AppDatabase: Sendable {
                 t.add(column: "costOverride", .double)
             }
         }
-        // The catalogue prices a drink as it's adopted, so anything added before it had prices sat at £0.00 and
-        // logged as free ever after. Only prices still at zero are touched: one you set yourself stands, and
-        // entries already logged keep what they cost at the time, because that's the one figure that was true.
+        // The catalogue prices a drink when it is adopted, so drinks added before the catalogue had prices were left
+        // at £0.00. Only prices still at zero are filled: a price set by hand stands, and logged entries keep the
+        // price recorded at the time.
         migrator.registerMigration("v3-prices-for-drinks-added-before-the-catalogue-had-them") { db in
             for var drink in try Drink.filter(Column("price") == 0).fetchAll(db) {
                 guard let found = Catalog.price(name: drink.name, category: drink.category, vessel: drink.vessel, ml: drink.volumeMl) else { continue }
@@ -123,11 +123,10 @@ nonisolated struct AppDatabase: Sendable {
                 try favourite.update(db)
             }
         }
-        // What iCloud sync needs from the database. Triggers note every changed row in `syncPending`, whichever
-        // process made the change: a widget's tap writes here too, and nothing in the widget knows sync exists.
-        // A pending row says only that a record may have changed; what is sent is read from the table when it goes,
-        // so a row saved then deleted is sent once, as a deletion. Changes arriving from iCloud are applied with
-        // `syncApplying` set, so they aren't sent straight back.
+        // iCloud sync state. Triggers note every changed row in `syncPending` whichever process made the change,
+        // since widgets write here too and have no sync code. A pending row only marks a record as possibly changed;
+        // its content is read from the table at send time, so a row saved then deleted is sent once, as a deletion.
+        // Changes arriving from iCloud are applied with `syncState.applying` set so they are not sent back.
         migrator.registerMigration("v4-sync") { db in
             try db.create(table: "syncPending") { t in
                 t.primaryKey("recordName", .text)
@@ -166,7 +165,7 @@ nonisolated struct AppDatabase: Sendable {
                         """)
                 }
             }
-            // Only what was set by hand on a day is synced; its totals are worked out from the entries on each device.
+            // Only a day's manual settings are synced; its totals are derived from the entries on each device.
             let dayName = { (row: String) in "'day-' || \(row).number" }
             try db.execute(sql: """
                 CREATE TRIGGER sync_day_insert AFTER INSERT ON day
@@ -180,9 +179,9 @@ nonisolated struct AppDatabase: Sendable {
                 BEGIN \(note(dayName("OLD"))); END;
                 """)
         }
-        // Which CloudKit environment the sync state belongs to. A build from Xcode syncs with development and a
-        // TestFlight or App Store build with production: separate databases, so a phone moving between them has to
-        // send everything again rather than trust what the other one acknowledged.
+        // The CloudKit environment the sync state belongs to. Xcode builds sync with development and TestFlight or
+        // App Store builds with production. These are separate databases, so a device switching between them must
+        // send everything again rather than trust the other's acknowledgements.
         migrator.registerMigration("v5-sync-environment") { db in
             try db.alter(table: "syncState") { t in
                 t.add(column: "environment", .text)

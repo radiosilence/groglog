@@ -3,13 +3,12 @@ import Foundation
 import GRDB
 import GRDBQuery
 
-/// Observed reads for SwiftUI's `@Query`. Each re-runs after any commit touching its tables, so screens update the
-/// moment a write lands — and each reads only what its screen shows.
+/// Observed reads for SwiftUI's `@Query`. Each re-runs after any commit touching its tables, so screens update as
+/// soon as a write lands, and each reads only what its screen shows.
 
-/// A request whose screen only hears about a fetch that came back different. Tracking is by table, not row:
-/// logging a drink today re-runs every entries request in the app, and without this each would hand its
-/// screen the same array again and have it redrawn for nothing. The tables read never change between fetches
-/// either, so the region is worked out once rather than per fetch.
+/// A request that only notifies its screen when a fetch returns a different value. Observation is by table, so
+/// logging a drink re-runs every entries request in the app, and without deduplication each screen would redraw
+/// with an identical array. The tables read are fixed, so the region is computed once rather than per fetch.
 nonisolated protocol ObservedRequest: Queryable, Sendable where Context == DatabaseContext, ValuePublisher == AnyPublisher<Value, any Error>, Value: Sendable & Equatable {
     func fetch(_ db: Database) throws -> Value
 }
@@ -27,7 +26,7 @@ extension ObservedRequest {
     }
 }
 
-/// Every day's totals — the whole history in a few hundred rows a year.
+/// Every day's totals: the whole history in a few hundred rows a year.
 nonisolated struct DaysRequest: ObservedRequest {
     static var defaultValue: [Day] { [] }
 
@@ -72,7 +71,7 @@ nonisolated struct DrinksRequest: ObservedRequest {
     }
 }
 
-/// How many times a drink has been logged — whether it can be deleted.
+/// How many times a drink has been logged, which decides whether it can be deleted.
 nonisolated struct PourCountRequest: ObservedRequest {
     static var defaultValue: Int { 0 }
     var drinkId: UUID

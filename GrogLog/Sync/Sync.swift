@@ -5,11 +5,11 @@ import UIKit
 import os
 
 /// Keeps the log in step with the user's private iCloud database through `CKSyncEngine`, which schedules the work,
-/// retries it, and wakes the app when another device changes something. What goes up is whatever `syncPending` says
-/// changed; what comes down goes through `SyncRecords.apply`.
+/// retries it, and wakes the app when another device changes something. Outgoing changes come from `syncPending`;
+/// incoming ones go through `SyncRecords.apply`.
 ///
-/// Only the app syncs. A widget writes to the same database from its own process, and its changes are queued by the
-/// database's triggers and sent when the app next comes to the front.
+/// Only the app syncs. Widgets write to the same database from their own process; the database's triggers queue those
+/// changes and the app sends them when it next comes to the foreground.
 nonisolated final class Sync: CKSyncEngineDelegate, Sendable {
     static let container = "iCloud.cc.blit.groglog"
 
@@ -22,15 +22,15 @@ nonisolated final class Sync: CKSyncEngineDelegate, Sendable {
         records = SyncRecords(writer: writer, clock: clock)
     }
 
-    /// The real log's. Demo mode's database is never synced.
+    /// The on-disk log's sync. Demo mode's database is never synced.
     @MainActor static let shared: Sync? = (try? Store.real.get()).map { Sync(writer: $0.database.writer, clock: $0.prefs.clock) }
 
     /// Starts syncing. The first time, or after the iCloud account changes, the whole log is queued.
     func start() {
         guard engine.withLock({ $0 == nil }) else { return }
         do {
-            // Builds from Xcode are signed for CloudKit's development environment, TestFlight and App Store builds
-            // for production. Sync state from the other one says nothing about what this one has.
+            // Xcode builds are signed for CloudKit's development environment, TestFlight and App Store builds for
+            // production. Sync state from one environment is not valid in the other.
             #if DEBUG
             let environment = "development"
             #else
@@ -51,7 +51,7 @@ nonisolated final class Sync: CKSyncEngineDelegate, Sendable {
             }
             queuePending()
             // This process's own writes are queued as they commit. The callback runs on the database's queue, where
-            // reading again isn't allowed, so the queueing happens after it.
+            // reading again is not allowed, so queueing happens afterwards.
             let observation = DatabaseRegionObservation(tracking: Table("syncPending"))
             let cancellable = observation.start(in: records.writer) { [log] error in
                 log.error("Stopped watching for changes: \(error)")
@@ -66,7 +66,7 @@ nonisolated final class Sync: CKSyncEngineDelegate, Sendable {
         }
     }
 
-    /// Stops syncing and leaves everything where it is, on the phone and in iCloud.
+    /// Stops syncing and leaves all data in place, on the device and in iCloud.
     func stop() {
         watching.withLock {
             $0?.cancel()
@@ -80,14 +80,14 @@ nonisolated final class Sync: CKSyncEngineDelegate, Sendable {
     }
 
     /// Hands the engine every change the database has queued. Called after this process writes, and when the app
-    /// comes to the front, which is when a widget's writes are first noticed.
+    /// comes to the foreground, which is when widget writes are first noticed.
     func queuePending() {
         guard let engine = engine.withLock({ $0 }) else { return }
         do {
             let pending = try records.pending()
             let saves = pending.filter(\.exists).map(\.id)
             let deletes = pending.filter { !$0.exists }.map(\.id)
-            // A row saved and then deleted before either went is sent once, as whichever it is now.
+            // A row saved and then deleted before either was sent is sent once, in its current state.
             engine.state.remove(pendingRecordZoneChanges: saves.map { .deleteRecord($0) } + deletes.map { .saveRecord($0) })
             engine.state.add(pendingRecordZoneChanges: saves.map { .saveRecord($0) } + deletes.map { .deleteRecord($0) })
         } catch {
@@ -106,20 +106,20 @@ nonisolated final class Sync: CKSyncEngineDelegate, Sendable {
             case .accountChange(let change):
                 switch change.changeType {
                 case .signIn, .switchAccounts:
-                    // A different iCloud account has none of this log, and whatever it has is merged in.
+                    // A different iCloud account has none of this log; its existing data is merged in.
                     try records.queueEverything()
                     syncEngine.state.add(pendingDatabaseChanges: [.saveZone(CKRecordZone(zoneID: SyncRecords.zone))])
                     queuePending()
                 case .signOut:
-                    // Signing out of iCloud leaves the log on the phone. It goes up again whole on the next sign-in.
+                    // Signing out of iCloud keeps the log on the device; it is uploaded in full on the next sign-in.
                     try records.queueEverything()
                 @unknown default:
                     break
                 }
 
             case .fetchedDatabaseChanges(let changes):
-                // The zone gone from iCloud (deleted in Settings, or reset) means iCloud no longer has the log. The
-                // phone still does, and puts it back.
+                // A deleted zone (removed in Settings, or reset) means iCloud no longer has the log, so the device
+                // uploads it again.
                 if changes.deletions.contains(where: { $0.zoneID == SyncRecords.zone }) {
                     try records.queueEverything()
                     syncEngine.state.add(pendingDatabaseChanges: [.saveZone(CKRecordZone(zoneID: SyncRecords.zone))])
@@ -157,8 +157,8 @@ nonisolated final class Sync: CKSyncEngineDelegate, Sendable {
         }
     }
 
-    /// What iCloud refused. A newer copy there is applied here if it's the later change, and overwritten if this
-    /// phone's is; either way the next save carries the right change tag.
+    /// Handles records iCloud refused. A newer server copy is applied if it is the later change and overwritten
+    /// otherwise; either way the next save carries the correct change tag.
     private func resolve(_ failures: [CKSyncEngine.Event.SentRecordZoneChanges.FailedRecordSave], _ engine: CKSyncEngine) throws {
         var retry: [CKRecord.ID] = []
         for failure in failures {
@@ -166,12 +166,13 @@ nonisolated final class Sync: CKSyncEngineDelegate, Sendable {
             switch failure.error.code {
             case .serverRecordChanged:
                 guard let server = failure.error.serverRecord else { continue }
-                // `apply` keeps this phone's row if it changed after the server's copy, and records the server's
+                // `apply` keeps this device's row if it changed after the server's copy, and records the server's
                 // change tag either way.
                 try records.apply(modified: [server], deleted: [])
                 retry.append(id)
             case .unknownItem:
-                // Deleted from iCloud since this phone last heard of it. Sent again as new, since the row is still here.
+                // Deleted from iCloud since this device last saw it; sent again as new, since the row still exists
+                // here.
                 try records.forgetServerCopy(of: id)
                 retry.append(id)
             case .zoneNotFound:

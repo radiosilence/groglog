@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @testable import GrogLog
 
-/// A drink at £0.00 doesn't look broken, it looks free — it just quietly flattens the spend charts.
-/// These are the lookups the backfill migration repairs old databases with.
+/// A drink at £0.00 looks free rather than broken, and silently flattens the spend charts.
+/// These are the lookups the backfill migration uses to repair old databases.
 @Suite struct PriceTests {
     @Test func everySizeOfEveryBrandCostsSomething() {
         for brand in Catalog.brands {
@@ -42,8 +42,8 @@ import Testing
     }
 }
 
-/// What separates a brand you copied in and left alone from one you've made your own. The Drinks screen sorts on
-/// it, so a night of logging brands doesn't bury the drinks you actually wrote.
+/// Distinguishes a catalogue brand copied in unchanged from one the user has edited. The Drinks screen sorts on it,
+/// so a night of logging brands does not bury the drinks the user wrote.
 @Suite struct AdoptedDrinkTests {
     private func stella() throws -> CatalogBrand {
         try #require(Catalog.brands.first { $0.name == "Stella Artois" })
@@ -76,12 +76,12 @@ import Testing
                          vessel: .pint, volumeMl: 568, price: Catalog.price(asahi, .pint, 568))
         #expect(abs(pint.price(for: .bottle, ml: 330) - Catalog.price(asahi, .bottle, 330)) < 0.001)
         #expect(pint.price(for: .bottle, ml: 330) < pint.price * 330 / 568)
-        // Its own size is its own price, whatever else changes.
+        // Its own size keeps its own price.
         #expect(pint.price(for: .pint, ml: 568) == pint.price)
     }
 
-    /// A price you set is a price for the size you set it on. Ask for another size and it's another
-    /// product, looked up rather than stretched out of this one.
+    /// A price the user sets applies to the size it was set on. Another size is another product, looked up
+    /// in the catalogue rather than scaled from this one.
     @Test func yourOwnPriceHoldsForYourOwnSizeAndNoOther() throws {
         let asahi = try #require(Catalog.brands.first { $0.name == "Asahi Super Dry" })
         let mine = Drink(name: asahi.name, category: asahi.category, abv: asahi.abv,

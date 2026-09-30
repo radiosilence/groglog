@@ -233,21 +233,21 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
 
     @Test func projectsTargetAndStopDates() throws {
         var goal = weekly
-        // Started today — by the clock, not the calendar: before 5am `.now` is still yesterday's drinking day.
+        // Started today by the drinking-day clock: before 5am `.now` is still yesterday's drinking day.
         goal.start = clock.start(of: empty.today)
         let projection = empty.projection(goal: goal)
         #expect((105...109).contains(empty.today.distance(to: try #require(projection.target))))
-        // It starts at ten a day, which is already low enough to stop from — so that's today, not a
-        // date months out at the thin end of a curve nobody walks down.
+        // It starts at ten a day, which is already low enough to stop from, so the stop date is today
+        // rather than months out at the tail of the curve.
         #expect(try #require(projection.stoppable) == empty.today)
     }
 }
 
-/// The picker used to offer the same four cuts whatever the period, so "−50%" and "day" together meant
-/// halving your drinking daily — well past the rate the same screen warns is a withdrawal risk.
+/// Offering the same cuts for every period would let "−50%" and "day" together mean halving drinking
+/// daily, well past the rate the same screen warns is a withdrawal risk.
 @Suite struct TaperOfferTests {
-    /// The share is fixed at the fastest that isn't unsafe, so however often it lands it stays inside —
-    /// which a menu of shares couldn't promise: −50% is fine over a week and 20% a day over three.
+    /// The share is fixed at the fastest safe rate, so it stays within the limit however often it applies.
+    /// A menu of shares could not promise that: −50% is safe once a week and −20% once every three days.
     @Test func nothingYouCanPickIsFasterThanIsSafe() {
         for period in Goal.periods {
             let goal = Goal(isEnabled: true, periodDays: period.days)
@@ -267,7 +267,7 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         let goal = Goal()
         #expect(goal.reductionPercent == 10 && goal.periodDays == 4)
         #expect(goal.targetWeekly == 0)
-        // Not the fastest safe rate — the one to start somebody on.
+        // The rate to start somebody on, slower than the fastest safe one.
         #expect(abs(goal.dailyCut - 0.026) < 0.001)
         #expect(!goal.isFasterThanSafe)
         let projection = Ledger(days: [], clock: clock).projection(goal: Goal(isEnabled: true, taper: .proportional, baselineWeekly: 70, start: clock.start(of: clock.today)))
@@ -289,18 +289,18 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
 
     /// The numbers the screen leans on, tied to where they come from. DHSC's UK clinical guidelines for
     /// alcohol treatment (ch. 8, Nov 2025) for the pace; NICE CG115 recs 1.3.4.1 and 1.3.4.5 for when
-    /// the answer stops being a slower plan and starts being somebody qualified.
+    /// to refer to a clinician instead of offering a slower plan.
     @Test func theLimitsAreTheOnesTheGuidanceGives() {
         #expect(Goal.safeDailyCut == 0.10, "DHSC: no more than 10% a day")
         #expect(Goal.slowerAboveWeekly / 7 == 25, "DHSC: over 25 a day, consider 10% every four days")
         #expect(Goal.assistedWithdrawalWeekly / 7 == 15, "NICE CG115 1.3.4.1")
         #expect(Goal.inpatientWeekly / 7 == 30, "NICE CG115 1.3.4.5")
-        // And the default is what DHSC suggests for the people this app is mostly for.
+        // The default is what DHSC suggests for the people this app mostly serves.
         #expect(Goal().periodDays == 4 && Goal().reductionPercent == 10)
     }
 
-    /// A share is self-limiting: ten per cent is ten per cent of whatever's being drunk, so no period
-    /// can breach the ceiling. A fixed number of units can, and does — at the bottom, not the top.
+    /// A share is self-limiting: ten per cent of whatever is being drunk cannot breach the ceiling in any
+    /// period. A fixed number of units can, near the bottom of the taper.
     @Test func nothingOfferedStartsSteeperThanTheCeiling() {
         for daily in stride(from: 4.0, through: 80, by: 2) {
             let weekly = daily * 7
@@ -325,8 +325,8 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(Goal.periods(from: 40 * 7).map(\.days) == [4, 7])
     }
 
-    /// Ten per cent is the only rate the guidance gives, so that's the only one enforced. A share is
-    /// self-limiting; a fixed number of units isn't, so it's the linear amounts that get filtered.
+    /// Ten per cent is the only rate the guidance gives, so it is the only one enforced. A share is
+    /// self-limiting and a fixed number of units is not, so only the linear amounts are filtered.
     @Test func noLinearAmountOpensSteeperThanTenPerCent() {
         for daily in stride(from: 4.0, through: 80, by: 1) {
             for period in Goal.periods(from: daily * 7) {
@@ -340,8 +340,8 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         }
     }
 
-    /// It's a plan, not a reading of the log: the pace comes off where the budget has got to, so it
-    /// quickens a rung at a time on the way down and nothing anybody drinks moves it.
+    /// Dynamic is a plan and does not read the log: the pace follows where the budget has got to, so it
+    /// quickens a rung at a time on the way down and nothing drunk moves it.
     @Test func dynamicQuickensAsTheBudgetFalls() throws {
         let goal = Goal(isEnabled: true, taper: .dynamic, baselineWeekly: 40 * 7, start: date(2026, 9, 1))
         let ledger = Ledger(days: [], clock: clock)
@@ -396,7 +396,7 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(!text.contains("average"), "it reads nothing of what's drunk")
     }
 
-    /// Nothing logged changes it, which is the difference from what it used to be.
+    /// Nothing logged changes the budget.
     @Test func dynamicIgnoresWhatIsActuallyDrunk() throws {
         let goal = Goal(isEnabled: true, taper: .dynamic, baselineWeekly: 30 * 7, start: date(2026, 9, 1))
         let start = DayKey(year: 2026, month: 9, day: 1)
@@ -407,13 +407,13 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(withoutLog == withLog)
     }
 
-    /// Raising where a taper starts from can take its pace off the table. It steps to the quickest
-    /// that's still there rather than all the way to the gentlest.
+    /// Raising a taper's starting point can remove its pace from the offered list. It then steps to the
+    /// quickest pace still offered rather than to the gentlest.
     @Test func raisingTheStartMovesToTheNextPaceStillOffered() {
-        // Every day is fine from 20 a day. From 24 it isn't, and three days is the next one along.
+        // Every day is offered at 14 a day. At 20 it is not, and three days is the next one along.
         #expect(Goal.nearestOffered(period: 1, from: 14 * 7) == 1)
         #expect(Goal.nearestOffered(period: 1, from: 20 * 7) == 3)
-        // Past 25 the guidance takes the quicker two, so four days is what's left.
+        // Past 25 the guidance removes the quicker two, so four days is what remains.
         #expect(Goal.nearestOffered(period: 1, from: 30 * 7) == 4)
         #expect(Goal.nearestOffered(period: 3, from: 30 * 7) == 4)
         // A pace that's still offered is left where it is.
@@ -421,10 +421,10 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
     }
 
     @Test func raisingTheStartKeepsALinearCutIfItCan() {
-        // Two a day is fine from forty. From eighteen it's over a tenth, so it drops to one and a half.
+        // Two a day is safe from forty. From eighteen it is over a tenth, so it drops to one and a half.
         #expect(Goal.nearestOffered(units: 2, from: 40 * 7, perDays: 1) == 2)
         #expect(Goal.nearestOffered(units: 2, from: 18 * 7, perDays: 1) == 1.5)
-        // And at ten a day it's a fifth, so it drops again. The rule holds wherever it's set now.
+        // At ten a day it is a fifth, so it drops again.
         #expect(Goal.nearestOffered(units: 2, from: 10 * 7, perDays: 1) == 1)
         // Spread over four days the same two units is gentle again.
         #expect(Goal.nearestOffered(units: 2, from: 18 * 7, perDays: 4) == 2)
@@ -461,7 +461,7 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
 }
 
 /// A linear taper takes the same units off every day rather than the same share, so unlike a proportional
-/// one it actually lands on nothing — and takes a bigger bite the lower it gets.
+/// one it reaches nothing, and takes a bigger share the lower it gets.
 @Suite struct LinearTaperTests {
     private let start = DayKey(year: 2026, month: 9, day: 1)
     private var goal: Goal {
@@ -485,7 +485,7 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(try #require(ledger.dailyBudget(on: start + 140, goal: goal)) == 0)
     }
 
-    /// The proportional taper can only approach nought; the linear one arrives, which is the whole point.
+    /// The proportional taper only approaches nought; the linear one reaches it.
     @Test func hasAdateForNothingWhereProportionalNeverDoes() {
         let today = clock.today
         let landing = Goal(isEnabled: true, taper: .linear, baselineWeekly: 70, reductionUnits: 1,
@@ -504,8 +504,8 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(!goal.isFasterThanSafe)
     }
 
-    /// The 10%-a-day limit is about withdrawal, which isn't a risk near the guideline — so saying a taper
-    /// turns sharp below 1.4 u/day would be warning about the very level the same screen recommends.
+    /// The 10%-a-day limit is about withdrawal, which is not a risk near the guideline. Saying a taper turns
+    /// sharp below 1.4 u/day would warn about the level the same screen recommends.
     @Test func saysNothingWhereTheGuidelineWouldContradictIt() {
         #expect(goal.sharpensBelow < Units.weeklyGuideline / 7)
         #expect(!goal.sharpensWhileItMatters(from: 40 * 7))
@@ -522,8 +522,8 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
     }
 }
 
-/// A share that offers a type the receiver can't read gets the auto-registered file URL instead, which
-/// is a path into this app's sandbox and no use to anything outside it — 170 bytes of nothing.
+/// A share that offers a type the receiver cannot read falls back to the auto-registered file URL: a
+/// 170-byte path into this app's sandbox, useless outside it.
 @Suite struct ExportTypeTests {
     @Test func markdownIsOfferedAsMarkdownNotJustAsAFileNamedMd() throws {
         let markdown = try #require(UTType("net.daringfireball.markdown"))
@@ -567,9 +567,8 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
     }
 }
 
-/// Dynamic used to take its cut off a rolling average of what had actually been drunk, so a gap in the
-/// log meant no budget at all and a quiet day could take three quarters off one. It's a plan now — it
-/// reads nothing, and a gap in the log changes nothing.
+/// A budget taken from a rolling average of what was drunk would vanish across a gap in the log, and a
+/// quiet day could take three quarters off it. Dynamic is a plan that reads nothing from the log.
 @Suite struct DynamicBudgetTests {
     @Test func aGapInTheLogNoLongerLeavesYouWithoutABudget() throws {
         let (logbook, _) = try logbook()
@@ -712,7 +711,7 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
 /// The catalogue is a hand-written table, so guard the mistakes hand-writing makes: a stray decimal point,
 /// a brand listed twice, a serve with no size.
 @Suite struct CatalogTests {
-    /// What a strength can plausibly be for each kind of drink — wide enough for Żywiec Porter, Wray
+    /// What a strength can plausibly be for each kind of drink: wide enough for Żywiec Porter, Wray
     /// & Nephew and a 25 ml measure dropped in a glass of Monster, tight enough to catch 45% for 4.5%.
     private func band(_ category: DrinkCategory) -> ClosedRange<Double> {
         switch category {
@@ -750,9 +749,9 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
     }
 }
 
-/// The `pour` table is the only one that grows without bound — a row per drink, forever. Everything else is
-/// a few hundred rows at most, where a scan costs nothing and an index would only slow the writes. So this
-/// checks the two that matter are there, and that SQLite actually reaches for them.
+/// The `pour` table is the only one that grows without bound, a row per drink. Every other table holds a few
+/// hundred rows at most, where a scan costs nothing and an index would only slow writes. This checks that the two
+/// indexes that matter exist and that SQLite uses them.
 @Suite struct IndexTests {
     private func database() throws -> AppDatabase { try AppDatabase.inMemory() }
 
@@ -770,7 +769,7 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
                  Row.fetchAll(db, sql: "EXPLAIN QUERY PLAN SELECT COUNT(*) FROM pour WHERE drinkId = x'00'")]
                 .map { $0.map { $0["detail"] as String? ?? "" }.joined(separator: " ") }
         }
-        // "USING COVERING INDEX" counts — it's the better plan, not a different one.
+        // "USING COVERING INDEX" also counts: it is a better plan on the same index.
         #expect(plans.allSatisfy { $0.contains("SEARCH pour USING") }, "\(plans)")
         #expect(!plans.contains { $0.contains("SCAN pour") }, "\(plans)")
     }

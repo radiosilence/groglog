@@ -29,7 +29,7 @@ struct DayChart: View {
         let series = [
             Series(name: "Today", color: .grog, points: ledger.cumulative(pours, on: day, from: from, through: nowHour ?? 24)),
             Series(name: "Yesterday", color: .gray.opacity(0.6), points: yesterdayLogged ? ledger.cumulative(pours, on: yesterday, from: from) : []),
-            // Named by its weekday: "two days ago" reads as a count, not a day you remember.
+            // Named by its weekday, which is easier to place than "two days ago".
             Series(name: dayBefore.date(in: clock.calendar).formatted(.dateTime.weekday(.abbreviated)), color: .gray.opacity(0.25),
                    points: ledger.isLogged(dayBefore) ? ledger.cumulative(pours, on: dayBefore, from: from) : []),
             // The line is smoothed; the figure above the chart is the real mean by that time.
@@ -70,8 +70,8 @@ struct DayChart: View {
     }
 }
 
-/// The chart alone, on plain values, so it's only laid out again when one of them changes. A chart's content
-/// is a closure, which can't be compared; anything holding one is rebuilt whenever its parent is, and the
+/// The chart alone, on plain values, so it is laid out again only when one of them changes. A chart's content
+/// is a closure, which cannot be compared, so anything holding one is rebuilt whenever its parent is, and the
 /// parent here is rebuilt on every commit.
 private struct DayPlot: View, Equatable {
     let series: [Series]

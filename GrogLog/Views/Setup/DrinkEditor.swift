@@ -1,7 +1,7 @@
 import GRDBQuery
 import SwiftUI
 
-/// Create or edit a drink: what it is (name, type, strength), plus the size and price it's usually had at.
+/// Creates or edits a drink: what it is (name, type, strength), plus its usual size and price.
 /// Sizes come from the type, so a beer is offered pints and cans, never a wine glass. Edits a draft saved on Save.
 struct DrinkEditor: View {
     let drink: Drink?
@@ -49,7 +49,7 @@ struct DrinkEditor: View {
                     } header: {
                         Text("Usual size")
                     } footer: {
-                        Text("What it's first offered as. Long-press a tile to log it in another size.")
+                        Text("The size it is offered in first. Long-press a tile to log it in another size.")
                     }
                 }
 
@@ -122,15 +122,15 @@ struct DrinksScreen: View {
     @State private var creating = false
 
     var body: some View {
-        // Logging a brand copies it in, so everything ever picked from the catalogue landed under "Yours" and
-        // buried the handful of drinks that actually are. Untouched copies sit below, under their own heading.
+        // Logging a brand copies it in, so untouched catalogue copies get their own heading; listed under "Yours"
+        // they would bury the few drinks the user created or changed.
         let mine = drinks.filter { !$0.isGeneric }
         let adopted = mine.filter { Catalog.holds(name: $0.name, category: $0.category, abv: $0.abv) }
         let customised = mine.filter { !Catalog.holds(name: $0.name, category: $0.category, abv: $0.abv) }
 
         List {
             section("Yours", customised)
-            section("From the catalogue", adopted, footer: "Brands copied in as you logged them, exactly as the catalogue has them. Change one — its strength, say — and it moves up to yours.")
+            section("From the catalogue", adopted, footer: "Brands copied in as you logged them, exactly as the catalogue lists them. Changing one, such as its strength, moves it up to Yours.")
             section("Generic", drinks.filter(\.isGeneric))
         }
         .navigationTitle("Drinks")

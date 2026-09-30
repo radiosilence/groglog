@@ -1,12 +1,12 @@
 import Foundation
 
-/// What the body said after a drinking day: overnight HRV in ms, and resting and sleeping heart rate in bpm, from
-/// whatever writes them into Health. A night with no reading is missing, not zero, and stays out of every average.
+/// Body readings after a drinking day: overnight HRV in ms, and resting and sleeping heart rate in bpm, from
+/// whatever writes them into Health. A night with no reading is nil and is excluded from every average.
 nonisolated struct Night: Equatable {
     var hrv: Double?
     var restingHR: Double?
-    /// The mean of the heart rate while asleep. Nearer the night than resting rate, which a watch works out over a
-    /// whole day.
+    /// The mean heart rate while asleep. Closer to the night than resting rate, which a watch derives over a whole
+    /// day.
     var sleepingHR: Double?
     var sleep: Sleep?
 }
@@ -22,7 +22,7 @@ nonisolated struct Sleep: Equatable {
 
     var asleep: Double { deep + core + rem + unstaged }
 
-    /// Only where the night was staged; a share of unstaged sleep would read as no REM at all.
+    /// Only for fully staged nights, since unstaged sleep would read as no REM.
     var remShare: Double? { unstaged == 0 && asleep > 0 ? rem / asleep : nil }
 }
 
@@ -33,7 +33,7 @@ nonisolated enum SleepStage {
 nonisolated struct SleepSpan: Equatable {
     let interval: DateInterval
     let stage: SleepStage
-    /// Which device recorded it. Two that both recorded a night would count it twice, so only one is taken.
+    /// The recording device. Two devices recording the same night would double it, so only one is used.
     let source: String
 }
 
@@ -51,10 +51,10 @@ nonisolated struct Nights: Equatable {
         byDay.filter { $0.key < day && $0.value[keyPath: reading] != nil }.keys.max()
     }
 
-    /// Files readings under the night they followed. HRV is only taken overnight — a daytime spot reading after a walk
-    /// says nothing about the night — and a night with several is their mean.
-    /// Sleep goes to the evening before by when it began, so a bedtime after midnight still counts for that evening.
-    /// Sleeping rate takes only the beats inside an asleep stage, leaving out time awake in the night.
+    /// Files readings under the night they followed. HRV is taken only overnight, since a daytime spot reading
+    /// reflects the day's activity, and a night with several readings uses their mean. Sleep is filed by when it
+    /// began, so a bedtime after midnight counts for the evening before. Sleeping rate uses only beats inside an
+    /// asleep stage.
     init(hrv: [(Date, Double)] = [], restingHR: [(Date, Double)] = [], sleep: [SleepSpan] = [], heartRate: [(Date, Double)] = [], clock: DayClock) {
         let overnight = hrv.filter { clock.isOvernight($0.0) }
         for (day, values) in Dictionary(grouping: overnight, by: { clock.night(for: $0.0) }) {
@@ -104,7 +104,7 @@ nonisolated struct Nights: Equatable {
         }
     }
 
-    /// The mean over a stretch of nights, or nothing if too few of them have a reading to say anything.
+    /// The mean over a range of nights, or nil if fewer than `minimum` have a reading.
     func mean(_ reading: KeyPath<Night, Double?>, over days: ClosedRange<DayKey>, atLeast minimum: Int = 3) -> Double? {
         let values = days.compactMap { byDay[$0]?[keyPath: reading] }
         return values.count >= minimum ? values.mean : nil
@@ -112,8 +112,8 @@ nonisolated struct Nights: Equatable {
 }
 
 nonisolated extension DayClock {
-    /// The drinking day a reading answers for. A night runs 8pm to 8pm on a 5am day end: the 11pm reading, the 3am one
-    /// and the resting rate Health stamps on the next morning all belong to the evening that caused them.
+    /// The drinking day a reading belongs to. With a 5am day end a night runs 8pm to 8pm, so the 11pm reading, the
+    /// 3am one and the resting rate Health stamps on the next morning all belong to the preceding evening.
     func night(for date: Date) -> DayKey { day(for: date.addingTimeInterval(-15 * 3600)) }
 
     /// 8pm to noon, on a 5am day end.

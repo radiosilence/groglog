@@ -98,10 +98,10 @@ private struct HeartPoint: Equatable, Identifiable {
     let reading: HeartReading
     /// A run of consecutive readings; a missing night starts a new one.
     let run: Int
-    /// Alone in its run, so there's no line to draw it with.
+    /// Alone in its run, so there is no line to draw it with.
     var alone = false
     /// One end of a dashed line across nights with no reading. It joins what was measured either side of the gap and
-    /// claims nothing about what's in it.
+    /// claims nothing about what is in it.
     var bridge = false
     var id: String { "\(series)@\(date.timeIntervalSinceReferenceDate)" }
     var series: String { "\(reading.rawValue)\(bridge ? "~" : "")\(run)" }
@@ -193,8 +193,8 @@ private struct ProgressCard: View {
     /// Days across, pinchable between a few days and the lot.
     @State private var window: Double
     @GestureState private var pinch = 1.0
-    /// Held here, not just handed to the chart on first draw: the chart is redrawn every minute for the "now" rule,
-    /// and one given only a starting position goes back to the start of its range each time.
+    /// Held here rather than passed to the chart once: the chart is redrawn every minute for the "now" rule, and one
+    /// given only a starting position returns to the start of its range each time.
     @State private var scrolledTo: Date?
 
     init(title: String, days: Double, history: Int, ledger: Ledger, goal: Goal, nights: Nights, heart: HeartLines, onSetGoal: @escaping () -> Void) {
@@ -218,13 +218,13 @@ private struct ProgressCard: View {
         // Never show more days than there are; a window wider than the data leaves it stranded at the left.
         let days = min(Int((window / pinch).rounded()), start.distance(to: today + 15))
         let past = start...today
-        // To the minute, so the chart's inputs read the same from one commit to the next and it isn't laid out
-        // again for a rule that hasn't visibly moved.
+        // To the minute, so the chart's inputs read the same from one commit to the next and it is not laid out
+        // again for a rule that has not visibly moved.
         let now = Date(timeIntervalSinceReferenceDate: (Date.now.timeIntervalSinceReferenceDate / 60).rounded(.down) * 60)
         let noon = { (day: DayKey) in day.date(in: calendar).addingTimeInterval(12 * 3600) }
-        // What was drunk is a bar over its own day, not a line through it — a day's drinking is a
-        // quantity, and a mean of the days around it reads 25 on a day you drank 16. Each bar takes
-        // its heat against that day's own budget, so it reads as the same colour as its calendar tile.
+        // What was drunk is a bar over its own day rather than a line through it: a day's drinking is a
+        // quantity, and a mean of the surrounding days can read 25 on a day of 16. Each bar is coloured
+        // against that day's own budget, so it matches its calendar tile.
         let sofar = ledger.totals(on: today).units
         let drank = past.compactMap { day -> DayBar? in
             let noon = day.date(in: calendar).addingTimeInterval(12 * 3600)
@@ -234,12 +234,11 @@ private struct ProgressCard: View {
             let units = ledger.totals(on: day).units
             return DayBar(date: noon, units: units, partial: false, heat: heat(units))
         }
-        // Every day's budget sits at its own noon, so a day's decay always spans the same width. Today's
-        // used to sit on the "now" rule instead, which stretched the segment before it and squashed the
-        // one after — both still carrying one day's worth of cut, so the line kinked at today and kinked
-        // harder the later it got. The rule is met by a point interpolated along the line instead, which
-        // is where the line already was. Unsmoothed: a scheduled taper is a smooth curve to begin with,
-        // and a dynamic one steps because your drinking does.
+        // Every day's budget sits at its own noon, so each day's decay spans the same width. Placing today's
+        // point on the "now" rule would stretch the segment before it and squash the one after, each still
+        // carrying a day's cut, so the line would kink at today, more sharply as the day went on. The rule is
+        // met by a point interpolated along the line instead. Unsmoothed: a scheduled taper is already a smooth
+        // curve, and a dynamic one steps because the drinking does.
         let curve = (start...(today + 14)).compactMap { day in
             ledger.dailyBudget(on: day, goal: goal).map { BudgetPoint(date: noon(day), units: $0) }
         }
@@ -251,11 +250,11 @@ private struct ProgressCard: View {
         }()
         let behind = curve.filter { $0.date <= now } + [onTheRule].compactMap(\.self)
         let ahead = [onTheRule].compactMap(\.self) + curve.filter { $0.date > now }
-        // Scale to the window in view, so an old binge doesn't flatten the recent weeks.
+        // Scale to the window in view, so an old binge does not flatten the recent weeks.
         let shown = drank.filter { $0.date >= ledger.clock.start(of: today - days) }
         let top = max(10, sofar, shown.map(\.units).max() ?? 0, ahead.map(\.units).max() ?? 0) * 1.15
-        // Each night sits on the bar of the day it followed. Averaged, it's the week up to that night, and only once
-        // enough of that week has readings to be one.
+        // Each night sits on the bar of the day it followed. Averaged, it is the mean of the week up to that night,
+        // shown only once enough of that week has readings.
         let nightsShown = Array(start..<today)
         let hearts = switch heart {
         case .nightly:
@@ -263,7 +262,7 @@ private struct ProgressCard: View {
                 HeartPoint.line(reading, nightsShown, before: nights.last(reading.value, before: start), at: noon) { nights[$0]?[keyPath: reading.value] }
             }
         case .averaged:
-            // The anchor is averaged the same way; a lone old reading with no week around it isn't one.
+            // The anchor is averaged the same way, so a lone old reading with no week around it is not used.
             [HeartReading.hrv, .resting].flatMap { reading in
                 HeartPoint.line(reading, nightsShown, before: nights.last(reading.value, before: start), at: noon) { nights.mean(reading.value, over: ($0 - 6)...$0) }
             }
@@ -309,7 +308,7 @@ private struct ProgressCard: View {
         }
     }
 
-    /// Last night against the week before it, which is the whole point: what one evening cost.
+    /// Last night against the week before it, to show the effect of one evening.
     @ViewBuilder private func heartSummary(_ lastNight: DayKey) -> some View {
         let week = (lastNight - 7)...(lastNight - 1)
         switch heart {
@@ -345,9 +344,9 @@ private struct BudgetPoint: Equatable {
     let units: Double
 }
 
-/// The chart alone, on plain values, so it's laid out again only when one of them changes. Chart content is a
-/// closure, which can't be compared, so a chart built inside a card is rebuilt whenever the card is — and the
-/// cards are rebuilt on every commit, whichever tab it came from. The same shape below for each card.
+/// The chart alone, on plain values, so it is laid out again only when one of them changes. Chart content is a
+/// closure, which cannot be compared, so a chart built inside a card is rebuilt whenever the card is, and the
+/// cards are rebuilt on every commit from any tab. The other cards' charts follow the same pattern.
 private struct ProgressPlot: View, Equatable {
     let drank: [DayBar]
     let behind: [BudgetPoint]
@@ -367,7 +366,7 @@ private struct ProgressPlot: View, Equatable {
 
     var body: some View {
         Chart {
-            // Today's bar is faded: the day isn't over, so the bar isn't its final height.
+            // Today's bar is faded: the day is not over, so the bar is not at its final height.
             ForEach(drank, id: \.date) { point in
                 BarMark(x: .value("When", point.date, unit: .day), y: .value("Units", point.units))
                     .foregroundStyle(point.heat.opacity(point.partial ? 0.45 : 1))
@@ -379,7 +378,7 @@ private struct ProgressPlot: View, Equatable {
                     .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
             }
             // Straight between days, like the solid half: a spline through a decaying curve leaves its
-            // first point steeper than the chord, which kinked the line downwards at today.
+            // first point steeper than the chord, which would kink the line downwards at today.
             ForEach(ahead, id: \.date) { point in
                 LineMark(x: .value("Day", point.date), y: .value("Units", point.units), series: .value("Line", "Ahead"))
                     .foregroundStyle(Color.dry)
@@ -421,7 +420,7 @@ private struct ProgressPlot: View, Equatable {
 private struct SleepCard: View {
     let ledger: Ledger
     let nights: Nights
-    /// Held so a redraw doesn't send the chart back to the start of its range.
+    /// Held so a redraw does not send the chart back to the start of its range.
     @State private var scrolledTo: Date?
 
     var body: some View {
@@ -589,7 +588,7 @@ private struct WeekCard: View {
         let start = clock.weekStart(of: today)
         let current = ledger.runningTotal(entries, over: start...(start + 6), through: today)
         let weeks = (1...3).map { ledger.runningTotal(entries, over: (start - 7 * $0)...(start - 7 * $0 + 6)) }
-        // A week with nothing logged has no line, and no "last week" to compare with: the week before isn't it.
+        // A week with nothing logged has no line, and an earlier week does not stand in for it as "last week".
         let earlier = weeks.filter { $0.count > 1 }
         let budget = goal.isEnabled ? ledger.weekBudgetCurve(of: start, goal: goal) : []
         let into = Double(start.distance(to: today)) + min(1, clock.hours(.now, into: today) / 24)
@@ -839,7 +838,7 @@ private struct WeeksPlot: View, Equatable {
                 .annotation(position: .top, alignment: .trailing) {
                     Text("14 u guideline").font(.caption2).foregroundStyle(.secondary)
                 }
-            // Resting rate is the heavier line: it's the one that keeps falling for weeks after the drinking does.
+            // Resting rate is the heavier line, since it keeps falling for weeks after the drinking does.
             if let heartScale {
                 ForEach(heart) { point in
                     LineMark(x: .value("Week", point.date, unit: .weekOfYear), y: .value("Units", heartScale.y(point.value)), series: .value("Line", point.series))
@@ -913,7 +912,7 @@ private struct Tile: View {
     }
 }
 
-/// Which nights do the damage: average units per weekday across logged days.
+/// Which weekdays carry the most drinking: average units per weekday across logged days.
 private struct WeekdayCard: View {
     let ledger: Ledger
     let days: ClosedRange<DayKey>

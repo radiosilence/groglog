@@ -3,8 +3,8 @@ import GRDB
 
 nonisolated enum Seed {
     /// Generic drinks at Drinkaware's standard strengths, with the sizes that start out on the Log grid.
-    /// Prices follow the catalogue's convention: a pint, a glass or a measure is what a London bar charges,
-    /// a can or a bottle is what a supermarket does. Estimates — every one is editable.
+    /// Prices follow the catalogue's convention: a pint, glass or measure at London bar prices, a can or bottle at
+    /// supermarket prices. All are editable estimates.
     private static let generics: [(name: String, category: DrinkCategory, serves: [(Vessel, Double, Double)])] = [
         ("Beer", .beer, [(.pint, 568, 6.40), (.half, 284, 3.20), (.can, 440, 2.10), (.can, 500, 2.40), (.bottle, 330, 1.95), (.bottle, 660, 3.15)]),
         ("Stout", .stout, [(.pint, 568, 6.30)]),
@@ -19,7 +19,7 @@ nonisolated enum Seed {
         ("Port or sherry", .fortified, [(.wineGlass, 50, 5.50)]),
     ]
 
-    /// What a generic serve starts at, for repairing a database seeded before the generics carried prices.
+    /// A generic serve's starting price, for repairing databases seeded before generics carried prices.
     static func price(name: String, vessel: Vessel, ml: Double) -> Double? {
         generics.first { $0.name == name }?.serves.first { $0.0 == vessel && $0.1 == ml }?.2
     }
@@ -44,9 +44,9 @@ nonisolated enum Seed {
     }
 
     #if DEBUG
-    /// A drinker getting a grip, with the whole arc inside this month: heavy through the first week, a dry run that
-    /// doesn't stick, the bad one — awake at five on the wine — and then a taper of measured beers starting later each
-    /// evening. Earlier months are just the old normal. For demo mode's own in-memory database.
+    /// Sample history for demo mode's in-memory database. The current month shows a heavy first week, a failed dry
+    /// spell, a binge starting at 5am on wine, then a taper of beers starting later each evening. Earlier months
+    /// show a steady baseline.
     static func sample(_ logbook: Logbook, days: Int = 120) throws {
         let clock = logbook.clock
         let today = clock.today
@@ -89,7 +89,7 @@ nonisolated enum Seed {
                 }
                 if !thisMonth, Double.random(in: 0..<1, using: &rng) < 0.05, !yesterday { continue }
 
-                // Easing down rather than lurching: the taper sets the level, the noise is small.
+                // The taper sets the level; the noise is small.
                 let target = onTheWine
                     ? Double.random(in: 42...48, using: &rng)
                     : taper > 0
@@ -114,23 +114,23 @@ nonisolated enum Seed {
         }
     }
 
-    /// Readings from a watch answering to the log: a heavy night drags the next morning's HRV down and resting rate
-    /// up, and a run of them moves the baseline too, so a dry week shows as recovery. It lost its link to Health for a
-    /// few weeks, as they do.
+    /// Sample watch readings that respond to the log: a heavy night lowers the next morning's HRV and raises resting
+    /// rate, and a run of them shifts the baseline, so a dry week shows as recovery. Includes a gap of a few weeks
+    /// where the watch stopped syncing with Health.
     static func nights(_ ledger: Ledger, days: Int = 150) -> Nights {
         var rng = SeededRandom(seed: 7)
         let today = ledger.today
         let units = { (day: DayKey) in ledger.totals(on: day).units }
         var byDay: [DayKey: Night] = [:]
         for day in (today - days)..<today {
-            // Left on the charger now and then.
+            // Occasional nights off the wrist.
             if Double.random(in: 0..<1, using: &rng) < 0.06 || ((today - 75)...(today - 40)).contains(day) { continue }
             let week = ((day - 6)...day).map(units).reduce(0, +) / 7
             byDay[day] = Night(
                 hrv: 64 - units(day) * 0.45 - week * 0.35 + Double.random(in: -4...4, using: &rng),
                 restingHR: 51 + units(day) * 0.12 + week * 0.22 + Double.random(in: -1.5...1.5, using: &rng),
                 sleepingHR: 48 + units(day) * 0.35 + week * 0.1 + Double.random(in: -1.5...1.5, using: &rng),
-                // Drink shortens the night a little and takes most of it out of REM.
+                // Drinking shortens the night slightly, mostly at the expense of REM.
                 sleep: Sleep(
                     deep: (1.4 - units(day) * 0.01 + Double.random(in: -0.2...0.2, using: &rng)) * 3600,
                     core: (4 - units(day) * 0.01 + Double.random(in: -0.4...0.4, using: &rng)) * 3600,

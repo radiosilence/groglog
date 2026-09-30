@@ -2,7 +2,7 @@
 # Archives a signed build and uploads it to App Store Connect, where it lands in TestFlight.
 #
 # Needs APPLE_TEAM_ID, ASC_KEY_ID, ASC_ISSUER_ID and ASC_KEY (the .p8 key's contents) in the environment, and
-# BUILD_NUMBER, which must be higher than any build uploaded before. Runs the same on a laptop as on CI.
+# BUILD_NUMBER, which must be higher than any build uploaded before. Runs on a laptop or on CI.
 set -eu
 cd "$(dirname "$0")/.."
 : "${APPLE_TEAM_ID:?}" "${ASC_KEY_ID:?}" "${ASC_ISSUER_ID:?}" "${ASC_KEY:?}" "${BUILD_NUMBER:?}"
@@ -13,7 +13,7 @@ KEY="$WORK/AuthKey_$ASC_KEY_ID.p8"
 printf '%s\n' "$ASC_KEY" > "$KEY"
 AUTH="-allowProvisioningUpdates -authenticationKeyPath $KEY -authenticationKeyID $ASC_KEY_ID -authenticationKeyIssuerID $ASC_ISSUER_ID"
 
-# 1000 up, so a build number from CI can never collide with one uploaded by hand.
+# Offset by 1000 so a CI build number cannot collide with one uploaded by hand.
 BUILD=$((1000 + BUILD_NUMBER))
 
 xcodegen generate --quiet

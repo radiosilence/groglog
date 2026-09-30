@@ -1,29 +1,27 @@
 import Foundation
 
-/// Common UK drinks and their usual serves, so logging a specific brand is a search and a tap.
-/// ABVs are the UK label figures. A brand brewed at two strengths is two entries — cask London Pride is 4.1%,
-/// the bottle 4.7% — because a drink is one strength and rounding the difference away costs you a unit a night.
-/// Brands do quietly change strength (the 3.5% duty threshold has pulled a lot of lagers down to 3.4%), so
-/// anything logged from here becomes an editable drink of your own.
+/// Common UK drinks and their usual serves, so logging a specific brand is a search and a tap. ABVs are the UK label
+/// figures. A brand brewed at two strengths is two entries (cask London Pride is 4.1%, the bottle 4.7%), because a
+/// drink has one strength and rounding the difference away misstates a unit a night. Brands change strength without
+/// notice (the 3.5% duty threshold has pulled many lagers down to 3.4%), so anything logged from here becomes an
+/// editable drink of the user's own.
 nonisolated struct CatalogBrand: Identifiable {
     let name: String
     let category: DrinkCategory
     let abv: Double
-    /// Each usual size with what it typically costs — a London bar price for a pint, a glass or a
-    /// measure, a supermarket single price for a can or a bottle. Two kinds of figure aren't a lookup.
-    /// Pubs price draught and by-the-glass by tier rather than by brand, and per-venue prices are
-    /// barely published, so a brand with no menu of its own takes its tier's price. And mainstream
-    /// lager and cider don't sell as single cans here at all, only multipacks, so those carry the
-    /// multipack's unit rate — roughly half what one can costs, where anyone sells you one.
-    /// Craft therefore splits two ways, and it looks wrong until you know why: the breweries a
-    /// supermarket stocks carry the four-pack rate, and the ones only a bottle shop sells carry what
-    /// it charges for one. A Camden Hells really is a third of a Verdant, because of where you buy it.
-    /// Craft pints are the tier too, banded by strength off the ones pubs do publish — Camden Pale at
-    /// £6.30, Hepcat and Gamma Ray at £6.90, Camden Hells and Punk IPA at £7.05, Elvis Juice at £7.50.
-    /// Your pub will differ by a pound either way; it's a starting price, and the drink becomes yours.
+    /// Each usual size with its typical cost: a London bar price for a pint, glass or measure, and a supermarket
+    /// single price for a can or bottle. Two kinds of figure are estimates rather than lookups. Pubs price draught
+    /// and by-the-glass by tier rather than by brand, and per-venue prices are rarely published, so a brand with no
+    /// menu of its own takes its tier's price. Mainstream lager and cider are sold only in multipacks, so those carry
+    /// the multipack's unit rate, roughly half the price of a single can where one is sold. Craft therefore splits
+    /// two ways: breweries stocked by supermarkets carry the four-pack rate, and those sold only by bottle shops
+    /// carry the single-can price, which is why a Camden Hells costs a third of a Verdant. Craft pints are also
+    /// tiered, banded by strength from the pubs that publish prices: Camden Pale at £6.30, Hepcat and Gamma Ray at
+    /// £6.90, Camden Hells and Punk IPA at £7.05, Elvis Juice at £7.50. Individual pubs vary by about a pound either
+    /// way; the figure is a starting price that the user can edit.
     ///
-    /// A drink sold abroad is priced where it's usually bought, in that market's currency, and in pounds as well
-    /// where it's sold here too; keyed by currency code.
+    /// A drink sold abroad is priced in the market where it is usually bought, in that market's currency, and also in
+    /// pounds where it is sold in the UK; keyed by currency code.
     let prices: [String: [(size: ServeSize, price: Double)]]
     var id: String { name }
 
@@ -44,7 +42,8 @@ nonisolated struct CatalogItem: Identifiable, Hashable {
     let volumeMl: Double
     let abv: Double
 
-    /// What it costs in `currency`: priced there if it's sold there, converted from its home market if not.
+    /// The price in `currency`: from that market if the brand is sold there, otherwise converted from its home
+    /// market.
     func price(in currency: String = Catalog.currency) -> Double {
         Catalog.price(name: name, category: category, vessel: vessel, ml: volumeMl, currency: currency) ?? 0
     }
@@ -94,10 +93,10 @@ nonisolated enum Catalog {
     private static let coupe = ServeSize(.coupe, 150)
     private static let smallCoupe = ServeSize(.coupe, 120)
 
-    /// Ordered by how often you'd reach for it, within each kind — the long-press sheet lists a whole
-    /// category unfiltered, so the usual suspects come first and the long tail is a search away.
+    /// Ordered by popularity within each category. The long-press sheet lists a whole category unfiltered, so the
+    /// common choices come first and the rest are reachable by search.
     private static let entries: [(String, DrinkCategory, Double, [(ServeSize, Double)])] = [
-        // Lager — the pumps and multipacks
+        // Lager: draught and multipacks
         ("Stella Artois", .beer, 4.6, [(pint, 6.7), (can440, 0.85), (can500, 0.85), (bottle330, 1.13)]),
         ("Carling", .beer, 4.0, [(pint, 6.2), (can440, 1.23), (can568, 1.38)]),
         ("Foster's", .beer, 3.7, [(pint, 5.9), (can440, 0.75), (can568, 1.19)]),
@@ -138,7 +137,7 @@ nonisolated enum Catalog {
         ("Tiger", .beer, 4.8, [(pint, 7.1), (bottle330, 1.75)]),
         ("Tsingtao", .beer, 4.7, [(bottle330, 1.42)]),
         ("Singha", .beer, 5.0, [(bottle330, 1.67)]),
-        // The one listing found was at 15% off; this is the price before it.
+        // The only listing found was discounted by 15%; this is the undiscounted price.
         ("Chang", .beer, 5.0, [(.init(.bottle, 320), 2.12)]),
         ("Saigon Beer", .beer, 4.8, [(bottle330, 1.75)]),
         ("Sapporo Premium", .beer, 4.8, [(can500, 2.6)]),
@@ -146,11 +145,11 @@ nonisolated enum Catalog {
         ("Cass Fresh", .beer, 4.5, [(bottle330, 2.1)]),
         ("Leo", .beer, 5.0, [(bottle330, 1.65)]),
         ("Beerlao", .beer, 5.0, [(.init(.bottle, 640), 6.99)]),
-        // Korean rice wine: the strength and the bottle of a big beer, which is how it's drunk.
+        // Korean rice wine, at the strength and bottle size of a strong beer, which is how it is drunk.
         ("Kooksoondang Makgeolli", .beer, 6.0, [(.init(.bottle, 750), 5.99)]),
         ("Red Stripe", .beer, 4.7, [(can440, 1.5), (bottle330, 1.25)]),
-        // Polish. "Mocne" is the strong version of a beer and a separate entry, not a rounding of
-        // the standard one — Perła Chmielowa is 6%, Perła Mocna 7.1%.
+        // Polish. "Mocne" is the strong version of a beer and a separate entry: Perła Chmielowa is 6%, Perła Mocna
+        // 7.1%.
         // 5.0% as brewed for the UK; the Polish original is 5.2%.
         ("Tyskie Gronie", .beer, 5.0, [(can500, 1.29), (bottle650, 2.55)]),
         ("Żywiec", .beer, 5.6, [(can500, 1.99)]),
@@ -174,8 +173,8 @@ nonisolated enum Catalog {
         ("Namysłów Pils", .beer, 5.8, [(can500, 1.83), (bottle500, 2)]),
         ("Kasztelan Jasne Pełne", .beer, 5.7, [(can500, 2.19)]),
         ("Książęce Złote Pszeniczne", .beer, 4.9, [(bottle500, 2.96)]),
-        // Czech, Baltic & the Balkans. No Russian beer: the UK bans importing it, so what's still listed
-        // is old stock. Ukrainian is another matter — Chernigivske is an AB InBev relief import, in Asda.
+        // Czech, Baltic and Balkan. No Russian beer: the UK bans its import, so remaining listings are old stock.
+        // Chernigivske is Ukrainian, an AB InBev relief import stocked by Asda.
         ("Pilsner Urquell", .beer, 4.4, [(pint, 6.05), (bottle500, 2.7)]),
         ("Budweiser Budvar", .beer, 5.0, [(bottle500, 2.5)]),
         ("Budweiser Budvar Dark", .beer, 4.7, [(bottle500, 2.49)]),
@@ -221,9 +220,9 @@ nonisolated enum Catalog {
         ("BrewDog Hazy Jane", .beer, 5.0, [(pint, 7.05), (can330, 1.99)]),
         ("BrewDog Lost Lager", .beer, 4.5, [(pint, 6.9), (can440, 1.75)]),
         ("BrewDog Elvis Juice", .beer, 6.5, [(pint, 7.5), (can330, 2.19)]),
-        // Gipsy Hill. Bandit is 3.4% on the brewery's own page and 3.8% at two shops; 3.4% is the duty
-        // band breweries deliberately brew down to, so it's the likelier current recipe. HepcAF is the
-        // alcohol-free one and isn't here — Trail, despite the eco-branding, is a full-strength pale.
+        // Gipsy Hill. Bandit is 3.4% on the brewery's own page and 3.8% at two shops; 3.4% is the duty band breweries
+        // deliberately brew down to, so it is the likelier current recipe. HepcAF is alcohol-free and excluded.
+        // Trail, despite the eco branding, is a full-strength pale.
         ("Gipsy Hill Hepcat", .beer, 4.6, [(pint, 6.9), (can330, 2.95)]),
         ("Gipsy Hill Swell", .beer, 4.0, [(pint, 6.6), (can330, 2.65)]),
         ("Gipsy Hill Bandit", .beer, 3.4, [(pint, 6.6), (can330, 2.8)]),
@@ -238,12 +237,11 @@ nonisolated enum Catalog {
         ("Sierra Nevada Pale Ale", .beer, 5.6, [(pint, 7), (bottle350, 1.39)]),
         ("Sierra Nevada Pale Ale (can)", .beer, 5.0, [(can355, 2.32)]),
         ("Goose Island IPA", .beer, 5.9, [(pint, 7), (bottle330, 1.5)]),
-        // London craft, mostly by the can: these breweries are all over London taps but hardly any of
-        // those menus are published, so only the three taprooms that post a price carry one and the
-        // rest fall back to the can's rate by volume rather than to a made-up bar figure. Fourpure,
-        // Magic Rock and Brick are all gone — Fourpure's brewing moved to Magic Rock shortly before
-        // Magic Rock shut, and Brick dissolved in June 2025, which is why there's no Peckham Pils.
-        // Meantime renamed two of these: London Lager is Greenwich Lager, London Pale Ale is Prime Pale.
+        // London craft, mostly by the can. These breweries are common on London taps but few menus are published, so
+        // only the three taprooms that post a price carry a pint price; the rest use the can's rate by volume rather
+        // than an invented bar figure. Fourpure, Magic Rock and Brick are excluded: Fourpure's brewing moved to Magic
+        // Rock shortly before Magic Rock closed, and Brick dissolved in June 2025. Meantime renamed two of these:
+        // London Lager is Greenwich Lager, London Pale Ale is Prime Pale.
         ("Meantime Greenwich Lager", .beer, 4.5, [(pint, 6.95), (bottle330, 1.58)]),
         ("Meantime Prime Pale", .beer, 4.3, [(pint, 6.6), (can330, 1.63)]),
         ("Meantime Yakima Red", .beer, 4.5, [(pint, 6.95), (can440, 2)]),
@@ -303,8 +301,8 @@ nonisolated enum Catalog {
         ("Anspach & Hobday Ansbacher Lager", .beer, 5.0, [(pint, 6.95), (can440, 3.45)]),
         ("Anspach & Hobday The Porter", .beer, 6.7, [(pint, 7.6), (can440, 5)]),
         ("Anspach & Hobday Ordinary Bitter", .beer, 3.4, [(pint, 6.6), (can440, 3.05)]),
-        // The Kernel brew to a style, not to a number: the hop changes batch to batch and the strength
-        // with it, so these are the current figure rather than a fixed one. Edit yours to what the can says.
+        // The Kernel brew to a style rather than a fixed recipe, so hops and strength vary by batch. These are the
+        // current figures; users should edit to match the can.
         ("Kernel Table Beer", .beer, 3.0, [(pint, 6.6), (can330, 3.25)]),
         ("Kernel Pale Ale", .beer, 5.3, [(pint, 6.95), (can330, 3.75)]),
         ("Kernel India Pale Ale", .beer, 7.0, [(pint, 7.6), (can330, 4.5)]),
@@ -322,10 +320,10 @@ nonisolated enum Catalog {
         ("Bianca Road Crispy", .beer, 4.8, [(pint, 6.95), (can440, 4.25)]),
         ("Bianca Road Hazy", .beer, 5.0, [(pint, 6.95), (can440, 5)]),
         ("Bianca Road Juicy", .beer, 6.0, [(pint, 7.2), (can440, 6)]),
-        // Partizan is still brewed, but in Leicestershire — the Bermondsey company went into liquidation
-        // and the brand went with its founder to Langton.
+        // Partizan is still brewed, in Leicestershire: the Bermondsey company went into liquidation and the brand
+        // moved with its founder to Langton.
         ("Partizan Pale Ale", .beer, 4.5, [(bottle330, 2.85)]),
-        // Small Beer brew deliberately weak, which is the point of them and not a mistake in the numbers.
+        // Small Beer brew deliberately low-strength beers; the figures are correct.
         ("Small Beer Lager", .beer, 2.1, [(can330, 2.5)]),
         ("Small Beer IPA", .beer, 2.3, [(can330, 2.5)]),
         ("Small Beer Pale", .beer, 2.5, [(can330, 2.5)]),
@@ -333,8 +331,8 @@ nonisolated enum Catalog {
         ("Five Points Pale", .beer, 4.4, [(pint, 4)]),
         ("Five Points XPA", .beer, 4.0, [(pint, 6.6), (can330, 2.99)]),
         ("Five Points Railway Porter", .beer, 4.8, [(pint, 6.95), (can330, 2.95)]),
-        // Signature Brew's core range is in 440s now, sold in sixes and up, so those cans are the brewery's
-        // six-pack rate. Backstage is 5.2% on the brewery's shop, down from 5.6%. Lo-Fi is the 0.5% one.
+        // Signature Brew's core range is in 440s sold in packs of six and up, so those cans are at the six-pack rate.
+        // Backstage is 5.2% on the brewery's shop, down from 5.6%. Lo-Fi is the 0.5% one.
         ("Signature Brew Studio Lager", .beer, 4.0, [(pint, 6.6), (can330, 1.58), (can440, 2.83)]),
         ("Signature Brew Roadie IPA", .beer, 4.3, [(pint, 6.6), (can330, 2.33), (can440, 2.83)]),
         ("Signature Brew Haze Machine", .beer, 4.8, [(pint, 6.95), (can440, 2.67)]),
@@ -351,8 +349,7 @@ nonisolated enum Catalog {
         ("Portobello Star", .beer, 4.3, [(pint, 5.1), (bottle500, 2.45)]),
         ("Portobello Market Porter", .beer, 4.6, [(pint, 5.3), (bottle500, 3)]),
         ("Beavertown Bloody 'Ell", .beer, 5.5, [(pint, 7.2), (can330, 2.75)]),
-        // Nanobot is Beavertown's low-alcohol one, but 2.8% is still drink — it's the 0.3% Lazer Crush
-        // that stays out.
+        // Nanobot is Beavertown's low-alcohol beer, but at 2.8% it still counts. The 0.3% Lazer Crush is excluded.
         ("Beavertown Nanobot", .beer, 2.8, [(can330, 2.2)]),
         ("Crate Lager", .beer, 4.8, [(pint, 6.95), (can330, 2.08)]),
         ("Hackney Church Exodus", .beer, 5.5, [(pint, 7.2), (can440, 4.75)]),
@@ -378,14 +375,14 @@ nonisolated enum Catalog {
         ("Pressure Drop Pale Fire", .beer, 4.8, [(pint, 6.95), (can440, 3.85)]),
         ("Howling Hops Tropical Deluxe", .beer, 3.8, [(pint, 5.9), (can440, 3.2)]),
         ("Howling Hops Barley Pop", .beer, 4.4, [(pint, 6.6), (can440, 3.1)]),
-        // Deya's core range, at what the brewery itself charges. A shop wants half as much again.
+        // Deya's core range at the brewery's own prices; shops charge about half as much again.
         ("Deya Steady Rolling Man", .beer, 5.2, [(half, 3), (can500, 4.5)]),
         ("Deya Into The Haze", .beer, 6.2, [(pint, 7.2), (can500, 5.5)]),
         ("Deya Boost", .beer, 4.0, [(pint, 6.6), (can500, 4.2)]),
         ("Deya Magazine Cover", .beer, 4.2, [(pint, 6.6), (can500, 4.2)]),
         ("Deya Tappy Pils", .beer, 4.4, [(pint, 6.6), (can500, 3.8)]),
-        // Brockley, whose shop is down to four beers since brewing moved off Harcourt Road in 2024 —
-        // the porter, the bitter and the rest are off it. Sold in sixes, so the can is the pack's rate.
+        // Brockley's shop has sold only four beers since brewing moved off Harcourt Road in 2024; the porter, the
+        // bitter and the rest are off the list. Sold in sixes, so the can is at the pack rate.
         ("Brockley Pale Ale", .beer, 4.1, [(pint, 6.6), (can330, 2.67)]),
         ("Brockley Lager", .beer, 4.1, [(pint, 6.6), (can330, 2.67)]),
         ("Brockley Session IPA", .beer, 4.4, [(pint, 6.6), (can330, 2.67)]),
@@ -420,7 +417,7 @@ nonisolated enum Catalog {
         ("Cloudwater Piccadilly Pilsner", .beer, 4.2, [(pint, 6.6), (can440, 3.72)]),
         ("Cloudwater Fuzzy", .beer, 4.2, [(pint, 6.6), (can440, 4.8)]),
         ("Cloudwater SoCal", .beer, 4.0, [(pint, 6.6), (can440, 4.65)]),
-        // Arbor sell in imperial pint cans, which is why these look dear against a 440.
+        // Arbor sell in imperial pint cans, hence the higher price than a 440.
         ("Arbor Yakima Valley", .beer, 7.0, [(pint, 7.6), (can568, 5.25)]),
         ("Arbor Motueka", .beer, 4.0, [(pint, 6.6), (can568, 4)]),
         ("Track Sonoma", .beer, 3.8, [(pint, 6.6), (can440, 4)]),
@@ -461,13 +458,13 @@ nonisolated enum Catalog {
         ("John Smith's Extra Smooth", .beer, 3.4, [(pint, 4.2), (can440, 1.35)]),
         ("Newcastle Brown Ale", .beer, 4.7, [(bottle500, 1.75)]),
         ("Titanic Plum Porter", .beer, 4.9, [(pint, 5.2), (bottle500, 2.5)]),
-        // Regional cask. No pub publishes a price for these by name, since cask is priced by tier and the
-        // lines rotate, so each pint takes its tier from the looked-up pints above: £4.80 under 4%, £5.10 up
-        // to 4.4%, £5.30 from 4.5%. Bottles are single shop prices. A brewery's bottle is often a different
-        // strength from its cask, and not always stronger: Harvey's Old Ale is 4.3% on cask and 3.6% bottled.
-        // Young's Special London Ale is a separate 6.4% beer, not the bottled Special. Several of these have
-        // been brewed down to the 3.5% duty threshold recently (Adnams Southwold Bitter and Dark Star Hophead
-        // are now 3.4%), so the figures are current ones rather than the ones on older pump clips.
+        // Regional cask. Pubs do not publish prices for these by name, since cask is priced by tier and lines rotate,
+        // so each pint takes its tier from the pints above: £4.80 under 4%, £5.10 up to 4.4%, £5.30 from 4.5%.
+        // Bottles are single shop prices. A brewery's bottle is often a different strength from its cask, and not
+        // always stronger: Harvey's Old Ale is 4.3% on cask and 3.6% bottled. Young's Special London Ale is a
+        // separate 6.4% beer, not the bottled Special. Several have been brewed down to the 3.5% duty threshold
+        // (Adnams Southwold Bitter and Dark Star Hophead are 3.4%), so the figures are current labels rather than
+        // those on older pump clips.
         ("Harvey's Sussex Best Bitter", .beer, 4.0, [(pint, 5.1), (half, 2.55), (bottle500, 4.0)]),
         ("Harvey's Armada Ale", .beer, 4.5, [(pint, 5.3), (half, 2.65), (bottle500, 3.15)]),
         ("Harvey's Old Ale", .beer, 4.3, [(pint, 5.1), (half, 2.55)]),
@@ -510,18 +507,18 @@ nonisolated enum Catalog {
         ("Ringwood Razorback", .beer, 3.8, [(pint, 4.8), (half, 2.4)]),
         ("Titanic Iceberg", .beer, 4.1, [(pint, 5.1), (half, 2.55), (bottle500, 3.39)]),
         ("Salopian Oracle", .beer, 4.0, [(pint, 5.1), (half, 2.55), (bottle500, 3.2)]),
-        // Scotland. Bitter & Twisted's bottle is 3.8% on the brewery's own shop and 4.2% at the supermarkets,
-        // which is a recent cut not yet on every shelf; the brewery's figure is used.
+        // Scotland. Bitter & Twisted's bottle is 3.8% on the brewery's own shop and 4.2% at supermarkets, a recent
+        // cut not yet on every shelf; the brewery's figure is used.
         ("Harviestoun Bitter & Twisted", .beer, 3.8, [(pint, 4.8), (half, 2.4), (bottle500, 3.75)]),
         ("Caledonian Deuchars IPA", .beer, 3.8, [(pint, 4.8), (half, 2.4)]),
         ("Caledonian Deuchars IPA (bottle)", .beer, 4.4, [(bottle500, 3.19)]),
         ("Orkney Dark Island", .beer, 4.6, [(pint, 5.3), (half, 2.65), (bottle500, 3.2)]),
         ("Fyne Ales Jarl", .beer, 3.8, [(pint, 4.8), (half, 2.4), (can440, 3.2)]),
-        // Not cask (there isn't one), but it's what a pint of bitter is in half of Scotland. Priced as the
-        // smooth keg bitters above.
+        // Not cask (none exists), but it is the standard pint of bitter across much of Scotland. Priced as the smooth
+        // keg bitters above.
         ("Belhaven Best", .beer, 3.2, [(pint, 4.2), (bottle500, 1.5)]),
-        // Fuller's, now brewed by Asahi, and Gale's, whose beers it took over. The bottles are what they are
-        // sold at singly; 1845 and Golden Pride are bottle-conditioned and not on cask at all.
+        // Fuller's, brewed by Asahi, and Gale's, whose beers Fuller's took over. Bottles are at single prices; 1845
+        // and Golden Pride are bottle-conditioned and not sold on cask.
         ("Gale's HSB", .beer, 4.8, [(pint, 5.3), (half, 2.65), (bottle500, 2.75)]),
         ("Gale's Seafarers", .beer, 3.6, [(pint, 4.8), (half, 2.4)]),
         ("Fuller's 1845", .beer, 6.3, [(bottle500, 2.75)]),
@@ -531,7 +528,7 @@ nonisolated enum Catalog {
         ("Fuller's Black Cab Stout", .stout, 4.5, [(bottle500, 2.55)]),
         ("Fuller's Imperial Stout", .stout, 10.7, [(bottle500, 8.5)]),
         ("Fuller's Vintage Ale 2026", .beer, 8.4, [(bottle500, 7.5)]),
-        // Dark Star is brewed at Fuller's in Chiswick now; Partridge Green closed in 2022.
+        // Dark Star has been brewed at Fuller's in Chiswick since Partridge Green closed in 2022.
         ("Dark Star American Pale Ale", .beer, 4.7, [(pint, 5.3), (half, 2.65)]),
         ("Dark Star Revelation", .beer, 5.7, [(pint, 5.3), (half, 2.65)]),
         ("Dark Star Espresso", .stout, 4.2, [(pint, 5.1), (half, 2.55)]),
@@ -565,14 +562,12 @@ nonisolated enum Catalog {
         ("Erdinger Weissbier", .beer, 5.3, [(pint, 7.2), (bottle500, 1.75)]),
         ("Paulaner Hefe-Weissbier", .beer, 5.5, [(pint, 7.2), (bottle500, 1.8)]),
         ("Blue Moon", .beer, 5.4, [(pint, 6.9), (bottle330, 1.65)]),
-        // Belgian, priced as a bar pours it rather than as a shop sells it, because that's how anyone
-        // drinks these. Two London venues publish a Belgian bottle list — The Porterhouse in Covent
-        // Garden and The Dovetail in Clerkenwell — and where both carry a beer it's priced between
-        // them, since the tourist end and the specialist end disagree by up to 90p. A beer neither
-        // lists takes its strength's price from them: £7 for an abbey blonde, £7.90 at 8.5%, £9 above
-        // 10%. Below 6% both menus stop, so the wits and fruit beers sit at £6.50 — the one figure
-        // here that's reasoned rather than read. Retail runs about £4 a bottle under all of this.
-        // Lowlander and Bierschenke would have been the other two to ask; both closed in 2025.
+        // Belgian, priced as a bar pours it rather than as a shop sells it, since that is how these are usually
+        // drunk. Two London venues publish a Belgian bottle list, The Porterhouse in Covent Garden and The Dovetail
+        // in Clerkenwell; where both carry a beer it is priced between them, as they differ by up to 90p. A beer
+        // neither lists takes its strength's price from them: £7 for an abbey blonde, £7.90 at 8.5%, £9 above 10%.
+        // Neither menu goes below 6%, so wits and fruit beers are estimated at £6.50. Retail is about £4 a bottle
+        // less throughout.
         ("Leffe Blonde", .beer, 6.6, [(bottle330, 6.5)]),
         ("Leffe Brune", .beer, 6.5, [(bottle330, 6.7)]),
         ("Leffe Tripel", .beer, 8.5, [(bottle330, 7.9)]),
@@ -613,7 +608,7 @@ nonisolated enum Catalog {
         ("Vedett Extra Blond", .beer, 5.2, [(bottle330, 6.5)]),
         ("Blanche de Bruxelles", .beer, 4.5, [(bottle330, 6.5)]),
         ("Fruli", .beer, 4.1, [(bottle330, 6.5)]),
-        // Bavarian, off the shelf. The half-litre bottle is the format; Ayinger comes in 330 here.
+        // Bavarian, at shop prices. The half-litre bottle is standard; Ayinger is sold in 330s in the UK.
         ("Augustiner Helles", .beer, 5.2, [(bottle500, 3.39)]),
         ("Augustiner Edelstoff", .beer, 5.6, [(bottle500, 4.25)]),
         ("Spaten Münchner Hell", .beer, 5.2, [(bottle500, 3.83)]),
@@ -668,8 +663,8 @@ nonisolated enum Catalog {
         ("Stowford Press", .cider, 4.5, [(pint, 4.4), (can568, 1.8)]),
         ("Stowford Press Mixed Berries", .cider, 4.0, [(can440, 1.25)]),
         ("Cornish Orchards Gold", .cider, 5.0, [(pint, 6.4), (bottle500, 2.95)]),
-        // Westons. "Perry" went in February 2024 — Country Perry is Vintage Pear now, and 6% where it
-        // was 7.4%. Old Rosie has been 6.8% since 2019, whatever the pub chalkboard says.
+        // Westons. Country Perry was renamed Vintage Pear in February 2024 and cut from 7.4% to 6%. Old Rosie has
+        // been 6.8% since 2019, although pub chalkboards often show otherwise.
         ("Henry Westons Vintage", .cider, 8.2, [(pint, 6.9), (bottle500, 2.3)]),
         ("Henry Westons Cloudy Vintage", .cider, 7.3, [(bottle500, 2.04)]),
         ("Henry Westons 1880 Vintage", .cider, 6.2, [(bottle500, 2.5)]),
@@ -681,11 +676,9 @@ nonisolated enum Catalog {
         ("Kopparberg Mixed Fruit", .cider, 4.0, [(bottle500, 2.34)]),
         ("Rekorderlig Strawberry & Lime", .cider, 4.0, [(bottle500, 2.6)]),
         ("Old Mout Kiwi & Lime", .cider, 4.0, [(bottle500, 2.4)]),
-        // Super-strength — the corner-shop singles. Most were cut to 7.5% in the mid-2010s, years before
-        // the 2023 duty reform set its higher rate at 8.5%; Kestrel and Karpackie Super Mocne are the
-        // holdouts still brewed above the cliff and paying for it. The white cider prices are the ones
-        // printed on the bottle, which is how that end of the trade sells: price-marked, take it or
-        // leave it.
+        // Super-strength corner-shop singles. Most were cut to 7.5% in the mid-2010s, years before the 2023 duty
+        // reform set its higher rate at 8.5%; Kestrel and Karpackie Super Mocne are still brewed above that
+        // threshold. White cider prices are those printed on the bottle, as that end of the trade sells price-marked.
         ("Carlsberg Special Brew", .beer, 7.5, [(can500, 2.87)]),
         ("Tennent's Super", .beer, 7.5, [(can500, 2.75)]),
         ("Skol Super", .beer, 8.0, [(can500, 2)]),
@@ -693,7 +686,7 @@ nonisolated enum Catalog {
         ("Karpackie Super Mocne", .beer, 9.0, [(can500, 1.99)]),
         ("K Cider", .cider, 7.5, [(can500, 2.3)]),
         ("Ace Cider", .cider, 7.5, [(can500, 1.29)]),
-        // White cider is sold by the 2.5 litre bottle, which is 18 units — the pint is what gets poured.
+        // White cider is sold in 2.5 litre bottles (18 units); the pint is the serve.
         ("Frosty Jack's", .cider, 7.5, [(pint, 1.36), (bottle2500, 5.99)]),
         ("Omega White", .cider, 7.5, [(pint, 1.14), (bottle2500, 5)]),
         // Fizz
@@ -720,11 +713,10 @@ nonisolated enum Catalog {
         ("Mionetto Prosecco", .bubbles, 11.0, [(flute, 1.92), (wineBottle, 11.5)]),
         ("Chandon Brut", .bubbles, 12.5, [(flute, 2.17), (wineBottle, 13)]),
         ("Nyetimber Classic Cuvée", .bubbles, 12.0, [(flute, 7.17), (wineBottle, 43)]),
-        // Bottles you'd open for something, priced by the vintage named: strength and price both move
-        // year to year, so an unvintaged name would be two different wines wearing one price. Where
-        // nowhere in London pours one by the glass, the glass is a sixth of the bottle.
-        // Once in a lifetime. Strengths come from auction listings, except the 1841, which was measured:
-        // the bottles salvaged off Åland had fermented cool and slow and came out at 9%.
+        // Special-occasion bottles, priced by the named vintage: strength and price vary by year, so an unvintaged
+        // name would put two different wines at one price. Where no London venue pours one by the glass, the glass is
+        // a sixth of the bottle. The rarest strengths come from auction listings, except the 1841, which was
+        // measured: the bottles salvaged off Åland had fermented cool and slow and came out at 9%.
         ("Dom Pérignon P3 1971", .bubbles, 12.5, [(flute, 6270), (wineBottle, 37620)]),
         ("Veuve Clicquot 1841 (Åland wreck)", .bubbles, 9.0, [(flute, 4450), (wineBottle, 26700)]),
         // White
@@ -771,10 +763,10 @@ nonisolated enum Catalog {
         ("Provence rosé", .rose, 12.5, [(glass175, 9.5), (glass250, 12.8), (wineBottle, 10)]),
         ("Pinot Grigio rosé", .rose, 12.0, [(glass175, 7), (glass250, 9.45), (wineBottle, 8.25)]),
         ("White Zinfandel", .rose, 10.5, [(glass175, 7), (glass250, 9.45), (wineBottle, 6.25)]),
-        // Supermarket wine: the regular price of one bottle, not a loyalty-card or mix-six price, in September
-        // 2026. Nobody pours these by the glass, so a glass is its share of the bottle.
-        // The appellations, at the supermarkets' own mid-range labels (Tesco Finest, Taste the Difference,
-        // Waitrose No.1) or the négociant bottle they stock where they have no label of their own.
+        // Supermarket wine at the regular single-bottle price (not loyalty-card or mix-six), as of September 2026.
+        // These are not poured by the glass, so a glass is its share of the bottle. Appellations are at the
+        // supermarkets' own mid-range labels (Tesco Finest, Taste the Difference, Waitrose No.1), or the négociant
+        // bottle they stock where they have no label of their own.
         ("Châteauneuf-du-Pape", .redWine, 14.5, [(glass175, 5.13), (wineBottle, 22)]),
         ("Gigondas", .redWine, 14.5, [(glass175, 5.6), (wineBottle, 24)]),
         ("Crozes-Hermitage", .redWine, 12.5, [(glass175, 4.08), (wineBottle, 17.5)]),
@@ -803,8 +795,8 @@ nonisolated enum Catalog {
         ("Soave", .whiteWine, 12.5, [(glass175, 1.87), (wineBottle, 8)]),
         ("Rueda Verdejo", .whiteWine, 11.0, [(glass175, 1.87), (wineBottle, 8)]),
         ("Grüner Veltliner", .whiteWine, 11.5, [(glass175, 2.16), (wineBottle, 9.25)]),
-        // The brands on every supermarket shelf. Several are weaker than their reputation: since duty went
-        // by strength in 2023, a lot of them were cut to 12.5% or 11%, and the figure is the current label's.
+        // Mainstream supermarket brands. Many are weaker than their reputation: since duty became strength-based in
+        // 2023, many were cut to 12.5% or 11%, and the figure is the current label's.
         ("Yellow Tail Shiraz", .redWine, 13.5, [(glass175, 1.98), (wineBottle, 8.5)]),
         ("Hardys VR Shiraz", .redWine, 13.5, [(glass175, 1.63), (wineBottle, 7)]),
         ("Casillero del Diablo Cabernet Sauvignon", .redWine, 12.5, [(glass175, 1.98), (wineBottle, 8.5)]),
@@ -832,7 +824,7 @@ nonisolated enum Catalog {
         ("Vermouth", .fortified, 15.0, [(port, 3.5), (schooner, 4.9)]),
         ("Buckfast", .fortified, 15.0, [(glass175, 3.03), (halfBottle, 5.5), (wineBottle, 12.99)]),
         // Tonic wine and the cheap fortified end, priced by the bottle with the glass pro-rata.
-        // MD 20/20 is 13% in every UK flavour; the 13-18% range you'll read is the American line.
+        // MD 20/20 is 13% in every UK flavour; the 13-18% range often quoted is the American line.
         ("MD 20/20", .fortified, 13.0, [(glass175, 2.45), (wineBottle, 10.49)]),
         ("Sanatogen Tonic Wine", .fortified, 15.0, [(glass175, 1.25), (bottle70cl, 4.99)]),
         ("QC Sherry", .fortified, 17.5, [(schooner, 0.9), (bottle70cl, 8.99)]),
@@ -840,8 +832,8 @@ nonisolated enum Catalog {
         ("Harveys Bristol Cream", .fortified, 17.5, [(schooner, 0.88), (wineBottle, 9.38)]),
         ("Stone's Green Ginger Wine", .fortified, 13.5, [(port, 0.57), (bottle70cl, 7.99)]),
         ("Crabbie's Green Ginger Wine", .fortified, 13.5, [(port, 0.51), (bottle70cl, 7.15)]),
-        // Shop-bought, the pour priced as its share of the bottle. Pelin is Bulgarian wormwood wine; sake has no
-        // category of its own, and is nearest these in strength and in how it's drunk.
+        // Shop-bought, the pour priced as its share of the bottle. Pelin is Bulgarian wormwood wine. Sake has no
+        // category of its own and is closest to these in strength and serving.
         ("Martini Rosso", .fortified, 15.0, [(port, 0.9), (wineBottle, 13.5)]),
         ("Martini Extra Dry", .fortified, 18.0, [(port, 0.87), (wineBottle, 13)]),
         ("Noilly Prat Original Dry", .fortified, 18.0, [(port, 0.92), (wineBottle, 13.75)]),
@@ -860,8 +852,8 @@ nonisolated enum Catalog {
         ("Choya Umeshu Extra Years", .fortified, 17.0, [(glass125, 5.4), (bottle70cl, 30.25)]),
         ("Choya Umeshu Original", .fortified, 10.0, [(glass125, 2.67), (wineBottle, 15.99)]),
         ("Graham's Six Grapes", .fortified, 20.0, [(port, 1.33), (wineBottle, 19.99)]),
-        // The house pour, for when it's whatever's in the well. Search matches names, so without these
-        // "whisky" finds nothing a bar calls by its brand.
+        // The house pour, for an unbranded spirit. Search matches names, so without these a search for "whisky" would
+        // find only brands.
         ("Vodka", .spirit, 37.5, [(single, 6.8), (single35, 9.5)]),
         ("Gin", .spirit, 37.5, [(single, 6.8), (single35, 9.5)]),
         ("Whisky", .spirit, 40.0, [(single, 6.8), (single35, 9.5)]),
@@ -883,9 +875,8 @@ nonisolated enum Catalog {
         ("Smirnoff", .spirit, 37.5, [(single, 6.8), (single35, 9.5), (bottle70cl, 16)]),
         ("Absolut", .spirit, 40.0, [(single, 6.8), (single35, 9.5), (bottle70cl, 23)]),
         ("Finlandia", .spirit, 40.0, [(single, 6.8), (single35, 9.5), (bottle70cl, 22)]),
-        // Polish vodka and its liqueurs, at what a UK Polish shop charges for the bottle. A measure is the bar's
-        // rate for the kind: a vodka like any other, a liqueur like any other, the potato and single-grain
-        // premiums at the premium rate.
+        // Polish vodka and its liqueurs, at UK Polish shop bottle prices. A measure uses the bar tier for its kind:
+        // standard vodka and liqueur at their usual rates, potato and single-grain vodkas at the premium rate.
         ("Żubrówka Bison Grass", .spirit, 37.5, [(single, 6.8), (single35, 9.5), (bottle70cl, 21.99)]),
         ("Żubrówka Black", .spirit, 40.0, [(single, 6.8), (single35, 9.5), (bottle70cl, 29.99)]),
         ("Żubrówka White Lime", .spirit, 37.5, [(single, 7.4), (single35, 10.35), (.init(.wineBottle, 500), 15.99)]),
@@ -930,9 +921,9 @@ nonisolated enum Catalog {
         ("Appleton Estate Signature", .spirit, 40.0, [(single, 6.8), (single35, 9.5), (bottle70cl, 25.95)]),
         ("Lamb's Navy Rum", .spirit, 40.0, [(single, 6.8), (single35, 9.5), (bottle70cl, 19.5)]),
         ("Koko Kanu", .spirit, 37.5, [(single, 6.8), (single35, 9.5), (bottle70cl, 20.6)]),
-        // Overproof. A 25 ml single of Wray & Nephew carries three times the alcohol of one of Malibu,
-        // which is the whole reason to log it as itself rather than as "rum". The two nobody pours by
-        // the measure are bottle-only; a shot from your own bottle prices pro-rata.
+        // Overproof. A 25 ml single of Wray & Nephew carries three times the alcohol of one of Malibu, which is why
+        // it is listed separately from "rum". The two not poured by the measure are bottle-only; a shot from a bottle
+        // is priced pro rata.
         ("Wray & Nephew White Overproof", .spirit, 63.0, [(single, 7.4), (single35, 10.35), (bottle70cl, 29)]),
         ("Wood's Old Navy Rum", .spirit, 57.0, [(single, 7.4), (single35, 10.35), (bottle70cl, 29.95)]),
         ("Pusser's Gunpowder Proof", .spirit, 54.5, [(single, 7.4), (single35, 10.35), (bottle70cl, 39.5)]),
@@ -958,9 +949,8 @@ nonisolated enum Catalog {
         ("Pimm's No. 1", .spirit, 22.0, [(single35, 6), (bottle70cl, 13.5)]),
         ("Aperol", .spirit, 11.0, [(single35, 5.5), (bottle70cl, 23.5)]),
         ("Campari", .spirit, 25.0, [(single, 7.4), (single35, 10.35)]),
-        // Whisky, brandy and the rest of the back bar, priced by the bar tier for a measure and the
-        // supermarket or Master of Malt for the bottle. Past about £80 a bottle no tier fits, so the
-        // measure is its share of the bottle.
+        // Whisky, brandy and the rest of the back bar: a measure at the bar tier, a bottle at supermarket or Master
+        // of Malt prices. Above about £80 a bottle no tier fits, so the measure is its share of the bottle.
         ("Chivas Regal 12", .spirit, 40.0, [(single, 7.4), (single35, 10.35), (bottle70cl, 31.5)]),
         ("Grant's Triple Wood", .spirit, 40.0, [(single, 6.8), (single35, 9.5), (bottle70cl, 15.5)]),
         ("Teacher's Highland Cream", .spirit, 40.0, [(single, 6.8), (single35, 9.5), (bottle70cl, 18.99)]),
@@ -1031,8 +1021,8 @@ nonisolated enum Catalog {
         ("De Kuyper Cherry Brandy", .spirit, 24.0, [(single, 6.8), (single35, 9.5), (.init(.wineBottle, 500), 14)]),
         ("Drambuie", .spirit, 40.0, [(single, 6.8), (single35, 9.5), (.init(.wineBottle, 500), 22)]),
         ("Licor 43", .spirit, 31.0, [(single, 6.8), (single35, 9.5), (bottle70cl, 20.5)]),
-        // The Balkans, Hungary, Czechia, Greece and Turkey, with the bottle at a UK specialist shop's price
-        // because the supermarkets don't stock them. A measure is at the premium tier, as the Polish ones are.
+        // Balkan, Hungarian, Czech, Greek and Turkish spirits, at UK specialist shop bottle prices since supermarkets
+        // do not stock them. A measure is at the premium tier, as with the Polish ones.
         ("Maraska Pelinkovac", .spirit, 28.0, [(single, 7.4), (single35, 10.35), (bottle70cl, 24.75)]),
         ("Badel Pelinkovac", .spirit, 31.0, [(single, 7.4), (single35, 10.35), (bottle70cl, 26.99)]),
         ("Gorki List", .spirit, 28.0, [(single, 7.4), (single35, 10.35), (bottle70cl, 29.99)]),
@@ -1050,7 +1040,7 @@ nonisolated enum Catalog {
         ("Ouzo 12", .spirit, 38.0, [(single, 7.4), (single35, 10.35), (bottle70cl, 18.75)]),
         ("Yeni Rakı", .spirit, 45.0, [(single, 7.4), (single35, 10.35), (bottle70cl, 25.99)]),
         ("Tsilili Tsipouro", .spirit, 41.0, [(single, 7.4), (single35, 10.35), (bottle70cl, 23.61)]),
-        // Asian spirits at a UK Asian grocer's price, in the sizes they come in; a measure is its share.
+        // Asian spirits at UK Asian grocer prices, in their usual sizes; a measure is its share of the bottle.
         ("Jinro Chamisul Soju", .spirit, 20.1, [(.init(.shot, 50), 0.81), (.init(.wineBottle, 350), 5.7)]),
         ("Jinro Grapefruit Soju", .spirit, 13.0, [(.init(.shot, 50), 1), (.init(.wineBottle, 350), 7)]),
         ("Hongxing Erguotou Baijiu", .spirit, 56.0, [(single, 1.5), (.init(.wineBottle, 100), 6)]),
@@ -1219,14 +1209,12 @@ nonisolated enum Catalog {
         ("Tommy's Margarita", .cocktail, 17.1, [(.init(.tumbler, 140), 10)]),
         ("Trinidad Sour", .cocktail, 19.9, [(.init(.coupe, 135), 10)]),
         ("Ve.N.To", .cocktail, 15.0, [(.init(.tumbler, 120), 10)]),
-        // An absinthe rinse is poured out, but it isn't gone: about 2 ml of 68% clings to the glass, which
-        // the Sazerac and Remember the Maine are counted with. The rest of the pour isn't, because it's in
-        // the sink. Nothing else here is rinsed — a French 75 and a Dry Martini have no absinthe in them.
-        // The IBA's own specs, with the strength worked out from the measures rather than guessed:
-        // alcohol in the glass over the liquid in the glass, ice melt included. That's why a Zombie
-        // is five units in a tumbler and a Bellini is under one in a flute. Glass volumes are a
-        // bartender's estimate of the pour as drunk — nobody publishes dilution figures per drink.
-        // A tenner each, which is roughly London and exactly nowhere.
+        // An absinthe rinse is poured out, but about 2 ml of 68% remains in the glass, and the Sazerac and Remember
+        // the Maine include it. The rest of the rinse is not counted. No other drink here is rinsed; a French 75 and
+        // a Dry Martini contain no absinthe. Specs are the IBA's, with strength calculated from the measures: alcohol
+        // over total liquid, including ice melt. That is why a Zombie is five units in a tumbler and a Bellini is
+        // under one in a flute. Glass volumes are estimates of the pour as drunk, since dilution figures are not
+        // published per drink. Priced at a flat £10 as a rough London figure.
 ("Bellini", .cocktail, 7.3, [(.init(.flute, 150), 10)]),
         ("Black Russian", .cocktail, 25.8, [(.init(.tumbler, 90), 10)]),
         ("Caipirinha", .cocktail, 18.5, [(.init(.tumbler, 130), 10)]),
@@ -1267,14 +1255,13 @@ nonisolated enum Catalog {
         ("Smirnoff Ice", .alcopop, 4.0, [(bottle275, 2.01)]),
         ("Hooch", .alcopop, 4.0, [(bottle440, 2.1)]),
         ("Crabbie's Alcoholic Ginger Beer", .alcopop, 4.0, [(bottle500, 2)]),
-        // Aldi and Lidl's own labels. Priced as the shop sells them, which is the only way they're
-        // sold — there's no bar pouring Old Hopking, so a measure of one prices off the bottle.
+        // Aldi and Lidl own labels, priced as the shop sells them. No bar pours these, so a measure is priced from
+        // the bottle.
         ("Galahad Premium Lager", .beer, 4.0, [(can440, 2.99)]),
         ("Rheinbacher Premium Pilsner", .beer, 4.5, [(can500, 3.99)]),
         ("Anti-Establishment IPA", .beer, 5.6, [(can440, 1.99)]),
         ("Anti-Establishment Hazy Daisy IPA", .beer, 5.0, [(can440, 1.99)]),
-        // The one price here nobody publishes, so it's two quid from the memory of somebody drinking
-        // one, who thinks it might have been £1.50 and isn't walking back to Aldi to find out.
+        // No published price exists for this one; £2 is an estimate from memory.
         ("Anti-Establishment Back Up Session IPA", .beer, 4.3, [(can330, 2)]),
         ("Anti-Establishment Found Lager", .beer, 4.0, [(can440, 2)]),
         ("Anti-Establishment Mango Joiva Lager", .beer, 4.0, [(can440, 1.49)]),
@@ -1301,14 +1288,12 @@ nonisolated enum Catalog {
         ("Veuve Monsigny Champagne Brut", .bubbles, 12.5, [(flute, 2.67), (wineBottle, 15.99)]),
         ("Costellore Prosecco", .bubbles, 10.5, [(flute, 0.91), (wineBottle, 5.45)]),
         ("Belletti Hugo Spritz", .alcopop, 6.9, [(flute, 0.67), (wineBottle, 3.99)]),
-        // Wetherspoon's own list, read off the order-and-pay menu for The Watch House, Lewisham, in
-        // September 2026 — one pub because prices are set per pub and a chain-wide Spoons price doesn't
-        // exist: the same Carling is £3.49 here and £2.99 in Wigan. A spirit's price is the measure
-        // with a mixer of your choice, because that's how Spoons sells one and the mixer costs nothing;
-        // the units are the spirit's alone. The guest ales aren't here — they change every few weeks
-        // and a catalogue entry would outlive the cask. Nor is anything Spoons sells that's already
-        // above under its own name at the same strength: a Stella is a Stella, and one
-        // pub's price doesn't earn a second entry. A brand Spoons pours at a different strength does.
+        // Wetherspoon's own list, taken from the order-and-pay menu for The Watch House, Lewisham, in September 2026.
+        // Prices are set per pub and there is no chain-wide price: the same Carling is £3.49 here and £2.99 in Wigan.
+        // A spirit's price includes a mixer, since that is how Wetherspoon sells it at no extra cost; the units are
+        // the spirit's alone. Guest ales are excluded because they change every few weeks. Anything already listed
+        // above under the same name and strength is also excluded; one pub's price does not justify a second entry. A
+        // brand poured at a different strength is included.
         ("Bud Light", .beer, 3.4, [(pint, 1.99), (half, 1)]),
         ("Carlsberg Pilsner", .beer, 3.8, [(pint, 3.14), (half, 1.57)]),
         ("Worthington's Creamflow", .beer, 3.4, [(pint, 1.99), (half, 1)]),
@@ -1317,10 +1302,10 @@ nonisolated enum Catalog {
         ("Mad Squirrel $umo", .beer, 4.7, [(pint, 3.59), (half, 1.8)]),
         ("Efes", .beer, 5.0, [(bottle500, 5.05)]),
         ("Stella Artois Unfiltered", .beer, 5.0, [(bottle620, 5.23)]),
-        // Spoons lists this one as plain "Estrella Galicia" at 5.5%, which is the Especial, not the
-        // 4.7% standard lager the same brewery puts in a 330 everywhere else.
+        // Listed as plain "Estrella Galicia" at 5.5%, which is the Especial, not the 4.7% standard lager sold in 330s
+        // elsewhere.
         ("Estrella Galicia Especial", .beer, 5.5, [(bottle330, 4.25)]),
-        // The can range, which turns over but not like the casks do.
+        // The can range, which changes less often than the casks.
         ("Shipyard American Pale Ale", .beer, 4.5, [(can440, 2.59)]),
         ("Williams Brothers Joker IPA", .beer, 5.0, [(can330, 3.29)]),
         ("Kirkstall Judicious", .beer, 4.8, [(can440, 4.15)]),
@@ -1330,16 +1315,16 @@ nonisolated enum Catalog {
         ("Seven Bro7hers Easy IPA", .beer, 4.7, [(pint, 3.59), (half, 1.8)]),
         ("Thornbridge West Side Glory", .beer, 7.0, [(can440, 4.39)]),
         ("Jiddler's Tipple Swiss Roll Stout", .stout, 5.1, [(can440, 4.15)]),
-        // Cider. The two farmhouse ones are on the cider list rather than the guest board, which is why
-        // they're here. They also pour by the third, and the catalogue has no third, so these are halves.
+        // Cider. The two farmhouse ciders are on the permanent cider list rather than the guest board, so they are
+        // included. They are poured by the third, which the catalogue lacks, so these are halves.
         ("Harry's Scrummage", .cider, 6.0, [(pint, 3.44), (half, 1.72)]),
         ("Purbeck Dandy Dab", .cider, 5.0, [(pint, 3.44), (half, 1.72)]),
         ("Kopparberg Mango", .cider, 4.0, [(bottle500, 3.1)]),
         ("Kopparberg Sweet Vintage Pear", .cider, 7.0, [(bottle500, 4.25)]),
         ("Angry Orchard", .cider, 5.0, [(bottle500, 4.25)]),
         ("Bulmers Crushed Red Berries & Lime", .cider, 4.0, [(bottle500, 4.25)]),
-        // The wine list, by the name on the bottle rather than by grape, because Spoons pours one
-        // Chardonnay and it is this one. Coldwater Creek is the house wine and glasses only.
+        // The wine list, by the name on the bottle rather than by grape, since Wetherspoon pours a single Chardonnay.
+        // Coldwater Creek is the house wine and sold by the glass only.
         ("Coldwater Creek Chardonnay", .whiteWine, 12.0, [(glass125, 2.35), (glass175, 3.21), (glass250, 4.35)]),
         ("Coldwater Creek Pinot Grigio", .whiteWine, 12.0, [(glass125, 2.35), (glass175, 3.21), (glass250, 4.35)]),
         ("Cune White Rioja", .whiteWine, 12.5, [(glass125, 3.1), (glass175, 4.25), (glass250, 5.75), (wineBottle, 15.53)]),
@@ -1355,8 +1340,8 @@ nonisolated enum Catalog {
         ("Teresa Rizzi Prosecco", .bubbles, 11.0, [(glass175, 3.84), (.init(.wineBottle, 200), 4.85), (wineBottle, 17.41)]),
         ("Teresa Rizzi Sparkling Rosé", .bubbles, 11.5, [(.init(.wineBottle, 200), 4.85)]),
         ("Broadwood's Folly", .bubbles, 12.0, [(wineBottle, 24.79)]),
-        // Spirits, single and double. The flavoured ends of the vodka and liqueur lists are most of
-        // what's new here; the base spirits are already above.
+        // Spirits, single and double. Most new entries are flavoured vodkas and liqueurs; the base spirits are listed
+        // above.
         ("XIX Mixed Berry", .spirit, 37.5, [(single, 2.1), (double, 3.6)]),
         ("Au Vodka Miami Mango", .spirit, 35.2, [(single, 2.35), (double, 3.85)]),
         ("Au Vodka Juicy Peach", .spirit, 35.2, [(single, 2.35), (double, 3.85)]),
@@ -1395,10 +1380,9 @@ nonisolated enum Catalog {
         // Premixed by the bottle.
         ("Echo Falls Blue Raspberry", .alcopop, 9.0, [(glass125, 2.35), (glass175, 3.25), (glass250, 4.5), (wineBottle, 13.29)]),
         ("WKD Blue", .alcopop, 3.4, [(bottle275, 3.34)]),
-        // Spoons cocktails. The spritzes give their measures, so the strength is those over the glass:
-        // 125 ml of Prosecco and a 25 or 50 ml spirit in a 250 ml wine glass, ice included. The ones
-        // Spoons sells by the pitcher are here as the glass, which is what one person drinks and the
-        // only serve whose volume the menu implies — it doesn't say how much a jug holds.
+        // Wetherspoon cocktails. The spritzes give their measures, so strength is calculated from them: 125 ml of
+        // Prosecco and a 25 or 50 ml spirit in a 250 ml wine glass, ice included. Pitcher cocktails are listed as the
+        // glass, the single-person serve and the only one whose volume the menu implies.
         ("Sarti Spritz", .cocktail, 7.7, [(.init(.wineGlass, 250), 4.85)]),
         ("Strawberry Spritz", .cocktail, 8.0, [(.init(.wineGlass, 250), 4.85)]),
         ("Mango & Passionfruit Spritz", .cocktail, 9.0, [(.init(.wineGlass, 250), 4.85)]),
@@ -1414,7 +1398,7 @@ nonisolated enum Catalog {
         ("BuzzBallz Berry Cherry Limeade", .cocktail, 13.5, [(.init(.can, 200), 5)]),
         ("BuzzBallz Strawberry 'Rita", .cocktail, 13.5, [(.init(.can, 200), 5)]),
         ("BuzzBallz Lime 'Rita", .cocktail, 13.5, [(.init(.can, 200), 5)]),
-        // A bomb is a 25 ml measure dropped into a can of Monster, so it's weak for what it costs.
+        // A bomb is a 25 ml measure dropped into a can of Monster, so it is weak for its price.
         ("Strikabomb", .cocktail, 3.5, [(doubleLong, 4.3)]),
         ("Flävarbomb", .cocktail, 2.5, [(doubleLong, 4.3)]),
         ("SoCoLocobomb", .cocktail, 3.5, [(doubleLong, 4.3)]),
@@ -1425,9 +1409,9 @@ nonisolated enum Catalog {
         ("Jammy Dodger", .cocktail, 16.7, [(.init(.shot, 30), 4.89)]),
     ]
 
-    /// Drinks priced in the market they're usually bought in, one block per currency. A drink also in the list
-    /// above takes these as its home prices alongside its pounds, so it must be the same strength; a different
-    /// strength is a different drink, and takes a different name.
+    /// Drinks priced in the market where they are usually bought, one block per currency. A drink also in the list
+    /// above takes these as its home prices alongside its pounds, so it must have the same strength; a different
+    /// strength requires a different name.
     private static let markets: [(currency: String, entries: [(String, DrinkCategory, Double, [(ServeSize, Double)])])] = []
 
     static let brands: [CatalogBrand] = {
@@ -1451,8 +1435,8 @@ nonisolated enum Catalog {
         brand.sizes.map { CatalogItem(name: brand.name, category: brand.category, vessel: $0.vessel, volumeMl: $0.ml, abv: brand.abv) }
     }
 
-    /// The currency prices are wanted in: the one set in Setup, which lives in the shared defaults so the widgets
-    /// and intents price the same way the app does.
+    /// The currency for prices: the one set in Setup, stored in the shared defaults so widgets and intents price the
+    /// same way as the app.
     static var currency: String {
         UserDefaults.shared.string(forKey: "currency") ?? Locale.current.currency?.identifier ?? "GBP"
     }
@@ -1462,21 +1446,21 @@ nonisolated enum Catalog {
 
     static let brandsByCategory: [DrinkCategory: [CatalogBrand]] = Dictionary(grouping: brands, by: \.category)
 
-    /// What a brand is searched by, folded once — searching is per keystroke over a couple of thousand
-    /// serves, and folding each on the way is most of what a keystroke cost.
+    /// Search keys, folded once: search runs on every keystroke over a few thousand serves, and folding each one per
+    /// keystroke dominated the cost.
     private static let searchKeys: [String] = items.map { "\($0.name) \($0.category.label)".searchFolded }
 
     /// A drink's identity as the catalogue sees it: same name, same kind.
     static func key(_ name: String, _ category: DrinkCategory) -> String { "\(name)|\(category.rawValue)" }
 
-    /// Whether a drink is still exactly as the catalogue has it — copied in when it was logged and never touched.
-    /// Change its name, kind or strength and it stops matching, which is the point: it's yours from then on.
+    /// Whether a drink still matches the catalogue exactly. Changing its name, kind or strength makes it the user's
+    /// own.
     static func holds(name: String, category: DrinkCategory, abv: Double) -> Bool {
         byKey[key(name, category)]?.abv == abv
     }
 
-    /// What a drink of this name in this size normally costs: a brand's own price, else a generic's starting one.
-    /// Nil where nothing is known, so a caller can tell "we don't price this" from "this is free".
+    /// The normal price of a drink of this name in this size: a brand's own price, else a generic's starting price.
+    /// Nil when unknown, so callers can distinguish unpriced from free.
     static func price(name: String, category: DrinkCategory, vessel: Vessel, ml: Double, currency: String = currency) -> Double? {
         if let brand = byKey[key(name, category)] {
             let found = price(brand, vessel, ml, currency: currency)
@@ -1485,13 +1469,12 @@ nonisolated enum Catalog {
         return Seed.price(name: name, vessel: vessel, ml: ml).flatMap { Rates.convert($0, from: "GBP", to: currency) }
     }
 
-    /// A size the brand isn't listed in scales from the nearest serve of the same vessel before any other:
-    /// a 440 ml bottle is the 330's price and a third, not a pint's less a fifth. Draught and packaged are
-    /// different trades and their prices don't divide into one another.
+    /// A size the brand is not listed in scales from the nearest serve of the same vessel first: a 440 ml bottle is
+    /// the 330's price plus a third, not a pint's less a fifth. Draught and packaged prices are not proportional to
+    /// each other.
     ///
-    /// A drink sold in `currency`'s market is priced from that market alone. One that isn't is converted from
-    /// wherever it is priced, the UK first, at the bundled rates: a Polish beer in złoty for someone in Kraków,
-    /// in pounds for someone buying it in Lewisham.
+    /// A drink sold in `currency`'s market is priced from that market alone. Otherwise it is converted from wherever
+    /// it is priced, the UK first, at the bundled rates.
     static func price(_ brand: CatalogBrand, _ vessel: Vessel, _ ml: Double, currency: String = currency) -> Double {
         if let serves = brand.prices[currency] { return price(serves, vessel, ml) }
         for (source, serves) in brand.prices.sorted(by: { $0.key == "GBP" ? true : $1.key == "GBP" ? false : $0.key < $1.key }) {

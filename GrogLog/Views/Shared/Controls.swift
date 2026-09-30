@@ -4,8 +4,8 @@ import SwiftUI
 struct ChipRow<Value: Hashable>: View {
     let options: [Value]
     @Binding var selection: Value
-    /// An option that isn't on offer stays on the row, greyed. Withdrawing it outright leaves a gap
-    /// that reads as a missing feature rather than a decision, and there's no telling what was there.
+    /// An unavailable option stays on the row, greyed out. Removing it would leave a gap that reads as
+    /// a missing feature, with no indication of what the option was.
     var isEnabled: (Value) -> Bool = { _ in true }
     let label: (Value) -> String
 
@@ -30,9 +30,9 @@ struct NumberRow: View {
     let label: String
     @Binding var value: Double
     let suffix: String
-    /// Called when the field is done being typed into. Anything that reacts to the value by changing
-    /// something else belongs here rather than on the value itself — halfway through typing "30" the
-    /// value is 3, and acting on that fights whoever is typing.
+    /// Called when editing ends. Anything that reacts to the value by changing something else belongs
+    /// here rather than on the value itself: halfway through typing "30" the value is 3, and acting on
+    /// that interferes with the typing.
     var onEditingEnded: () -> Void = {}
     @FocusState private var focused: Bool
 
@@ -66,7 +66,7 @@ extension View {
     }
 }
 
-/// Money entered like a banking app: digits only, filling from the pence up — typing 1, 5, 0 reads £0.01, £0.15, £1.50.
+/// Money entered like a banking app: digits only, filling from the pence up, so typing 1, 5, 0 reads £0.01, £0.15, £1.50.
 /// A hidden digits field takes the keystrokes; the label shows them as money.
 struct MoneyField: View {
     let label: String

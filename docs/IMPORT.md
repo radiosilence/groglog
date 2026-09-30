@@ -1,6 +1,6 @@
 # Import format
 
-Setup › Data › Import backup takes GrogLog's own JSON backup, or a hand-written file in the same shape. Only `days[].date` and `days[].status` are required, so screenshots or PDFs from another app (e.g. Drink Coach) can be turned into an import by an LLM.
+Setup › Data › Import backup takes GrogLog's own JSON backup, or a hand-written file in the same shape. Only `days[].date` and `days[].status` are required, so an LLM can turn screenshots or PDFs from another app, such as Drink Coach, into an import.
 
 Import merges: a day that already has drinks is left alone, and pours with an `id` already present are skipped. Re-importing the same file is safe.
 
@@ -38,11 +38,11 @@ List `pours` instead. A pour with `volumeMl` is a drink (`abv` defaults from `ca
 
 ## Fields
 
-- `date` — `yyyy-MM-dd`, the drinking day (a drink at 1am belongs to the previous date).
-- `status` — `drank`, `alcohol_free`, or `not_logged` (ignored). Only explicit `alcohol_free` marks a day dry.
-- `category` — `beer`, `stout`, `cider`, `redWine`, `whiteWine`, `rose`, `bubbles`, `spirit`, `alcopop`, `cocktail`, `fortified`, `units`.
-- `vessel` — `pint`, `half`, `can`, `bottle`, `wineBottle`, `wineGlass`, `flute`, `shot`, `tumbler`, `coupe`.
-- `spentByHand` — the day's spend entered by hand, standing in for what its drinks cost. GrogLog's own backups carry it; leave it out and `cost` is taken from the pours.
+- `date`: `yyyy-MM-dd`, the drinking day (a drink at 1am belongs to the previous date).
+- `status`: `drank`, `alcohol_free`, or `not_logged` (ignored). Only explicit `alcohol_free` marks a day dry.
+- `category`: `beer`, `stout`, `cider`, `redWine`, `whiteWine`, `rose`, `bubbles`, `spirit`, `alcopop`, `cocktail`, `fortified`, `units`.
+- `vessel`: `pint`, `half`, `can`, `bottle`, `wineBottle`, `wineGlass`, `flute`, `shot`, `tumbler`, `coupe`.
+- `spentByHand`: the day's spend entered by hand, standing in for what its drinks cost. GrogLog's own backups carry it; leave it out and `cost` is taken from the pours.
 - Top-level `dayStartsAtHour`, `currency` and `goal` restore settings when present; leave them out to keep yours.
 
 ## Prompt for converting screenshots

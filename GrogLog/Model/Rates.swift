@@ -1,14 +1,14 @@
 import Foundation
 
-/// What a pound buys in each currency, for pricing a drink from one market in another's money.
+/// What a pound buys in each currency, for pricing a drink from one market in another's currency.
 ///
-/// A dated snapshot of the ECB's reference rates, not a live feed: a catalogue price is a starting point that
-/// becomes your own figure the moment it's copied in, and an app that has to be online to price a pint has its
-/// priorities wrong. A drink priced in the currency you use is never converted.
+/// A dated snapshot of the ECB's reference rates. A catalogue price is only a starting point that the user owns
+/// once copied in, so it does not justify requiring a network connection. A drink priced in the user's own
+/// currency is never converted.
 nonisolated enum Rates {
     static let asOf = "2026-09-25"
 
-    /// The three the app has always offered come first; the rest are alphabetical.
+    /// The three original currencies come first; the rest are alphabetical.
     static let perPound: [String: Double] = [
         "GBP": 1,
         "EUR": 1.16218,

@@ -110,7 +110,7 @@ schemes:
         GrogLog: all
     test:
       targets: [GrogLogTests]
-  # Running this one puts the simulator straight into a widget preview, which is the only sane way to look at one.
+  # Running this scheme opens the simulator in a widget preview, the only practical way to view a widget.
   GrogLogWidgets:
     build:
       targets:

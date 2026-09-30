@@ -14,13 +14,13 @@ nonisolated enum Units {
 
     static let unitMl = 10.0
 
-    /// What Health means by a drink: 14 g of alcohol, which at 0.789 g/ml is 17.7 ml — nearly two UK units.
+    /// Health's standard drink: 14 g of alcohol, which at 0.789 g/ml is 17.7 ml, nearly two UK units.
     static let standardDrinkMl = 14 / 0.789
 }
 
 nonisolated enum DrinkCategory: String, CaseIterable, Codable, Identifiable {
     case beer, stout, cider, redWine, whiteWine, rose, bubbles, spirit, alcopop, cocktail, fortified
-    /// A bare unit count, for when the drinks themselves weren't recorded (imports, catching up).
+    /// A bare unit count, for when the drinks themselves were not recorded, such as imports.
     case units
 
     var id: Self { self }
@@ -119,12 +119,12 @@ nonisolated enum DrinkCategory: String, CaseIterable, Codable, Identifiable {
         return sizes.map(ServeSize.init)
     }
 
-    /// The usual sizes, led by `size` when it's an odd one.
+    /// The usual sizes, led by `size` when it is not among them.
     func sizes(including size: ServeSize) -> [ServeSize] {
         serves.contains(size) ? serves : [size] + serves
     }
 
-    /// "Pint · 4.6%", "440 ml can · 5%" — or "any amount" for bare unit counts.
+    /// "Pint · 4.6%" or "440 ml can · 5%", or "any amount" for bare unit counts.
     func serving(_ vessel: Vessel, ml: Double, abv: Double) -> String {
         self == .units ? "any amount" : "\(vessel.label(ml: ml)) · \(abv.formatted(.number.precision(.fractionLength(0...1))))%"
     }
@@ -165,7 +165,7 @@ nonisolated enum Vessel: String, CaseIterable, Codable, Identifiable {
         }
     }
 
-    /// For somewhere with no room for "440 ml can": the vessel is the picture's job, the size is the words'.
+    /// For tight spaces where an icon shows the vessel, so the label gives only the size.
     func shortLabel(ml: Double) -> String {
         switch self {
         case .pint: "Pint"

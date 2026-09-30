@@ -26,7 +26,7 @@ struct SetupScreen: View {
                 }
             } footer: {
                 // The guidance the pace limits come from assumes a clinician judged the person suitable
-                // and reviews them as they go. This does neither, and shouldn't be read as if it did.
+                // and reviews them as they go. GrogLog does neither, and the copy must not suggest otherwise.
                 Text("Choose a rate of reduction to set a daily and weekly budget.\n\nGrogLog does not provide medical advice. It is intended to help you follow a plan agreed with your GP or alcohol service. If you are dependent on alcohol, do not stop suddenly without medical support.")
             }
 
@@ -42,7 +42,7 @@ struct SetupScreen: View {
             } footer: {
                 Text("Drinks after midnight count towards the evening before.")
             }
-            // Every entry re-dayed and every day re-totted: seconds on a long log, and not while a picker settles.
+            // Reassigns every entry to a day and recomputes every total: seconds on a long log, so it runs off the main thread.
             .onChange(of: prefs.rolloverHour) {
                 let logbook = database.logbook(prefs)
                 Task.detached { logbook.rebuild(reassigningDays: true) }
@@ -169,12 +169,12 @@ struct SetupScreen: View {
     private var goalSummary: String {
         let goal = prefs.goal
         guard goal.isEnabled else { return "Off" }
-        // The picker's own labels, so the row and the control it summarises can't drift apart.
-        // A stepped taper has no period of its own; it's whichever rung the budget has reached today.
+        // The picker's own labels, so the row and the control it summarises cannot drift apart.
+        // A stepped taper has no period of its own; it is whichever rung the budget has reached today.
         let days = ledger.pace(on: ledger.today, goal: goal)
         let every = Goal.periods.first { $0.days == days }?.label ?? "\(days) days"
         let amount = { (value: Double) in value.formatted(.number.precision(.fractionLength(0...1))) }
-        // A linear taper comes off in units, not in shares, and this row could only ever say a share.
+        // A linear taper reduces by a fixed number of units, so the row states units rather than a percentage.
         return goal.taper == .linear
             ? "−\(amount(goal.reductionUnits)) u/\(every)"
             : "−\(amount(goal.reductionPercent))%/\(every)"

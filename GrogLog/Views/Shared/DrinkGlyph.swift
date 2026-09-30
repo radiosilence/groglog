@@ -5,7 +5,7 @@ struct DrinkGlyph: View {
     let category: DrinkCategory
     let vessel: Vessel
     var volumeMl: Double?
-    /// How far poured, 0…1 — animated when a drink is logged.
+    /// How far poured, 0…1; animated when a drink is logged.
     var fill = 1.0
 
     var body: some View {
@@ -52,7 +52,7 @@ private struct Art {
     var glass: Path
     /// Where liquid can sit, if different from the glass (e.g. above a thick base).
     var bowl: Path?
-    /// Fraction of the bowl's height that's filled.
+    /// Fraction of the bowl's height that is filled.
     var level: CGFloat
     /// Stems, feet, caps: filled with ink.
     var solids: [Path] = []

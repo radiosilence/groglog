@@ -3,8 +3,8 @@ import GRDB
 import Testing
 @testable import GrogLog
 
-/// The intent parameter is a `Serve.key`, so it has to survive the round trip to a string and back —
-/// at the price the drink is pinned at, not the one baked into the key.
+/// The intent parameter is a `Serve.key`, so it must survive the round trip to a string and back, at
+/// the price the drink is pinned at rather than the one encoded in the key.
 @Suite struct ServeKeyTests {
     private func database() throws -> DatabaseQueue {
         let database = try AppDatabase.inMemory()

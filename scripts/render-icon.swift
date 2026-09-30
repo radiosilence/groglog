@@ -1,4 +1,4 @@
-// Renders the app icon from the in-app pint glyph, so the icon and the drinks share one hand.
+// Renders the app icon from the in-app pint glyph, so the icon matches the drink glyphs in the app.
 // Run via scripts/render-icon.sh.
 import AppKit
 import SwiftUI

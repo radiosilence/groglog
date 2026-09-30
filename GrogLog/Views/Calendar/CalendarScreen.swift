@@ -105,8 +105,7 @@ private struct MonthGrid: View {
 }
 
 /// One day, on the handful of values it shows. The ledger changes on every commit, and a cell that took it would
-/// be re-evaluated on each — there are a thousand of these across a few years, and on a commit all but one read
-/// the same.
+/// be re-evaluated on each; a few years of history is a thousand cells, and a commit changes at most one.
 private struct DayCell: View, Equatable {
     let day: DayKey
     let status: DayStatus

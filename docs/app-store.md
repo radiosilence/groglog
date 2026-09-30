@@ -17,8 +17,8 @@ sends it to App Store Connect; the limits in brackets are Apple's.
 
 ## Age rating
 
-The questionnaire asks how often the app refers to alcohol. GrogLog is about nothing else, so the honest answer is
-*frequent*, which rates it 18+. That is also the right audience.
+The questionnaire asks how often the app refers to alcohol. GrogLog is about nothing else, so the answer is
+*frequent*, which rates it 18+, the intended audience.
 
 ## App Privacy
 
@@ -36,7 +36,7 @@ GrogLog is a drink diary for people who want to drink less. It keeps an honest c
 
 LOG IN ONE TAP
 Your usual drinks sit on one screen, and a tap logs one. Long-press for another size, a drink you had earlier, or
-several at once. Around nine hundred drinks are in the catalogue at their label strengths, from cask ale and craft
+several at once. Over eleven hundred drinks are in the catalogue at their label strengths, from cask ale and craft
 beer to wine, spirits and Polish vodka, so a new one is a search away.
 
 SEE WHERE THE DAY STANDS
@@ -48,7 +48,7 @@ Set a gradual reduction and GrogLog gives you a daily and weekly budget that com
 in UK clinical guidance for reducing without medication.
 
 AN HONEST RECORD
-A forgotten day stays a gap rather than counting as a dry one, so your averages and streaks describe what actually
+A forgotten day stays a gap rather than counting as a dry one, so your averages and streaks describe what
 happened. Reports chart each week and month against the ones before.
 
 YOUR BODY, THE MORNING AFTER
@@ -82,7 +82,7 @@ time. The problem it solves is that people underestimate what they drink; a runn
 makes it visible. It is free, with no account, no adverts and no tracking.
 
 Setting up and using it. No sign-in, account or sample file is needed. The app opens on the Log tab: tap a drink to
-log it, long-press one for another size or time, or search the catalogue of about a thousand UK drinks. The Day tab
+log it, long-press one for another size or time, or search the catalogue of over eleven hundred UK drinks. The Day tab
 shows today's total; Calendar shows past days; Reports charts weeks and months. A reduction goal is set from the Goal
 row in Setup or the Goal button on Reports. Apple Health is optional and off by default, with each switch in Setup.
 

@@ -1,17 +1,17 @@
 import Charts
 import SwiftUI
 
-/// Pick a cut and a timeframe; the budget tapers daily from your recent average to the target.
+/// Pick a cut and a timeframe; the budget tapers daily from the recent average to the target.
 struct GoalEditor: View {
     let ledger: Ledger
     @Binding var goal: Goal
     @Binding var showingGuidance: Bool
 
-    /// Put the plan back on a pace that's on offer, after something moved that changes which are.
+    /// Moves the plan back to an offered pace after a change alters which paces are offered.
     /// Steps to the quickest still allowed rather than the gentlest, so raising the starting figure
-    /// costs as little pace as it has to.
+    /// costs as little pace as possible.
     private func settle() {
-        // Dynamic picks its own pace off the ladder, so there's nothing of its to put back.
+        // Dynamic picks its own pace from the ladder, so there is nothing to settle.
         guard goal.taper != .dynamic else { return }
         let from = goal.baselineWeekly
         goal.periodDays = Goal.nearestOffered(period: goal.periodDays, from: from)
@@ -20,11 +20,11 @@ struct GoalEditor: View {
 
     var body: some View {
         let recent = ledger.recentWeeklyAverage()
-        // Two different questions. What they're actually drinking is what the NICE thresholds are
-        // about. What the taper counts down from is what decides the size of its steps, and that's
-        // the baseline for a scheduled plan — which is why editing it changes what's on offer.
+        // Two different figures. Current drinking is what the NICE thresholds apply to. The taper's
+        // steps are sized from the baseline it counts down from, which is why editing the baseline
+        // changes the options offered.
         let drinking = recent ?? goal.baselineWeekly
-        // All three count down from the baseline now, so that's what sets the size of their steps.
+        // Every taper counts down from the baseline, so it sets the size of their steps.
         let from = goal.baselineWeekly
         // Amounts are stored per week but people think in a day's drinking, whatever the taper's pace.
         let per = "u/day"
@@ -43,7 +43,7 @@ struct GoalEditor: View {
                     .foregroundStyle(.secondary)
                 let offeredPeriods = Goal.periods(from: from).map(\.days)
                 let offeredUnits = Goal.unitCuts(from: from, perDays: goal.periodDays)
-                // Dynamic has no pace to pick: it takes the one its ladder gives for where you are.
+                // Dynamic has no pace to pick: it takes the one its ladder gives for the current level.
                 if goal.taper == .dynamic {
                     Button { showingGuidance = true } label: {
                         LabeledContent {
@@ -61,7 +61,7 @@ struct GoalEditor: View {
                     ChipRow(options: Goal.unitCuts, selection: $goal.reductionUnits,
                             isEnabled: offeredUnits.contains) { "−\($0.formatted(.number.precision(.fractionLength(0...1)))) u" }
                 }
-                // The share is fixed at the fastest that's safe, so how often it lands is the whole pace.
+                // The percentage is fixed at the fastest safe share, so the period alone sets the pace.
                 if goal.taper != .dynamic {
                     LabeledContent(goal.taper == .linear ? "Every" : "Cut \(Int(Goal.standardCut))% every") { EmptyView() }
                     ChipRow(options: Goal.periods.map(\.days), selection: $goal.periodDays,
@@ -71,7 +71,7 @@ struct GoalEditor: View {
                 }
                 Group {
                     NumberRow(label: "From", value: perPeriod(\.baselineWeekly), suffix: per, onEditingEnded: settle)
-                    // To the nearest unit a day. The average is 30.486 a day and nobody plans from that.
+                    // Rounded to the nearest unit a day, since a figure such as 30.486 is not useful to plan from.
                     if let recent {
                         let rounded = (recent / 7).rounded() * 7
                         if abs(rounded - goal.baselineWeekly) > 0.5 {
@@ -83,9 +83,8 @@ struct GoalEditor: View {
                     }
                     DatePicker("Starting", selection: $goal.start, displayedComponents: .date)
                 }
-                // Greying happens as you type, because seeing it narrow is the point. Moving the
-                // selection doesn't: that waits for the field to be let go of, or for a change that
-                // isn't typing at all. See `settle`.
+                // Options grey out while typing, so the narrowing is visible. Moving the selection
+                // waits until editing ends, or for a change that is not typing. See `settle`.
                 .onChange(of: goal.taper, initial: true) { settle() }
                 .onChange(of: goal.periodDays) { settle() }
                 NumberRow(label: "Down to", value: perPeriod(\.targetWeekly), suffix: per)
@@ -97,7 +96,7 @@ struct GoalEditor: View {
                         .foregroundStyle(Color.over)
                 }
                 // The same guidance names 25 units a day as a reason to halve the pace, and NICE gives
-                // two thresholds above it where the answer isn't a slower plan but somebody qualified.
+                // two thresholds above it where the right response is professional support.
                 if drinking >= Goal.inpatientWeekly {
                     Label("Over 30 units a day. At this level NICE recommends inpatient or residential withdrawal rather than reducing alone. Please speak to your GP or an alcohol service before you begin.", systemImage: "cross.case.fill")
                         .font(.subheadline)
@@ -111,17 +110,17 @@ struct GoalEditor: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
-                // The pace in units, which is the thing the percentage hides: a tenth of sixty is six.
-                // And when that's why an option has gone, say so rather than leaving a gap.
+                // The pace in units, which the percentage obscures: 10% of 60 is 6. When that is why
+                // an option is unavailable, this explains it rather than leaving a gap.
                 let opening = goal.openingDrop(from: from)
                 if opening > 0 {
                     Label("That is \(opening.unitsText) u/day less to begin with.", systemImage: "arrow.down.right")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
-                // A linear taper's share grows as the budget shrinks, so the warning isn't yes or no — it's
-                // a level, and only one worth naming while it's still above the guideline. It's the size of
-                // the cut being warned about, never the amount left, which is the guideline's business.
+                // A linear taper's share grows as the budget shrinks, so the warning is a level, worth showing
+                // only while the budget is still above the guideline. It concerns the size of the cut; the
+                // amount left is covered by the guideline.
                 if goal.sharpensWhileItMatters(from: from) {
                     Label("The same amount is removed from what remains, so each cut becomes a larger share: below \(goal.sharpensBelow.unitsText) u/day it is more than 10% of what remains each day. Proportional reduces more gently at this point.", systemImage: "exclamationmark.triangle.fill")
                         .font(.subheadline)
@@ -147,9 +146,9 @@ struct GoalEditor: View {
             }
         }
 
-        // Guidance treats a gradual reduction as something decided on for a particular person, by
-        // someone who has met them. This screen can only count what you've decided; it can't tell you
-        // whether a taper is the right approach, and shouldn't be read as saying that it is.
+        // Guidance treats a gradual reduction as a decision made for a particular person by a clinician
+        // who has assessed them. This screen only records the decision; it cannot say whether a taper
+        // is the right approach, and must not read as if it does.
         Section {
             Text("A taper is suitable only when gradual reduction is already the right approach for you. Your GP or an alcohol service can advise on whether it is, and at what pace. GrogLog helps you follow the plan you agree with them.")
         } header: {
@@ -171,7 +170,7 @@ struct GoalEditor: View {
     }
 }
 
-/// Where the taper lands if you keep to it.
+/// Where the taper lands if it is followed.
 struct ProjectionRow: View {
     let ledger: Ledger
     let goal: Goal
@@ -198,8 +197,8 @@ struct ProjectionRow: View {
     }
 }
 
-/// The goal as a sheet, for reaching it from wherever you notice you want one. Edits a draft saved on Done, which
-/// opens switched on — asking for the sheet is asking for a goal.
+/// The goal as a sheet, reachable from any screen that offers a goal. Edits a draft saved on Done, which opens
+/// switched on, since opening the sheet is a request for a goal.
 struct GoalSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(Prefs.self) private var prefs
@@ -221,7 +220,7 @@ struct GoalSheet: View {
                 Form { GoalEditor(ledger: ledger, goal: $draft, showingGuidance: $showingGuidance) }
             }
             // Outside the Form: a sheet on a Section is copied onto every row, and dismissing one of those
-            // copies took the Goal sheet down with it.
+            // copies also dismisses the Goal sheet.
             .sheet(isPresented: $showingGuidance) { GuidanceSheet() }
             .navigationTitle("Goal")
             .navigationBarTitleDisplayMode(.inline)
@@ -249,7 +248,7 @@ private struct BurndownPreview: View {
         let calendar = ledger.clock.calendar
         // Every day, not every third: the pace changes where the budget crosses a threshold, and
         // sampling past the corner rounds it off into something that looks like a mistake. A day with
-        // no budget is left out rather than drawn as nought, which read as the plan hitting the floor.
+        // no budget is left out rather than drawn as nought, which would read as the plan reaching zero.
         let start = DayKey(goal.start, in: calendar)
         let points = (0...84).compactMap { step -> BudgetPoint? in
             ledger.dailyBudget(on: start + step, goal: goal).map { BudgetPoint(date: (start + step).date(in: calendar), units: $0) }
@@ -273,7 +272,7 @@ private struct PaceStep: Equatable {
     let pace: Int
 }
 
-/// The chart on plain values, so the ledger changing under the sheet doesn't lay it out again.
+/// The chart on plain values, so the ledger changing under the sheet does not lay it out again.
 private struct BurndownPlot: View, Equatable {
     let points: [BudgetPoint]
     let steps: [PaceStep]
@@ -306,8 +305,8 @@ private struct BurndownPlot: View, Equatable {
 }
 
 
-/// Where the pace limits come from, and where they don't. Reachable from the pace a stepped taper
-/// picks, because that's the number somebody would most want to argue with.
+/// Where the pace limits come from. Reachable from the pace a stepped taper picks, since that is
+/// the figure most likely to be questioned.
 private struct GuidanceSheet: View {
     @Environment(\.dismiss) private var dismiss
 

@@ -1,7 +1,7 @@
 import GRDBQuery
 import SwiftUI
 
-/// Log a bare number of units — for when you know the total but not the drinks.
+/// Logs a bare number of units, for when the total is known but not the drinks.
 struct UnitsSheet: View {
     let day: DayKey
     @Environment(\.databaseContext) private var database
@@ -32,7 +32,7 @@ struct UnitsSheet: View {
                 Section {
                     DatePicker("At", selection: Binding(get: { time }, set: { time = prefs.clock.resolve($0, into: day) }), displayedComponents: .hourAndMinute)
                 } footer: {
-                    Text("Counts towards the day like any drink. Use it for totals from another app, or a night you didn't log drink by drink.")
+                    Text("Counts towards the day like any drink. Use it for totals from another app, or a night you did not log drink by drink.")
                 }
             }
             .navigationTitle("Units")

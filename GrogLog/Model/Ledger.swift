@@ -54,9 +54,9 @@ nonisolated struct WeekStat: Identifiable, Equatable {
     var id: DayKey { start }
 }
 
-/// Read-only view over every drinking day, built from `Day` rows (a few hundred a year) so it's cheap to rebuild on
-/// each change. Anything needing individual drinks — the running-total curves — takes them from the caller, fetched
-/// for just the days on screen.
+/// Read-only view over every drinking day, built from `Day` rows (a few hundred a year) so it is cheap to rebuild on
+/// each change. The running-total curves need individual drinks and take them from the caller, fetched for only the
+/// days on screen.
 nonisolated struct Ledger: Equatable {
     let clock: DayClock
     let today: DayKey
@@ -72,10 +72,10 @@ nonisolated struct Ledger: Equatable {
 
     func totals(on day: DayKey) -> DayTotals { days[day.number].map(DayTotals.init) ?? DayTotals() }
 
-    /// The spend set by hand for a day, if there is one — what the drinks cost is ignored while it stands.
+    /// The manually set spend for a day, which replaces the drinks' prices while set.
     func spendOverride(on day: DayKey) -> Double? { days[day.number]?.costOverride }
 
-    /// What the day's drinks add up to, whether or not a spend is set by hand.
+    /// The sum of the day's drink prices, ignoring any manual spend.
     func derivedSpend(on day: DayKey) -> Double { days[day.number]?.cost ?? 0 }
 
     func status(on day: DayKey) -> DayStatus {
@@ -89,10 +89,11 @@ nonisolated struct Ledger: Equatable {
         return .unlogged
     }
 
-    /// Drank or marked dry — anything but a gap. A day carrying only a hand-set spend isn't logged.
+    /// Has drinks or a dry mark. A day with only a manual spend is not logged.
     func isLogged(_ day: DayKey) -> Bool { days[day.number].map { $0.count > 0 || $0.isAlcoholFree } ?? false }
 
-    /// Consecutive alcohol-free days up to today. An empty today doesn't break the streak — the night is young.
+    /// Consecutive alcohol-free days up to today. An empty today does not break the streak, since the day is not
+    /// over.
     func dryStreak() -> Int {
         var day = status(on: today) == .today ? today - 1 : today
         var count = 0
@@ -113,10 +114,10 @@ nonisolated struct Ledger: Equatable {
         return best
     }
 
-    /// The week before `day` — what a day gets compared against.
+    /// The week before `day`, which a day is compared against.
     func weekBefore(_ day: DayKey) -> ClosedRange<DayKey> { (day - 7)...(day - 1) }
 
-    /// Running units total across `days`, stepping at each drink — x is days in, so a heavy night shows as a steep
+    /// Running units total across `days`, stepping at each drink. x is in days, so a heavy night shows as a steep
     /// climb rather than a single step.
     func runningTotal(_ entries: [Entry], over days: ClosedRange<DayKey>, through: DayKey? = nil) -> [CurvePoint] {
         let last = through ?? days.upperBound
@@ -155,15 +156,15 @@ nonisolated struct Ledger: Equatable {
         )
     }
 
-    /// Units a week at the rate drunk on the logged days in `range`. Unlogged days are left out rather than counted
-    /// as dry, so a week with two nights missing isn't read as a light one. Nil when nothing in it was logged.
+    /// Units a week at the rate drunk on the logged days in `range`. Unlogged days are excluded rather than counted
+    /// as dry, so missing nights do not make a week look light. Nil when nothing in the range was logged.
     func weeklyAverage(over range: ClosedRange<DayKey>) -> Double? {
         let logged = range.filter(isLogged)
         guard !logged.isEmpty else { return nil }
         return logged.reduce(0) { $0 + totals(on: $1).units } / Double(logged.count) * 7
     }
 
-    /// The same over the last `weeks` complete weeks: the natural starting point for a reduction plan.
+    /// The same over the last `weeks` complete weeks, used as the default baseline for a reduction plan.
     func recentWeeklyAverage(weeks: Int = 4) -> Double? {
         let thisWeek = clock.weekStart(of: today)
         return weeklyAverage(over: (thisWeek - 7 * weeks)...(thisWeek - 1))
@@ -176,21 +177,21 @@ nonisolated struct Ledger: Equatable {
         taper(on: day, goal: goal).map { max($0.budget, min(goal.targetWeekly / 7, $0.reference)) }
     }
 
-    /// How many days the budget takes to lose a tenth on `day`: the chosen period, or for a stepped taper the rung
-    /// its budget has reached — its baseline's, before it starts.
+    /// How many days the budget takes to lose a tenth on `day`: the chosen period, or for a stepped taper the pace
+    /// of the rung its budget has reached (the baseline's rung before it starts).
     func pace(on day: DayKey, goal: Goal) -> Int {
         guard goal.taper == .dynamic else { return goal.periodDays }
         return Goal.pace(drinking: (taper(on: day, goal: goal)?.budget ?? goal.baselineWeekly / 7) * 7)
     }
 
-    /// When today's taper, carried on, reaches the target — and gets low enough to stop (`Goal.stopFrom`).
+    /// When the taper, continued from today, reaches the target and the level at which drinking can stop
+    /// (`Goal.stopFrom`).
     func projection(goal: Goal) -> (target: DayKey?, stoppable: DayKey?) {
         guard let now = taper(on: today, goal: goal) else { return (nil, nil) }
         guard goal.taper == .linear ? goal.dailyUnitCut > 0 : goal.dailyCut > 0 else { return (nil, nil) }
         func day(reaching level: Double) -> DayKey? {
-            // A proportional taper approaches a level and never arrives, so the day it passes one is a
-            // logarithm. A linear one walks down at a fixed pace, and can reach nothing — which is the
-            // one level the proportional one can't, so nought is a question only this taper can answer.
+            // A proportional taper crosses a level on a day given by a logarithm and never reaches zero. A linear
+            // taper falls at a fixed rate and can reach zero, so only it answers for a level of zero.
             guard goal.taper == .linear ? level >= 0 : level > 0 else { return nil }
             if now.budget <= level { return today }
             let days = goal.taper == .linear
@@ -201,9 +202,9 @@ nonisolated struct Ledger: Equatable {
         return (day(reaching: goal.targetWeekly / 7), day(reaching: Goal.stopFrom / 7))
     }
 
-    /// The unfloored budget for `day` and the level it tapers from. All three run from the baseline on the
-    /// start date: proportional takes a share off, linear a fixed number of units (so it can land on nothing
-    /// and does), and stepped takes whatever share its ladder gives for the level the budget has reached.
+    /// The unfloored budget for `day` and the level it tapers from. All tapers run from the baseline on the start
+    /// date: proportional takes a share off, linear a fixed number of units (so it can reach zero), and stepped
+    /// takes the share its ladder gives for the level the budget has reached.
     private func taper(on day: DayKey, goal: Goal) -> (budget: Double, reference: Double)? {
         guard goal.isEnabled else { return nil }
         let elapsed = DayKey(goal.start, in: clock.calendar).distance(to: day)
@@ -215,19 +216,18 @@ nonisolated struct Ledger: Equatable {
         case .proportional:
             return (reference * pow(1 - goal.dailyCut, Double(elapsed)), reference)
         case .dynamic:
-            // The one taper that changes pace as it goes: a rung at a time on the way down, quickening
-            // where a single share only ever eases off. Within a rung it's geometric, so the day it
-            // reaches the next one is a logarithm rather than a walk — this is asked for every calendar
-            // cell and chart point, and walking a year-old goal a day at a time for each was most of
-            // what those screens did.
+            // Pace changes one rung at a time on the way down. Within a rung the decline is geometric, so the
+            // crossing into the next rung is solved with a logarithm rather than by stepping day by day: this runs
+            // for every calendar cell and chart point, and stepping a long-running goal would dominate those
+            // screens.
             var budget = reference
             var days = elapsed
             for rung in Goal.ladder where days > 0 && budget * 7 > rung.aboveWeekly {
                 let factor = 1 - Goal.rate(forPace: rung.pace)
                 var steps = days
                 if rung.aboveWeekly > 0 {
-                    // The first count of cuts that leaves it no longer above the rung, nudged either
-                    // way so a rounding error in the log can't put the crossing a day out.
+                    // The first count of cuts that leaves it no longer above the rung, adjusted either way so a
+                    // floating-point error in the logarithm cannot misplace the crossing by a day.
                     steps = max(0, Int((log(rung.aboveWeekly / (budget * 7)) / log(factor)).rounded(.up)))
                     while steps > 0, budget * pow(factor, Double(steps - 1)) * 7 <= rung.aboveWeekly { steps -= 1 }
                     while budget * pow(factor, Double(steps)) * 7 > rung.aboveWeekly { steps += 1 }
@@ -257,12 +257,10 @@ nonisolated struct Ledger: Equatable {
         return points
     }
 
-    /// Mean running total across the logged days in `range`, smoothed over three hours. Unlogged days are left
-    /// out rather than counted as zero. The mean of seven step functions is a staircase of seventh-of-a-drink
-    /// steps, and this line is meant to say where a usual day has you by now, not which nights had a round at
-    /// nine — so it's rolled flat. A moving average of a rising series still only rises, and the ends are held
-    /// by repeating the first and last sample, so the curve still starts at nothing and finishes on the total.
-    /// `smoothed: false` gives the unblurred mean, for reading off as a number.
+    /// Mean running total across the logged days in `range`, smoothed over about three hours. Unlogged days are
+    /// excluded rather than counted as zero. The raw mean is a staircase of small steps; the line is meant to show
+    /// where a typical day stands by a given hour, so it is smoothed. `smoothed: false` gives the unsmoothed mean,
+    /// for reading off as a number.
     func averageCumulative(_ pours: [Entry], over range: ClosedRange<DayKey>, from: Double = 0, smoothed: Bool = true) -> [CurvePoint] {
         let logged = range.filter(isLogged)
         guard !logged.isEmpty else { return [] }
@@ -281,10 +279,9 @@ nonisolated struct Ledger: Equatable {
             return CurvePoint(x: hour, units: total / Double(logged.count))
         }
         guard smoothed else { return raw }
-        // Smoothing a running total has to leave it a running total — starting at nothing, only ever
-        // rising, ending on the week's mean. So it's the drinks that get spread out rather than the
-        // curve: each one smeared over a few hours, added back up, and scaled so the total it finishes
-        // on is the one it started with. Blurring the curve itself can only drag its ends inwards.
+        // The result must remain a running total: starting at zero, never falling, and ending on the mean.
+        // So the drinks are spread over a few hours and re-accumulated, then scaled to preserve the total.
+        // Blurring the curve itself would drag its ends inwards.
         var previous = 0.0
         let pours = raw.map { point -> Double in
             defer { previous = point.units }
@@ -292,8 +289,8 @@ nonisolated struct Ledger: Equatable {
         }
         let week = pours.reduce(0, +)
         guard week > 0 else { return raw }
-        // Twelve quarter-hours either side, twice over: a three-hour blur of a three-hour blur, which
-        // falls away at the edges rather than stopping dead like a single pass would.
+        // Twelve quarter-hours either side, applied twice, so the kernel tapers at the edges instead of
+        // cutting off as a single box pass would.
         let span = 12
         let blur = { (xs: [Double]) in
             xs.indices.map { i in
@@ -301,7 +298,7 @@ nonisolated struct Ledger: Equatable {
             }
         }
         let spread = blur(blur(pours))
-        // The blur pushes a little past midnight, where it's lost; scaling puts it back.
+        // The blur pushes a little past the end of the day, where it is lost; scaling restores it.
         let scale = week / spread.reduce(0, +)
         var running = 0.0
         return zip(raw, spread).map { point, poured in

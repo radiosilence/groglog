@@ -27,13 +27,13 @@ import Observation
 }
 
 nonisolated extension UserDefaults {
-    /// Settings live in the app group alongside the log. A widget is another process, and its `standard` defaults
-    /// are its own empty ones — read those and it sees no goal, so it draws a budget nobody set.
+    /// Settings live in the app group alongside the log. A widget's `standard` defaults are its own and empty, so
+    /// reading them would show no goal.
     nonisolated(unsafe) static let shared: UserDefaults = {
         guard let group = UserDefaults(suiteName: AppDatabase.appGroup) else { return .standard }
-        // Only the app carries settings across, and only once. An extension's `standard` is its own empty one, so
-        // a widget running this first copied nothing and marked the move done — taking the app's settings with it.
-        // Hence a second key: the first is already stamped on phones the broken version reached.
+        // Only the app migrates settings, and only once. An extension's `standard` defaults are empty, so a widget
+        // running this first would copy nothing and mark the move done. The first marker key is already set on
+        // devices where that happened, so a second key is used.
         let isExtension = Bundle.main.bundleURL.pathExtension == "appex"
         if !isExtension, group.object(forKey: "carriedOverFromApp") == nil {
             for key in ["rolloverHour", "currency", "goal", "mirrorsToHealth"] {

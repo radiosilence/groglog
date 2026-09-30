@@ -4,14 +4,14 @@ import GRDBQuery
 import WidgetKit
 import os
 
-/// Every change to the log goes through here, each as one transaction. After a change the affected days' totals are
-/// recomputed from their entries — only those days, however long the history — so `Day` rows are always derived,
-/// never incremented, and can't drift. Observed queries refresh as each transaction commits.
+/// Every change to the log goes through here, each as one transaction. After a change only the affected days'
+/// totals are recomputed from their entries, so `Day` rows are always derived, never incremented, and cannot drift.
+/// Observed queries refresh as each transaction commits.
 nonisolated struct Logbook: Sendable {
     let writer: any DatabaseWriter
     let clock: DayClock
-    /// Whether changed days are copied into Health afterwards. Off for demo data and in tests, which keep their
-    /// own settings, so neither can write sample drinks into someone's health record.
+    /// Whether changed days are copied into Health afterwards. Off for demo data and tests so sample drinks are
+    /// never written into the user's health record.
     var mirrorsToHealth = false
 
     // MARK: Entries
@@ -48,9 +48,9 @@ nonisolated struct Logbook: Sendable {
         }
     }
 
-    /// Takes back the drink logged last on a day — last logged, not last drunk, so undoing one backdated two hours
-    /// takes that one rather than the later drink logged before it. The rowid is insertion order; a pour's own id
-    /// is random and its timestamp is when it was drunk.
+    /// Removes the most recently logged drink on a day, by insertion order rather than timestamp, so undoing a
+    /// backdated drink removes that one. The rowid gives insertion order; a pour's id is random and its timestamp
+    /// is when it was drunk.
     func undo(on day: DayKey) {
         defer { mirror([day]) }
         write { db in
@@ -74,7 +74,7 @@ nonisolated struct Logbook: Sendable {
         }
     }
 
-    /// Sets a day's spend by hand, or clears it back to what the drinks add up to.
+    /// Sets a day's spend manually, or clears it so spend is the sum of the drinks' prices.
     func setSpend(_ amount: Double?, on day: DayKey) {
         write { db in
             var row = try Day.fetchOne(db, key: day.number) ?? Day(number: day.number)
@@ -93,7 +93,7 @@ nonisolated struct Logbook: Sendable {
 
     // MARK: Drinks
 
-    /// Saves a drink. If its strength or type changed, every day it was had on is re-totted.
+    /// Saves a drink. If its strength or type changed, every day it was logged on is retotalled.
     func save(_ drink: Drink) {
         let touched = write { db -> Set<DayKey> in
             let before = try Drink.fetchOne(db, key: drink.id)
@@ -115,12 +115,12 @@ nonisolated struct Logbook: Sendable {
         }
     }
 
-    /// Only drinks never logged can go (the schema refuses otherwise); the rest can be hidden.
+    /// Only drinks never logged can be deleted (the schema refuses otherwise); the rest can be hidden.
     func delete(_ drink: Drink) {
         write { db in _ = try drink.delete(db) }
     }
 
-    /// The drink with this name and type, or a new one first had at this size.
+    /// The drink with this name and type, or a new one created at this size.
     func drink(named name: String, category: DrinkCategory, abv: Double, vessel: Vessel, volumeMl: Double, price: Double = 0) -> Drink? {
         write { db in try findOrCreate(name: name, category: category, abv: abv, vessel: vessel, volumeMl: volumeMl, price: price, db) }
     }
@@ -133,9 +133,9 @@ nonisolated struct Logbook: Sendable {
         write { db in _ = try favourite.delete(db) }
     }
 
-    /// Puts every drink and Log tile back to what the catalogue charges, for prices that drifted or were never
-    /// set. Drinks it doesn't price are left as they are, and entries already logged keep what they cost at the
-    /// time — that figure was true when it was written, whatever the shelf says now. Returns how many moved.
+    /// Resets every drink and Log tile to the catalogue price, for prices that drifted or were never set. Drinks
+    /// the catalogue does not price are left alone, and logged entries keep the price recorded at the time.
+    /// Returns how many changed.
     @discardableResult
     func resetPrices() -> Int {
         write { db in
@@ -161,8 +161,8 @@ nonisolated struct Logbook: Sendable {
 
     // MARK: Rebuilding
 
-    /// Recomputes every day from scratch — after an import, or when the hour days end at changes (which moves
-    /// entries between days). The same arithmetic as for a single change, over everything, in one transaction.
+    /// Recomputes every day in one transaction, after an import or when the day-end hour changes (which moves
+    /// entries between days).
     func rebuild(reassigningDays: Bool = false) {
         defer { if mirrorsToHealth { Task { await Health.shared.mirrorEverything(self) } } }
         write { db in
@@ -176,8 +176,8 @@ nonisolated struct Logbook: Sendable {
                 }
             }
             let totals = Dictionary(grouping: try entries(in: nil, db), by: \.day).mapValues { DayTotals($0) }
-            // The totals are rewritten in place. Deleting every day and putting the marks and hand-set spends back
-            // fired the sync triggers, which watch only those, and sent every one of them up again from every phone.
+            // Rewritten in place: deleting and reinserting days would fire the sync triggers for every dry mark
+            // and manual spend, resending them all from every device.
             for var row in try Day.fetchAll(db) {
                 row.set(totals[row.number] ?? DayTotals())
                 if row.count == 0 && !row.isAlcoholFree && row.costOverride == nil {
@@ -192,7 +192,7 @@ nonisolated struct Logbook: Sendable {
         }
     }
 
-    /// Runs a batch of writes — an import — as one transaction, re-totting the days it touched at the end.
+    /// Runs a batch of writes, such as an import, as one transaction, retotalling the touched days at the end.
     func bulk(_ body: (Database) throws -> Set<DayKey>) throws {
         let touched = try writer.write { db in
             let days = try body(db)
@@ -204,7 +204,7 @@ nonisolated struct Logbook: Sendable {
 
     // MARK: Internals
 
-    /// Recomputes days from their entries. Logging a drink clears a dry mark; a day left with neither goes.
+    /// Recomputes days from their entries. Logging a drink clears a dry mark; a day left with neither is deleted.
     func retotal(_ days: Set<DayKey>, _ db: Database) throws {
         for day in days {
             var row = try Day.fetchOne(db, key: day.number) ?? Day(number: day.number)
@@ -243,8 +243,8 @@ nonisolated struct Logbook: Sendable {
         }
     }
 
-    /// Health gets the changed days after the transaction, never inside it: it's a copy for other apps to read,
-    /// and the log shouldn't wait on it or fail with it.
+    /// Mirrors changed days to Health after the transaction, never inside it, so the log never waits on Health or
+    /// fails with it.
     private func mirror(_ days: Set<DayKey>) {
         guard mirrorsToHealth, !days.isEmpty else { return }
         Task { await Health.shared.mirror(days, self) }
@@ -254,7 +254,7 @@ nonisolated struct Logbook: Sendable {
     private func write<T>(_ body: (Database) throws -> T) -> T? {
         do {
             let result = try writer.write(body)
-            // Widgets are a separate process watching the same file, and nothing tells them a write landed.
+            // Widgets run in a separate process and are not notified of writes to the shared file.
             WidgetCenter.shared.reloadAllTimelines()
             return result
         } catch {

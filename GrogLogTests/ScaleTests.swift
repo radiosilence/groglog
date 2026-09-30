@@ -3,8 +3,8 @@ import GRDB
 import Testing
 @testable import GrogLog
 
-/// Years of heavy logging must not slow down a tap, a screen, or an import. Three years at 20 drinks a day, all of one
-/// drink — the worst case for anything that scales with a drink's history.
+/// Years of heavy logging must not slow down a tap, a screen or an import. Three years at 20 drinks a day, all of one
+/// drink: the worst case for anything that scales with a drink's history.
 @Suite struct ScaleTests {
     @Test func threeYearsOfHeavyLoggingStaysFast() throws {
         let database = try AppDatabase.inMemory()
@@ -59,8 +59,8 @@ import Testing
         let rebuild = ContinuousClock().measure { logbook.rebuild() }
 
         print("scale: bulk \(bulk), taps \(taps.map { $0.formatted(.units(allowed: [.milliseconds])) }), screens \(screens), rebuild \(rebuild)")
-        // The limits are for a laptop. A shared CI runner is several times slower and uneven with it, so there they
-        // get four times the room: still far short of what a real regression costs, which is orders of magnitude.
+        // The limits are for a laptop. A shared CI runner is several times slower and less consistent, so it gets four
+        // times the room, which is still far below the orders of magnitude a real regression costs.
         let room = ProcessInfo.processInfo.environment["CI"] == nil ? 1.0 : 4.0
         #expect(bulk < .seconds(3) * room)
         #expect(taps.allSatisfy { $0 < .milliseconds(30) * room })

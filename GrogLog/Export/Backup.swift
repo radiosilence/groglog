@@ -3,24 +3,24 @@ import Foundation
 import GRDB
 import UniformTypeIdentifiers
 
-/// Everything, as one self-describing document. Days are listed explicitly — including unlogged ones —
-/// so a reader (human or LLM) never has to guess whether a gap means "dry" or "forgot".
-/// Import is lenient: only `days[].date` and `days[].status` are required, so other apps' data can be hand-converted (see docs/IMPORT.md).
+/// Everything, as one self-describing document. Days are listed explicitly, including unlogged ones, so a reader
+/// (human or LLM) can tell a dry day from a gap. Import is lenient: only `days[].date` and `days[].status` are
+/// required, so other apps' data can be hand-converted (see docs/IMPORT.md).
 nonisolated struct Backup: Codable, Sendable {
     var format: String? = "groglog/1"
     var exportedAt: Date? = .now
-    var notes: String? = "UK units: 1 unit = 10 ml pure alcohol. Days run from dayStartsAtHour to the same hour next morning. status is drank, alcohol_free (explicitly marked), not_logged (unknown — do not assume dry) or in_progress (today)."
+    var notes: String? = "UK units: 1 unit = 10 ml pure alcohol. Days run from dayStartsAtHour to the same hour next morning. status is drank, alcohol_free (explicitly marked), not_logged (unknown; do not assume dry) or in_progress (today)."
     var dayStartsAtHour: Int?
     var currency: String?
     var goal: Goal?
-    /// `yyyy-MM-dd` the taper gets low enough to stop at (`Goal.stopFrom`), if kept to.
+    /// `yyyy-MM-dd` on which the taper reaches the level at which drinking can stop (`Goal.stopFrom`), if followed.
     var projectedStop: String?
     var drinks: [DrinkRecord]?
-    /// The Log grid: drinks in the sizes and at the prices you usually have them.
+    /// The Log grid: drinks in their usual sizes and prices.
     var favourites: [FavouriteRecord]?
     var days: [DayRecord]
 
-    /// What a drink is, with the size and price it was first added at.
+    /// A drink's identity, with the size and price it was first added at.
     struct DrinkRecord: Codable {
         var id: UUID
         var name: String
@@ -47,7 +47,7 @@ nonisolated struct Backup: Codable, Sendable {
         var units: Double?
         var kcal: Double?
         var cost: Double?
-        /// Set when the day's spend was entered by hand; `cost` is then that figure rather than the drinks' prices.
+        /// Set when the day's spend was entered manually; `cost` is then that figure rather than the sum of prices.
         var spentByHand: Double?
         var budget: Double?
         var pours: [PourRecord]?
@@ -149,11 +149,11 @@ nonisolated enum Exporter {
             let from = "from \(goal.baselineWeekly.unitsText) units/week starting \(goal.start.formatted(date: .abbreviated, time: .omitted))"
             switch goal.taper {
             case .dynamic:
-                lines.append("Goal: stepped taper, cut 10% every 4 days above 25 units/day, every 3 days above 15, then every day, compounding daily, down to \(goal.targetWeekly.unitsText) units/week — on a fixed schedule \(from).")
+                lines.append("Goal: stepped taper, cut 10% every 4 days above 25 units/day, every 3 days above 15, then every day, compounding daily, down to \(goal.targetWeekly.unitsText) units/week, on a fixed schedule \(from).")
             case .proportional:
-                lines.append("Goal: cut \(Int(goal.reductionPercent))% every \(goal.periodDays) day(s), compounding daily, down to \(goal.targetWeekly.unitsText) units/week — on a fixed schedule \(from).")
+                lines.append("Goal: cut \(Int(goal.reductionPercent))% every \(goal.periodDays) day(s), compounding daily, down to \(goal.targetWeekly.unitsText) units/week, on a fixed schedule \(from).")
             case .linear:
-                lines.append("Goal: cut \(goal.reductionUnits.unitsText) units/day off the daily budget every \(goal.periodDays) day(s), down to \(goal.targetWeekly.unitsText) units/week — on a fixed schedule \(from).")
+                lines.append("Goal: cut \(goal.reductionUnits.unitsText) units/day off the daily budget every \(goal.periodDays) day(s), down to \(goal.targetWeekly.unitsText) units/week, on a fixed schedule \(from).")
             }
             if let stop = backup.projectedStop {
                 lines.append("At this rate: down to \(Goal.stopFrom.unitsText) units/week, low enough to stop, by \(stop).")
@@ -169,7 +169,7 @@ nonisolated enum Exporter {
                 lines.append("- \(day.date): not logged")
             default:
                 let budget = day.budget.map { " (budget \($0.unitsText))" } ?? ""
-                lines.append("- \(day.date): \((day.units ?? 0).unitsText) u\(budget), \(Int(day.kcal ?? 0)) kcal, \(money(day.cost))\(day.status == "in_progress" ? " — so far" : "")")
+                lines.append("- \(day.date): \((day.units ?? 0).unitsText) u\(budget), \(Int(day.kcal ?? 0)) kcal, \(money(day.cost))\(day.status == "in_progress" ? " (so far)" : "")")
                 for pour in day.pours ?? [] {
                     let time = pour.time?.formatted(date: .omitted, time: .shortened) ?? ""
                     lines.append("  - \(time) \(pour.name), \((pour.volumeMl ?? 0).volumeText) at \((pour.abv ?? 0).abvText): \((pour.units ?? 0).unitsText) u")
@@ -191,15 +191,15 @@ nonisolated enum Exporter {
         }
     }
 
-    /// Merges a backup in, as one transaction. Nothing already here is touched: drinks and entries are matched by id,
-    /// and a day that already has drinks logged keeps them. Settings are restored when present, first, so entries land
-    /// on the right days. Totals are recomputed for just the days touched.
+    /// Merges a backup in one transaction without modifying existing data: drinks and entries are matched by id, and
+    /// a day that already has drinks keeps them. Settings present in the file are restored first, so entries land on
+    /// the correct days. Totals are recomputed for only the touched days.
     @MainActor @discardableResult
     static func restore(_ data: Data, writer: any DatabaseWriter, prefs: Prefs) throws -> Int {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let backup = try decoder.decode(Backup.self, from: data)
-        // An hour outside the day would break every date the clock builds, so a file carrying one is refused.
+        // An hour outside 0-23 would break every date the clock builds, so the file is refused.
         if let hour = backup.dayStartsAtHour, !(0...23).contains(hour) { throw ImportError.dayEndsAtImpossibleHour(hour) }
         let movesDayEnd = backup.dayStartsAtHour.map { $0 != prefs.rolloverHour } ?? false
         if let hour = backup.dayStartsAtHour { prefs.rolloverHour = hour }
@@ -209,8 +209,8 @@ nonisolated enum Exporter {
         var added = 0
 
         try logbook.bulk { db in
-            // Backup drinks match existing ones by id, or by name and type (a fresh install's own generics),
-            // so restoring onto a new phone doesn't double every drink.
+            // Backup drinks match existing ones by id, or by name and type (a fresh install's generics), so restoring
+            // onto a new device does not duplicate every drink.
             var drinkIDs: [UUID: UUID] = [:]
             for record in backup.drinks ?? [] {
                 if let existing = try Drink.fetchOne(db, key: record.id)
@@ -233,7 +233,7 @@ nonisolated enum Exporter {
             let daysWithPours = Set(try Pour.select(Column("day"), as: Int.self).distinct().fetchAll(db))
             var touched: Set<DayKey> = []
             for record in backup.days {
-                // A day not yet lived can't have been drunk on, and would put the log's first day after today.
+                // A future day cannot have been drunk on, and would put the log's first day after today.
                 guard let day = DayKey(record.date), day <= logbook.clock.today, !daysWithPours.contains(day.number) else { continue }
                 if record.status == "alcohol_free" {
                     var row = try Day.fetchOne(db, key: day.number) ?? Day(number: day.number)
@@ -274,13 +274,15 @@ nonisolated enum Exporter {
             }
             return touched
         }
-        // What was already here was put on days by the old hour; the imported entries by the new one.
+        // Existing entries were assigned days by the old hour and imported ones by the new one, so every day is
+        // reassigned.
         if movesDayEnd { Task.detached { logbook.rebuild(reassigningDays: true) } }
         return added
     }
 }
 
-/// A lazily-built export file for `ShareLink`: nothing is read until the share sheet asks for it, and then off the main actor.
+/// A lazily built export file for `ShareLink`: nothing is read until the share sheet requests it, and then off the
+/// main actor.
 nonisolated struct ExportFile: Transferable {
     enum Kind: Sendable {
         case json, markdown
@@ -296,12 +298,12 @@ nonisolated struct ExportFile: Transferable {
         settings = Exporter.Settings(prefs)
     }
 
-    /// `UTType.markdown` is iOS 27 and this ships to 26, but the identifier behind it is the same.
+    /// `UTType.markdown` requires iOS 27 and the app supports 26; the underlying identifier is the same.
     private static let markdown = UTType("net.daringfireball.markdown") ?? .plainText
 
-    /// A file representation each, so a receiver gets the bytes and a filename — and the contents behind
-    /// them, because a receiver that asks for something not offered here gets handed the auto-registered
-    /// file URL instead, and a URL into this app's sandbox is no use to anything outside it.
+    /// Each format is offered as a file representation, giving a receiver the bytes and a filename, and also as data:
+    /// a receiver asking for a type not offered here is given the auto-registered file URL instead, which points into
+    /// this app's sandbox and is unreadable elsewhere.
     static var transferRepresentation: some TransferRepresentation {
         FileRepresentation(exportedContentType: .json) { file in
             try await file.write()
@@ -324,7 +326,7 @@ nonisolated struct ExportFile: Transferable {
         .exportingCondition { $0.kind == .json }
     }
 
-    /// The bytes themselves, for a receiver that would rather have the contents than a file.
+    /// The bytes themselves, for a receiver that prefers contents to a file.
     private func contents() async throws -> Data {
         let settings = settings
         let backup = try await reader.read { try Exporter.backup($0, settings: settings) }

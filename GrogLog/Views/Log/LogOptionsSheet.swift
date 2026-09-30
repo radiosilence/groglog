@@ -1,8 +1,8 @@
 import GRDBQuery
 import SwiftUI
 
-/// Long-press on a tile: which drink exactly — yours, or a UK brand of the same type — with a star to keep it on the
-/// Log grid at this size. The size starts as the tile's and can be overridden from the type's usual sizes.
+/// Long-press on a tile: which drink exactly (one of the user's, or a UK brand of the same type), with a star to keep
+/// it on the Log grid at this size. The size starts as the tile's and can be overridden from the type's usual sizes.
 struct LogOptionsSheet: View {
     let base: Serve
     let day: DayKey
@@ -20,8 +20,8 @@ struct LogOptionsSheet: View {
     @State private var time: Date
     @State private var search = ""
     @State private var editing: Drink?
-    /// What this round actually cost, when it isn't what the drink usually goes for. Nil follows the drink and
-    /// the size, so picking a different one doesn't leave the last one's price sitting there.
+    /// What this round cost, when it differs from the usual price. Nil follows the drink and the size, so picking
+    /// a different one does not carry over the previous one's price.
     @State private var price: Double?
 
     init(base: Serve, day: DayKey, ledger: Ledger, after last: Date?, onLog: @escaping (String) -> Void) {
@@ -44,8 +44,8 @@ struct LogOptionsSheet: View {
             Form {
                 Section {
                     ChipRow(options: base.drink.category.sizes(including: ServeSize(base.vessel, base.volumeMl)), selection: $size) { $0.label }
-                    // Priced under the size it's for, since that's what changes it. Re-created when either the
-                    // drink or the size does, so it shows the new one's usual price rather than the old one's.
+                    // Placed under the size, since the size sets the price. Re-created when the drink or the size
+                    // changes, so it shows the new usual price.
                     MoneyField(label: "Price", value: Binding(get: { price ?? usualPrice }, set: { price = $0 }), currency: prefs.currency)
                         .id("\(choice.id)|\(Int(size.ml))")
                     Stepper("How many: \(count)", value: $count, in: 1...12)
@@ -79,8 +79,8 @@ struct LogOptionsSheet: View {
                     Text("Which one?")
                 }
             }
-            // The search field sits in the bar above; a headerless first section would otherwise open a hand's
-            // width of nothing under it.
+            // The search field sits in the bar above; without this, a headerless first section leaves a wide
+            // empty gap under it.
             .contentMargins(.top, 8, for: .scrollContent)
             .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Find a drink")
             .onChange(of: selected) { price = nil }
@@ -107,7 +107,7 @@ struct LogOptionsSheet: View {
         .animation(.snappy, value: count)
     }
 
-    /// The pressed drink first, then your other drinks of the same kind, then catalogue brands you don't have yet.
+    /// The pressed drink first, then the user's other drinks of the same kind, then catalogue brands not yet adopted.
     private var choices: [Choice] {
         let query = search.trimmingCharacters(in: .whitespaces)
         let matches = { (name: String) in query.isEmpty || name.localizedStandardContains(query) }
@@ -122,8 +122,8 @@ struct LogOptionsSheet: View {
         return [Choice(base.drink)] + yours.map(Choice.init) + catalog.map(Choice.init)
     }
 
-    /// What this drink at this size normally costs: the price it's pinned at, else its own scaled to the size,
-    /// else the catalogue's for a brand you haven't adopted yet.
+    /// What this drink at this size normally costs: its pinned price, else its own price scaled to the size,
+    /// else the catalogue price for a brand not yet adopted.
     private func usualPrice(for choice: Choice) -> Double {
         if let pinned = favourite(for: choice)?.price { return pinned }
         if let drink = choice.drink { return drink.price(for: size.vessel, ml: size.ml) }
@@ -144,7 +144,7 @@ struct LogOptionsSheet: View {
         }
     }
 
-    /// Catalogue picks become your own drinks, first had at this size.
+    /// Catalogue picks become the user's own drinks, first logged at this size.
     private func resolve(_ choice: Choice) -> Drink? {
         if let drink = choice.drink { return drink }
         let price = choice.brand.map { Catalog.price($0, size.vessel, size.ml, currency: prefs.currency) } ?? 0
@@ -176,14 +176,14 @@ struct LogOptionsSheet: View {
     }
 }
 
-/// One of your drinks or a catalogue brand, presented the same way.
+/// One of the user's drinks or a catalogue brand, presented the same way.
 private struct Choice: Identifiable {
     let id: String
     let name: String
     let category: DrinkCategory
     let abv: Double
     var drink: Drink?
-    /// Kept so a catalogue pick can be priced in whatever size you settle on.
+    /// Kept so a catalogue pick can be priced at whichever size is chosen.
     var brand: CatalogBrand?
 
     init(_ drink: Drink) {

@@ -62,7 +62,7 @@ jobs:
         run: scripts/testflight.sh
 
       # What testers see when they install the build: this version's changelog section, or Unreleased. Waits for
-      # processing. The upload has happened by now, so notes that fail to land don't fail the run.
+      # processing. The build is already uploaded, so a failure here does not fail the run.
       - name: Set What to Test
         continue-on-error: true
         env:

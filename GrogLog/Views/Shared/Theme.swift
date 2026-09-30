@@ -27,8 +27,8 @@ nonisolated extension Double {
     var volumeText: String { "\(Int(self)) ml" }
     var abvText: String { "\(formatted(.number.precision(.fractionLength(0...1))))%" }
 
-    /// What's left of a budget with this much used, or how far past it: "2.5 of 4.5 left", "1.3 over 4.5".
-    /// Over reads as how far over, never as a negative amount left.
+    /// What remains of a budget with this much used, or how far past it: "2.5 of 4.5 left", "1.3 over 4.5".
+    /// An overrun reads as an amount over, never as a negative amount left.
     func leftText(of budget: Double) -> String {
         let left = budget - self
         return left >= 0 ? "\(left.unitsText) of \(budget.unitsText) left" : "\((-left).unitsText) over \(budget.unitsText)"
@@ -52,7 +52,7 @@ struct Card<Content: View>: View {
     }
 }
 
-/// Builds a `Ledger` from the per-day totals — never the individual drinks — so it stays cheap however long the history.
+/// Builds a `Ledger` from the per-day totals rather than individual drinks, so it stays cheap for any length of history.
 struct LedgerReader<Content: View>: View {
     @Query(DaysRequest()) private var days: [Day]
     @Environment(Prefs.self) private var prefs

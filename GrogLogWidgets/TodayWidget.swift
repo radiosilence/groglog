@@ -3,8 +3,8 @@ import GRDB
 import SwiftUI
 import WidgetKit
 
-/// Today on the Lock Screen, and a tap into the Log grid — the whole point being that logging a drink standing at
-/// a bar costs two taps rather than finding the app first.
+/// Today on the Lock Screen, with a tap into the Log grid, so logging a drink at a bar takes two taps instead of
+/// finding the app first.
 @main
 struct GrogLogWidgets: WidgetBundle {
     var body: some Widget {
@@ -21,7 +21,7 @@ struct TodayWidget: Widget {
                 .containerBackground(.fill.tertiary, for: .widget)
         }
         .configurationDisplayName("Today")
-        .description("What you've had today against the day's budget. Tap to log.")
+        .description("What you have drunk today against the day's budget. Tap to log.")
         .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
     }
 }
@@ -31,19 +31,19 @@ struct TodayEntry: TimelineEntry {
     var units = 0.0
     var budget: Double?
     var isDry = false
-    /// Units through the day, stepping at each drink — the same running total the Day screen draws.
+    /// Units through the day, stepping at each drink: the same running total the Day screen draws.
     var curve: [CurvePoint] = []
     /// Tiles to log from, in the Log grid's order.
     var tiles: [ServeEntity] = []
 
-    /// The line under the total on both widgets: what's left of the day, or that it was dry.
+    /// The line under the total on both widgets: what remains of the budget, or that the day was dry.
     var detail: String {
         if isDry { return "Alcohol-free" }
         return budget.map { units.leftText(of: $0) } ?? "today"
     }
 
-    /// The budget draining through the day. Once it's gone the line sits at zero rather than going negative,
-    /// because "how far under" stops being the question.
+    /// The budget draining through the day. Once spent, the line stays at zero rather than going negative, since
+    /// the detail line already reports how far over.
     var burndown: [CurvePoint] {
         guard let budget else { return curve }
         return curve.map { CurvePoint(x: $0.x, units: max(0, budget - $0.units)) }
@@ -59,7 +59,7 @@ struct TodayProvider: TimelineProvider {
         Task { completion(await today()) }
     }
 
-    /// One entry, good until the day ends — the app reloads the timeline itself whenever anything is logged.
+    /// One entry, valid until the day ends; the app reloads the timeline whenever anything is logged.
     func getTimeline(in context: Context, completion: @escaping (Timeline<TodayEntry>) -> Void) {
         Task {
             let clock = Prefs().clock
@@ -81,7 +81,7 @@ struct TodayProvider: TimelineProvider {
             units: ledger.totals(on: day).units,
             budget: ledger.dailyBudget(on: day, goal: goal),
             isDry: ledger.status(on: day) == .alcoholFree,
-            // Only as far as now: the rest of the day hasn't happened, and drawing it flat says it went well.
+            // Only as far as now: drawing the rest of the day flat would imply nothing more was drunk.
             curve: ledger.cumulative(read?.entries ?? [], on: day, through: logbook.clock.hours(.now, into: day)),
             tiles: read?.tiles ?? []
         )
@@ -95,8 +95,8 @@ struct TodayView: View {
     var body: some View {
         switch family {
         case .accessoryCircular:
-            // The ring means "against your budget", so with no goal there's nothing for it to fill and it says so
-            // by not being there. Clamping to the guideline instead pinned it full all evening, which reads as broken.
+            // The ring measures against the budget, so with no goal it is left out. Clamping to the guideline instead
+            // would pin it full all evening, which looks broken.
             if let budget = entry.budget, budget > 0 {
                 Gauge(value: min(entry.units, budget), in: 0...budget) {
                     Text("u")
@@ -128,7 +128,7 @@ struct TodayView: View {
     }
 }
 
-/// The Home Screen widget: your usuals as buttons that log without opening anything, and what the day has left.
+/// The Home Screen widget: the Log grid's first tiles as buttons that log without opening the app, and what the day has left.
 struct LogWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "cc.blit.groglog.log", provider: TodayProvider()) { entry in
@@ -137,7 +137,7 @@ struct LogWidget: Widget {
                 .containerBackground(.fill.tertiary, for: .widget)
         }
         .configurationDisplayName("Log")
-        .description("Your usuals, one tap each, against what's left of the day's budget.")
+        .description("Your usual drinks, one tap each, against what is left of the day's budget.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
@@ -168,7 +168,7 @@ struct LogView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// Four at most: a tile you have to hunt for on a Home Screen isn't faster than opening the app.
+    /// Four at most: a tile that has to be hunted for on a Home Screen is no faster than opening the app.
     private var tiles: some View {
         Grid(horizontalSpacing: 6, verticalSpacing: 6) {
             ForEach(entry.tiles.chunked(), id: \.first?.id) { row in
@@ -186,14 +186,14 @@ private struct Tile: View {
     var body: some View {
         Button(intent: LogDrinkIntent(serve: serve)) {
             VStack(spacing: 1) {
-                // Two lines and a scale floor: the catalogue is full of "Fuller's London Pride (bottle)", and a
-                // name clipped mid-word tells you less than a small one.
+                // Two lines and a scale floor: the catalogue has long names such as "Fuller's London Pride (bottle)",
+                // and a name clipped mid-word is harder to read than a small one.
                 Text(serve.name)
                     .font(.caption2.weight(.semibold))
                     .lineLimit(2)
                     .minimumScaleFactor(0.7)
                     .multilineTextAlignment(.center)
-                // The size is half of what's about to be logged — a can and a bottle of the same beer differ by a unit.
+                // The size matters as much as the name: a can and a bottle of the same beer differ by a unit.
                 Text("\(serve.shortSize) · \(serve.units.unitsText) u")
                     .font(.system(size: 9))
                     .lineLimit(1)
@@ -208,7 +208,7 @@ private struct Tile: View {
     }
 }
 
-/// The budget draining through the day, or — with no goal — the units climbing.
+/// The budget draining through the day or, with no goal, the units climbing.
 private struct Burndown: View {
     let entry: TodayEntry
 

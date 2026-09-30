@@ -1,7 +1,7 @@
 import Foundation
 
-/// A calendar date with no time or zone — what a drinking day is. Held as days since 1970-01-01 so that day maths
-/// (windows, weeks, streaks) is integer maths, and so a night logged in one timezone stays on its date in another.
+/// A calendar date with no time or zone, identifying a drinking day. Held as days since 1970-01-01 so day
+/// arithmetic is integer arithmetic, and so a night logged in one timezone stays on its date in another.
 nonisolated struct DayKey: Hashable, Comparable, Strideable, Codable, CustomStringConvertible {
     let number: Int
 
@@ -25,8 +25,8 @@ nonisolated struct DayKey: Hashable, Comparable, Strideable, Codable, CustomStri
         self.init(year: c.year!, month: c.month!, day: c.day!)
     }
 
-    /// A `yyyy-MM-dd` date that exists. Imported files are read with this, so month 13, the 31st of June and a
-    /// day-first date are refused rather than rolled over into some other day.
+    /// A valid `yyyy-MM-dd` date. Imported files are parsed with this, so impossible or day-first dates are refused
+    /// rather than rolled over into another day.
     init?(_ string: String) {
         let parts = string.split(separator: "-").compactMap { Int($0) }
         guard parts.count == 3, (1900...2200).contains(parts[0]), (1...12).contains(parts[1]), (1...31).contains(parts[2]) else { return nil }

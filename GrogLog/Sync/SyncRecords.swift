@@ -3,11 +3,11 @@ import Foundation
 import GRDB
 import WidgetKit
 
-/// The database's side of iCloud sync: what goes up, and what comes down applied to the log. `Sync` drives it with
-/// CloudKit's engine; nothing here talks to the network, so all of it can be tested against an in-memory log.
+/// The database side of iCloud sync: building outgoing records and applying incoming ones to the log. `Sync` drives
+/// it with CloudKit's engine; nothing here uses the network, so all of it can be tested against an in-memory log.
 ///
-/// Each drink, Log tile, entry and hand-set day is one record, named for its table and key (`pour-<hex id>`,
-/// `day-<number>`), with the row itself as JSON in `payload` and the time it last changed in `modifiedAt`. A payload
+/// Each drink, Log tile, entry and manually set day is one record, named for its table and key (`pour-<hex id>`,
+/// `day-<number>`), with the row as JSON in `payload` and its last change time in `modifiedAt`. A single payload
 /// rather than a field per column means a new column never needs a CloudKit schema change.
 nonisolated struct SyncRecords: Sendable {
     let writer: any DatabaseWriter
@@ -19,7 +19,7 @@ nonisolated struct SyncRecords: Sendable {
         case drink, favourite, pour, day
     }
 
-    /// What a day carries that isn't worked out from its entries.
+    /// The parts of a day not derived from its entries.
     struct DayMark: Codable {
         var isAlcoholFree: Bool
         var costOverride: Double?
@@ -45,7 +45,7 @@ nonisolated struct SyncRecords: Sendable {
     }
 
     /// The record to send for a row, carrying the change tag of the copy iCloud last acknowledged. Nil when the row
-    /// has gone since the change was queued; its deletion is queued separately.
+    /// was deleted after the change was queued; its deletion is queued separately.
     func record(for id: CKRecord.ID) throws -> CKRecord? {
         try writer.read { db in
             guard let payload = try Self.row(for: id.recordName, db) else { return nil }
@@ -56,8 +56,8 @@ nonisolated struct SyncRecords: Sendable {
         }
     }
 
-    /// Records iCloud has taken. A save is done with only if the row hasn't changed again since the copy that went
-    /// up, and a deletion only if the row is still gone; otherwise the change stays queued and goes again.
+    /// Records iCloud has accepted. A save is cleared only if the row has not changed since the uploaded copy, and a
+    /// deletion only if the row is still absent; otherwise the change stays queued and is sent again.
     func acknowledge(saved: [CKRecord], deleted: [CKRecord.ID]) throws {
         try writer.write { db in
             for record in saved {
@@ -83,13 +83,13 @@ nonisolated struct SyncRecords: Sendable {
         }
     }
 
-    /// Drops what iCloud knew about a record, so it goes up as new.
+    /// Drops the server's metadata for a record, so it is uploaded as new.
     func forgetServerCopy(of id: CKRecord.ID) throws {
         try writer.write { db in try db.execute(sql: "DELETE FROM syncRecord WHERE recordName = ?", arguments: [id.recordName]) }
     }
 
     /// Queues everything, for a first sync or a new iCloud account. Pours, drinks and tiles have random ids, so the
-    /// same log arriving from two phones is a union: nothing on either is overwritten.
+    /// same log arriving from two devices merges as a union with nothing overwritten.
     func queueEverything() throws {
         try writer.write { db in
             try db.execute(sql: "DELETE FROM syncRecord; DELETE FROM syncParked; UPDATE syncState SET engine = NULL")
@@ -104,7 +104,7 @@ nonisolated struct SyncRecords: Sendable {
         }
     }
 
-    /// Whether this log has ever synced. CloudKit's engine keeps its place in `syncState`.
+    /// The engine's serialised state from `syncState`, or nil if this log has never synced.
     var engineState: CKSyncEngine.State.Serialization? {
         get throws {
             try writer.read { db in
@@ -131,21 +131,21 @@ nonisolated struct SyncRecords: Sendable {
 
     // MARK: Coming down
 
-    /// Applies what another device changed, in one transaction. A record wins over the local row when it changed
-    /// later; a record for a drink this phone hasn't heard of yet waits in `syncParked` until the drink arrives.
-    /// Afterwards, drinks that are the same drink seeded separately on two phones are merged into one.
+    /// Applies another device's changes in one transaction. A record replaces the local row when it changed later; a
+    /// record for a drink not yet present waits in `syncParked` until the drink arrives. Afterwards, the same drink
+    /// seeded separately on two devices is merged into one.
     func apply(modified: [CKRecord], deleted: [(CKRecord.ID, String)]) throws {
         try writer.write { db in
             try db.execute(sql: "UPDATE syncState SET applying = 1 WHERE id = 1")
             var touched: Set<DayKey> = []
             var resend: [String] = []
 
-            // Drinks first, so the entries and tiles that refer to them can go in.
+            // Drinks first, so the entries and tiles that refer to them can be inserted.
             let ordered = modified.sorted { Self.order($0.recordID.recordName) < Self.order($1.recordID.recordName) }
             for record in ordered {
                 try apply(record, touched: &touched, db)
             }
-            // Parked records whose drink has now arrived.
+            // Parked records whose drink has since arrived.
             for row in try Row.fetchAll(db, sql: "SELECT recordName, record FROM syncParked") {
                 let data: Data = row["record"]
                 guard let record = try NSKeyedUnarchiver.unarchivedObject(ofClass: CKRecord.self, from: data) else { continue }
@@ -159,7 +159,7 @@ nonisolated struct SyncRecords: Sendable {
             try Logbook(writer: writer, clock: clock).retotal(touched, db)
             try db.execute(sql: "UPDATE syncState SET applying = 0 WHERE id = 1")
 
-            // Outside `applying`, so what merging changes goes back up and the other phones merge the same way.
+            // Outside `applying`, so the merge's changes are uploaded and other devices converge on the same result.
             let merged = try mergeDuplicates(db)
             try Logbook(writer: writer, clock: clock).retotal(merged, db)
             for name in resend {
@@ -169,14 +169,14 @@ nonisolated struct SyncRecords: Sendable {
                     """, arguments: [name])
             }
         }
-        // Local writes reload the widgets through Logbook; these don't pass through it.
+        // Local writes reload the widgets through Logbook; these bypass it.
         WidgetCenter.shared.reloadAllTimelines()
     }
 
     private func apply(_ record: CKRecord, touched: inout Set<DayKey>, _ db: Database) throws {
         let name = record.recordID.recordName
         guard let payload = record["payload"] as? Data, let kind = Kind(rawValue: String(name.prefix { $0 != "-" })) else { return }
-        // A change made here after the incoming one was made stands, and goes up in its turn.
+        // A local change made after the incoming one wins, and is uploaded in turn.
         if let local = try Date.fetchOne(db, sql: "SELECT changedAt FROM syncPending WHERE recordName = ?", arguments: [name]),
            let theirs = record["modifiedAt"] as? Date, local > theirs {
             try db.execute(sql: "INSERT OR REPLACE INTO syncRecord (recordName, systemFields) VALUES (?, ?)",
@@ -214,15 +214,15 @@ nonisolated struct SyncRecords: Sendable {
         }
         try db.execute(sql: "INSERT OR REPLACE INTO syncRecord (recordName, systemFields) VALUES (?, ?)",
                        arguments: [name, Self.encode(systemFieldsOf: record)])
-        // What came down is now what's here; a stale local change to the same row would only send it back.
+        // The incoming copy is now the local state; a stale pending change to the same row would only send it back.
         try db.execute(sql: "DELETE FROM syncPending WHERE recordName = ?", arguments: [name])
     }
 
     private func delete(_ name: String, touched: inout Set<DayKey>, resend: inout [String], _ db: Database) throws {
         try db.execute(sql: "DELETE FROM syncRecord WHERE recordName = ?; DELETE FROM syncParked WHERE recordName = ?", arguments: [name, name])
         guard let kind = Kind(rawValue: String(name.prefix { $0 != "-" })) else { return }
-        // An entry or day changed here since stands, as it does against an older edit in `apply`, and goes back up.
-        // Clearing a day would otherwise take a spend typed here with the dry mark unticked elsewhere.
+        // A local change to an entry or day made since wins, as it does against an older edit in `apply`, and is
+        // uploaded. Otherwise clearing a day remotely would discard a spend entered here.
         if kind == .pour || kind == .day,
            try Bool.fetchOne(db, sql: "SELECT EXISTS (SELECT 1 FROM syncPending WHERE recordName = ?)", arguments: [name]) == true {
             return
@@ -230,8 +230,8 @@ nonisolated struct SyncRecords: Sendable {
         switch kind {
         case .drink:
             guard let id = Self.uuid(name) else { return }
-            // A drink can only be deleted while nothing has been logged as it. If this phone logged it in the
-            // meantime, the drink stays and goes back up, so the other phones get it again.
+            // A drink can only be deleted while nothing is logged as it. If this device logged it in the meantime,
+            // the drink stays and is uploaded again so other devices restore it.
             if try Pour.filter(Column("drinkId") == id).fetchCount(db) > 0 {
                 resend.append(name)
             } else {
@@ -259,10 +259,10 @@ nonisolated struct SyncRecords: Sendable {
         try db.execute(sql: "INSERT OR REPLACE INTO syncParked (recordName, record) VALUES (?, ?)", arguments: [record.recordID.recordName, data])
     }
 
-    /// Every phone seeds its own Beer, Wine and Units with its own ids, and the same drink can be added on two phones
-    /// before they sync. Drinks with the same name and type become one, the lowest id, so every phone picks the same
-    /// survivor without asking the others. Tiles that end up identical are merged the same way. Returns the days whose
-    /// entries moved, for re-totting.
+    /// Every device seeds its own Beer, Wine and Units with its own ids, and the same drink can be added on two
+    /// devices before they sync. Drinks with the same name and type are merged into the one with the lowest id, so
+    /// every device picks the same survivor independently. Identical tiles are merged the same way. Returns the days
+    /// whose entries moved, for retotalling.
     func mergeDuplicates(_ db: Database) throws -> Set<DayKey> {
         var touched: Set<DayKey> = []
         let groups = Dictionary(grouping: try Drink.fetchAll(db)) { "\($0.category.rawValue)|\($0.name)" }
@@ -288,8 +288,8 @@ nonisolated struct SyncRecords: Sendable {
 
     // MARK: Rows and names
 
-    /// The row a record stands for, as the payload it's sent with, or nil if it's gone. A day with nothing set by
-    /// hand counts as gone: its record is deleted and only its totals, worked out here, remain.
+    /// The row a record represents, encoded as its payload, or nil if absent. A day with no manual settings counts as
+    /// absent: its record is deleted and only its locally derived totals remain.
     private static func row(for name: String, _ db: Database) throws -> Data? {
         let encoder = JSONEncoder()
         switch kind(of: name) {
@@ -303,8 +303,8 @@ nonisolated struct SyncRecords: Sendable {
         }
     }
 
-    /// Whether `row(for:)` would find something, by key alone: this runs over the whole queue at every launch and
-    /// return to the app, and encoding each row to learn only that it's there was most of the cost.
+    /// Whether `row(for:)` would find something, checked by key alone: this runs over the whole queue at every launch
+    /// and foregrounding, and encoding each row just to test existence dominated the cost.
     private static func exists(_ name: String, _ db: Database) throws -> Bool {
         switch kind(of: name) {
         case .drink: return try uuid(name).map { try Drink.exists(db, key: $0) } ?? false
