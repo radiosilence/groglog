@@ -152,6 +152,11 @@ struct SetupScreen: View {
                 let url = try result.get()
                 let scoped = url.startAccessingSecurityScopedResource()
                 defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                // Ten years of heavy logging is a few megabytes; anything near this is not a backup, and would be read
+                // and decoded on the main thread.
+                if let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size > 50_000_000 {
+                    throw Exporter.ImportError.tooLarge
+                }
                 let added = try Exporter.restore(Data(contentsOf: url), writer: try database.writer, prefs: prefs)
                 importResult = "Imported \(added) drinks."
             } catch {

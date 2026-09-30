@@ -5,7 +5,6 @@ name: Site
 
 permissions:
   contents: read
-  packages: write
 
 on:
   # Every push to main, not only site changes: the deployment deploys the image tagged with main's head, so every head
@@ -23,6 +22,10 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Pushing the image is the only thing that needs the registry; the deploy job only calls jaritanet.
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

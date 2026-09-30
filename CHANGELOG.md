@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Importing a backup refuses a day-end hour outside the day and dates that do not exist or have not happened yet, any of which could have crashed the app on every launch afterwards. An import that moves the day-end hour puts the drinks already logged back on the right days, as changing it in Setup does. Files over 50 MB are refused.
+- The site's search and share descriptions say the log syncs through the user's own iCloud, matching the page.
+- CI pins its tools and the store script's Python packages to exact versions, since they run with the App Store Connect key, and only the site's build job can push images.
 - Sake, soju, shochu, umeshu and baijiu carry the kind in their names, so searching for "sake" finds them.
 - Sake, umeshu, shochu, soju, makgeolli and Moutai; Sapporo, Hitachino Nest, Cass, Leo and Beerlao. More whisky (Macallan 18, Oban, Uigeadail, Quarter Cask, Springbank, Yamazaki 12, Kavalan, Amrut, the Irish pot stills and more bourbon), the liqueurs and amari a bar keeps (Chartreuse, Heering, Advocaat, Midori, Frangelico, Galliano, St-Germain, Fernet, Montenegro, Averna), Graham's Six Grapes and Somersby. Seven Bro7hers Easy IPA at Wetherspoon.
 - House pours to search by: vodka, gin, whisky, bourbon, white, dark and spiced rum, brandy and cognac.

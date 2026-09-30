@@ -58,6 +58,14 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(DayKey("2026-09-19")?.description == "2026-09-19")
     }
 
+    @Test func refusesDatesThatDoNotExist() {
+        #expect(DayKey("2026-9-3")?.description == "2026-09-03")
+        #expect(DayKey("2024-02-29") != nil)
+        for bad in ["2026-13-01", "2026-06-31", "2025-02-29", "30-09-2026", "0001-01-01", "999999999999999999-01-01", "2026-09"] {
+            #expect(DayKey(bad) == nil, "\(bad)")
+        }
+    }
+
     @Test func knowsWeekdaysAndMonths() {
         #expect(DayKey(year: 2026, month: 9, day: 19).weekday == 7)
         #expect(DayKey(year: 2024, month: 2, day: 10).daysInMonth == 29)

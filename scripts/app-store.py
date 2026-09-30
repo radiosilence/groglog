@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["pyjwt[crypto]", "requests"]
+# dependencies = ["pyjwt[crypto]==2.15.1", "cryptography==50.0.2", "requests==2.34.2"]
 # ///
 """App Store Connect without the website.
 

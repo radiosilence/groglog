@@ -25,10 +25,13 @@ nonisolated struct DayKey: Hashable, Comparable, Strideable, Codable, CustomStri
         self.init(year: c.year!, month: c.month!, day: c.day!)
     }
 
+    /// A `yyyy-MM-dd` date that exists. Imported files are read with this, so month 13, the 31st of June and a
+    /// day-first date are refused rather than rolled over into some other day.
     init?(_ string: String) {
         let parts = string.split(separator: "-").compactMap { Int($0) }
-        guard parts.count == 3 else { return nil }
+        guard parts.count == 3, (1900...2200).contains(parts[0]), (1...12).contains(parts[1]), (1...31).contains(parts[2]) else { return nil }
         self.init(year: parts[0], month: parts[1], day: parts[2])
+        guard components == (parts[0], parts[1], parts[2]) else { return nil }
     }
 
     var components: (year: Int, month: Int, day: Int) {

@@ -55,7 +55,7 @@ import Observation
         for key in keys {
             switch key {
             case "rolloverHour":
-                guard let hour = cloud.object(forKey: key) as? Int, hour != prefs.rolloverHour else { continue }
+                guard let hour = cloud.object(forKey: key) as? Int, (0...23).contains(hour), hour != prefs.rolloverHour else { continue }
                 prefs.rolloverHour = hour
                 let logbook = logbook()
                 Task.detached { logbook.rebuild(reassigningDays: true) }

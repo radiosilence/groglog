@@ -94,7 +94,7 @@ nonisolated enum Exporter {
         let entries = try Pour.including(required: Pour.drink).order(Column("timestamp")).asRequest(of: Entry.self).fetchAll(db)
         let byDay = Dictionary(grouping: entries, by: \.day)
         let favourites = try Favourite.order(Column("sortOrder")).fetchAll(db)
-        let days = ledger.firstDay.map { Array($0...ledger.today) } ?? []
+        let days = ledger.firstDay.map { Array(min($0, ledger.today)...ledger.today) } ?? []
 
         return Backup(
             dayStartsAtHour: settings.rolloverHour,
@@ -179,6 +179,18 @@ nonisolated enum Exporter {
         return lines.joined(separator: "\n")
     }
 
+    enum ImportError: LocalizedError {
+        case dayEndsAtImpossibleHour(Int)
+        case tooLarge
+
+        var errorDescription: String? {
+            switch self {
+            case .dayEndsAtImpossibleHour(let hour): "The file sets the day to end at hour \(hour), which is not an hour of the day."
+            case .tooLarge: "The file is too large to be a GrogLog backup."
+            }
+        }
+    }
+
     /// Merges a backup in, as one transaction. Nothing already here is touched: drinks and entries are matched by id,
     /// and a day that already has drinks logged keeps them. Settings are restored when present, first, so entries land
     /// on the right days. Totals are recomputed for just the days touched.
@@ -187,6 +199,9 @@ nonisolated enum Exporter {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let backup = try decoder.decode(Backup.self, from: data)
+        // An hour outside the day would break every date the clock builds, so a file carrying one is refused.
+        if let hour = backup.dayStartsAtHour, !(0...23).contains(hour) { throw ImportError.dayEndsAtImpossibleHour(hour) }
+        let movesDayEnd = backup.dayStartsAtHour.map { $0 != prefs.rolloverHour } ?? false
         if let hour = backup.dayStartsAtHour { prefs.rolloverHour = hour }
         if let currency = backup.currency { prefs.currency = currency }
         if let goal = backup.goal { prefs.goal = goal }
@@ -218,7 +233,8 @@ nonisolated enum Exporter {
             let daysWithPours = Set(try Pour.select(Column("day"), as: Int.self).distinct().fetchAll(db))
             var touched: Set<DayKey> = []
             for record in backup.days {
-                guard let day = DayKey(record.date), !daysWithPours.contains(day.number) else { continue }
+                // A day not yet lived can't have been drunk on, and would put the log's first day after today.
+                guard let day = DayKey(record.date), day <= logbook.clock.today, !daysWithPours.contains(day.number) else { continue }
                 if record.status == "alcohol_free" {
                     var row = try Day.fetchOne(db, key: day.number) ?? Day(number: day.number)
                     row.isAlcoholFree = true
@@ -258,6 +274,8 @@ nonisolated enum Exporter {
             }
             return touched
         }
+        // What was already here was put on days by the old hour; the imported entries by the new one.
+        if movesDayEnd { Task.detached { logbook.rebuild(reassigningDays: true) } }
         return added
     }
 }

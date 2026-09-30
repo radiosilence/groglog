@@ -1,7 +1,8 @@
 [tools]
-just = "latest"
-uv = "latest"
-xcodegen = "latest"
+# Exact versions: CI runs these with the App Store Connect key in the environment.
+just = "1.58.0"
+uv = "0.12.19"
+xcodegen = "2.46.0"
 
 [env]
 # App Store Connect API key for scripts/app-store.py and scripts/testflight.sh. Identifiers only: the key itself lives in

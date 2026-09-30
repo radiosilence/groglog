@@ -19,7 +19,7 @@ struct ReportsScreen: View {
         let firstWeek = min(clock.weekStart(of: [ledger.firstDay, nights.first].compactMap(\.self).min() ?? today), thisWeek - 7 * (weeks - 1))
         let stats = stride(from: firstWeek.number, through: thisWeek.number, by: 7).map { ledger.week(starting: DayKey(number: $0), goal: prefs.goal) }
         let shown = stats.suffix(weeks)
-        let days = max(shown[shown.startIndex].start, ledger.firstDay ?? today)...today
+        let days = min(max(shown[shown.startIndex].start, ledger.firstDay ?? today), today)...today
 
         ScrollView {
             VStack(spacing: 16) {
@@ -214,7 +214,7 @@ private struct ProgressCard: View {
         // Everything back to `history` days is drawn; the chart shows a window of it and scrolls through the rest.
         // The log's own history only: older heart readings come in from the left edge on a dash, and widening the
         // chart to reach them would leave months of it empty.
-        let start = max(ledger.firstDay ?? today - 27, today - history)
+        let start = min(max(ledger.firstDay ?? today - 27, today - history), today)
         // Never show more days than there are; a window wider than the data leaves it stranded at the left.
         let days = min(Int((window / pinch).rounded()), start.distance(to: today + 15))
         let past = start...today
