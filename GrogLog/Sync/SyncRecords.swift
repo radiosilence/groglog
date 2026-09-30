@@ -1,6 +1,7 @@
 import CloudKit
 import Foundation
 import GRDB
+import WidgetKit
 
 /// The database's side of iCloud sync: what goes up, and what comes down applied to the log. `Sync` drives it with
 /// CloudKit's engine; nothing here talks to the network, so all of it can be tested against an in-memory log.
@@ -168,6 +169,8 @@ nonisolated struct SyncRecords: Sendable {
                     """, arguments: [name])
             }
         }
+        // Local writes reload the widgets through Logbook; these don't pass through it.
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     private func apply(_ record: CKRecord, touched: inout Set<DayKey>, _ db: Database) throws {
@@ -218,6 +221,12 @@ nonisolated struct SyncRecords: Sendable {
     private func delete(_ name: String, touched: inout Set<DayKey>, resend: inout [String], _ db: Database) throws {
         try db.execute(sql: "DELETE FROM syncRecord WHERE recordName = ?; DELETE FROM syncParked WHERE recordName = ?", arguments: [name, name])
         guard let kind = Kind(rawValue: String(name.prefix { $0 != "-" })) else { return }
+        // An entry or day changed here since stands, as it does against an older edit in `apply`, and goes back up.
+        // Clearing a day would otherwise take a spend typed here with the dry mark unticked elsewhere.
+        if kind == .pour || kind == .day,
+           try Bool.fetchOne(db, sql: "SELECT EXISTS (SELECT 1 FROM syncPending WHERE recordName = ?)", arguments: [name]) == true {
+            return
+        }
         switch kind {
         case .drink:
             guard let id = Self.uuid(name) else { return }

@@ -75,9 +75,17 @@ struct MoneyField: View {
     @State private var digits = ""
     @FocusState private var focused: Bool
 
+    /// Digits per whole unit of the currency: 100 for pence and cents, 1 for yen and won, which have no minor unit.
+    private var scale: Double {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = currency
+        return pow(10, Double(formatter.maximumFractionDigits))
+    }
+
     var body: some View {
         LabeledContent(label) {
-            Text((Double(Int(digits) ?? 0) / 100).money(currency))
+            Text((Double(Int(digits) ?? 0) / scale).money(currency))
                 .monospacedDigit()
                 .foregroundStyle(focused ? Color.grog : .primary)
                 .background {
@@ -90,11 +98,11 @@ struct MoneyField: View {
         }
         .contentShape(.rect)
         .onTapGesture { focused = true }
-        .onAppear { digits = String(Int((value * 100).rounded())) }
+        .onAppear { digits = String(Int((value * scale).rounded())) }
         .onChange(of: digits) {
             let clean = String(digits.filter(\.isNumber).prefix(9))
             if clean != digits { digits = clean }
-            value = Double(Int(clean) ?? 0) / 100
+            value = Double(Int(clean) ?? 0) / scale
         }
     }
 }

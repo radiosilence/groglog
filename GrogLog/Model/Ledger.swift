@@ -262,7 +262,8 @@ nonisolated struct Ledger: Equatable {
     /// steps, and this line is meant to say where a usual day has you by now, not which nights had a round at
     /// nine — so it's rolled flat. A moving average of a rising series still only rises, and the ends are held
     /// by repeating the first and last sample, so the curve still starts at nothing and finishes on the total.
-    func averageCumulative(_ pours: [Entry], over range: ClosedRange<DayKey>, from: Double = 0) -> [CurvePoint] {
+    /// `smoothed: false` gives the unblurred mean, for reading off as a number.
+    func averageCumulative(_ pours: [Entry], over range: ClosedRange<DayKey>, from: Double = 0, smoothed: Bool = true) -> [CurvePoint] {
         let logged = range.filter(isLogged)
         guard !logged.isEmpty else { return [] }
         var hours = HourCounter(clock)
@@ -279,6 +280,7 @@ nonisolated struct Ledger: Equatable {
             }
             return CurvePoint(x: hour, units: total / Double(logged.count))
         }
+        guard smoothed else { return raw }
         // Smoothing a running total has to leave it a running total — starting at nothing, only ever
         // rising, ending on the week's mean. So it's the drinks that get spread out rather than the
         // curve: each one smeared over a few hours, added back up, and scaled so the total it finishes

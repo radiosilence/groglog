@@ -153,13 +153,14 @@ struct LogOptionsSheet: View {
         return drink
     }
 
-    /// Several drinks run from the chosen time up to now (or 20 minutes apart on a past day).
+    /// Several drinks run from the chosen time up to now (or 20 minutes apart on a past day, closer if that would run
+    /// past the end of the day, since each is put on the day its time falls in).
     private var spreadTimes: [Date] {
         guard count > 1 else { return [time] }
         let now = Date.now
         let gap = day == ledger.today && now > time
             ? now.timeIntervalSince(time) / Double(count - 1)
-            : 20 * 60
+            : min(20 * 60, max(0, ledger.clock.end(of: day).timeIntervalSince(time) - 60) / Double(count - 1))
         return (0..<count).map { time.addingTimeInterval(gap * Double($0)) }
     }
 

@@ -75,7 +75,10 @@ struct GoalEditor: View {
                     if let recent {
                         let rounded = (recent / 7).rounded() * 7
                         if abs(rounded - goal.baselineWeekly) > 0.5 {
-                            Button("Use my last 4 weeks (\(amount(rounded)))") { goal.baselineWeekly = rounded }
+                            Button("Use my last 4 weeks (\(amount(rounded)))") {
+                                goal.baselineWeekly = rounded
+                                settle()
+                            }
                         }
                     }
                     DatePicker("Starting", selection: $goal.start, displayedComponents: .date)
@@ -205,6 +208,9 @@ struct GoalSheet: View {
 
     init(goal: Goal) {
         var draft = goal
+        // A goal that isn't running starts now. Its stored date is from whenever it was last on, or from first
+        // launch, and a taper counted from then would open weeks into its cuts.
+        if !goal.isEnabled { draft.start = .now }
         draft.isEnabled = true
         _draft = State(initialValue: draft)
     }

@@ -181,4 +181,22 @@ private let evening = london.date(from: DateComponents(year: 2026, month: 9, day
         try b.receive((sent.saved.filter { $0.recordID.recordName.hasPrefix("drink-") }, []))
         #expect(try b.pours().count == 1)
     }
+
+    @Test func aDeletionDoesNotTakeAChangeMadeHereSince() throws {
+        let a = try Phone(), b = try Phone()
+        let day = clock.day(for: evening)
+        b.logbook.setAlcoholFree(true, on: day)
+        try settle(a, b)
+
+        // B unticks the dry day, which leaves it nothing to hold and deletes it; A has meanwhile typed a spend.
+        b.logbook.setAlcoholFree(false, on: day)
+        let fromB = try b.send()
+        #expect(!fromB.deleted.isEmpty)
+        a.logbook.setSpend(12, on: day)
+        try a.receive(fromB)
+        #expect(try a.days().first { $0.number == day.number }?.costOverride == 12)
+
+        try settle(a, b)
+        #expect(try b.days().first { $0.number == day.number }?.costOverride == 12)
+    }
 }

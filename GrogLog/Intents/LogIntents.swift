@@ -111,7 +111,8 @@ nonisolated struct DrinkGone: Error, CustomLocalizedStringResourceConvertible {
 }
 
 nonisolated extension Serve {
-    /// The tiles an intent offers: pinned drinks, most recently drunk first, hidden ones out. The Log grid also
+    /// The tiles an intent offers: pinned drinks, most recently drunk first, hidden ones out, and not Units, which
+    /// in the app asks how many and here could only log one. The Log grid also
     /// shows whatever was logged today; a list of suggestions doesn't need to follow the day around.
     static func grid(_ db: Database) throws -> [Serve] {
         try Favourite
@@ -119,7 +120,7 @@ nonisolated extension Serve {
             .order(Column("lastUsed").desc, Column("sortOrder"))
             .asRequest(of: FavouriteItem.self)
             .fetchAll(db)
-            .filter { !$0.drink.isHidden }
+            .filter { !$0.drink.isHidden && $0.drink.category != .units }
             .map(\.serve)
     }
 

@@ -32,7 +32,9 @@ struct DayChart: View {
             // Named by its weekday: "two days ago" reads as a count, not a day you remember.
             Series(name: dayBefore.date(in: clock.calendar).formatted(.dateTime.weekday(.abbreviated)), color: .gray.opacity(0.25),
                    points: ledger.isLogged(dayBefore) ? ledger.cumulative(pours, on: dayBefore, from: from) : []),
-            Series(name: "Week avg", color: .dry, points: ledger.averageCumulative(pours, over: ledger.weekBefore(day), from: from), dashed: true),
+            // The line is smoothed; the figure above the chart is the real mean by that time.
+            Series(name: "Week avg", color: .dry, points: ledger.averageCumulative(pours, over: ledger.weekBefore(day), from: from), dashed: true,
+                   figures: ledger.averageCumulative(pours, over: ledger.weekBefore(day), from: from, smoothed: false)),
         ]
         let at = nowHour ?? 24
 
@@ -131,9 +133,12 @@ private struct Series: Identifiable, Equatable {
     let color: Color
     let points: [CurvePoint]
     var dashed = false
+    /// What the header reads the value from, when that isn't the drawn line.
+    var figures: [CurvePoint]? = nil
     var id: String { name }
 
     func value(at hour: Double) -> Double? {
+        let points = figures ?? points
         guard !points.isEmpty else { return nil }
         return points.last { $0.x <= hour }?.units ?? 0
     }

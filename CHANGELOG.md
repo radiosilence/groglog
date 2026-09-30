@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- A goal opened while switched off starts today; it had kept the date it was last on, or first launch, and opened weeks into its cuts. "Use my last 4 weeks" re-checks the pace against the new starting figure.
+- An entry or day changed on this phone is kept when another phone's deletion of it arrives, as an older edit already was; unticking a dry day elsewhere had wiped a spend typed here. Widgets refresh when changes arrive from iCloud.
+- Widgets and Shortcuts no longer offer the Units tile, which could only log exactly one unit.
+- "Last week by now" is left out when last week has nothing logged, rather than showing the week before. Backfilling several drinks on a past day keeps them on that day. Money entry works in currencies without pence, such as yen and won. The Day chart's week average figure is the real mean by that time; only the line is smoothed.
 - Importing a backup refuses a day-end hour outside the day and dates that do not exist or have not happened yet, any of which could have crashed the app on every launch afterwards. An import that moves the day-end hour puts the drinks already logged back on the right days, as changing it in Setup does. Files over 50 MB are refused.
 - The site's search and share descriptions say the log syncs through the user's own iCloud, matching the page.
 - CI pins its tools and the store script's Python packages to exact versions, since they run with the App Store Connect key, and only the site's build job can push images.
