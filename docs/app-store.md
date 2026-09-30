@@ -74,12 +74,33 @@ alcohol,units,drinking,cut down,sober,taper,drink tracker,dry,sobriety,beer,wine
 
 ## Review notes
 
-No sign-in is needed. The app starts empty: tap a drink on the Log tab to log it, and set a reduction goal from the
-target button on Reports. Apple Health is optional and off by default; it is used to write logged drinks to Health
-and, separately, to read heart rate, HRV and sleep for the Reports tab, with each switch in Setup. iCloud sync is on
-by default and keeps what the user has typed in (drinks, days, goal) in their private CloudKit database; nothing read
-from Apple Health is stored, in iCloud or anywhere else, and sync can be turned off in Setup. The privacy policy and
-support page are linked from Setup.
+Purpose and audience. GrogLog is a drink diary for adults who want to keep track of how much they drink, and to
+cut down if they choose to. Each drink is logged with its strength and size, and the app converts it to UK alcohol
+units, the measure UK health guidance uses. It shows the day's total against the person's usual day and the UK
+low-risk guideline of 14 units a week, and can set a gradual reduction that lowers a daily and weekly budget over
+time. The problem it solves is that people underestimate what they drink; a running count in units, kept honestly,
+makes it visible. It is free, with no account, no adverts and no tracking.
+
+Setting up and using it. No sign-in, account or sample file is needed. The app opens on the Log tab: tap a drink to
+log it, long-press one for another size or time, or search the catalogue of about a thousand UK drinks. The Day tab
+shows today's total; Calendar shows past days; Reports charts weeks and months. A reduction goal is set from the Goal
+row in Setup or the Goal button on Reports. Apple Health is optional and off by default, with each switch in Setup.
+
+External services. None of the developer's own. The app has no server and makes no network requests itself. It uses
+only Apple frameworks: iCloud (CloudKit and the key-value store) to sync the user's log and settings to their own
+private iCloud account, HealthKit to write drinks to Health and read heart rate, HRV and sleep if the user allows it,
+and WidgetKit for the home screen widget. There are no analytics, advertising, authentication, payment or AI services.
+The drinks catalogue and a snapshot of European Central Bank exchange rates are bundled in the app.
+
+Regional differences. The app works the same in every region. It counts in UK units and cites UK guidance, because
+those are what it is built around, and its catalogue is of drinks sold in the UK; a drink can be added by hand
+anywhere. Prices can be shown in any currency the bundled exchange rates cover.
+
+Regulated industry. GrogLog does not sell or promote alcohol and is not a medical device. It does not diagnose or
+treat anything. The reduction limits it applies are taken from public guidance, the UK Department of Health and
+Social Care's clinical guidelines for alcohol treatment (2025) and NICE guideline CG115, which the app links to in
+the goal screen. Setup, the goal screen and the App Store description all state that the app does not provide
+medical advice, and advise anyone dependent on alcohol to speak to a doctor before reducing. The age rating is 18+.
 
 ## Screenshots
 
