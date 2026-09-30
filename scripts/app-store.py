@@ -249,6 +249,10 @@ def submit():
     pending.sort(key=lambda s: s["attributes"]["state"] != "UNRESOLVED_ISSUES")
     submission = pending[0] if pending else create("reviewSubmissions", {"platform": "IOS"}, {"app": rel("apps", a["id"])})
     items = get(f"/v1/reviewSubmissions/{submission['id']}/items")["data"]
+    # App Review won't take a sent-back version again until its item is marked resolved.
+    for item in items:
+        if item["attributes"]["state"] == "REJECTED":
+            patch("reviewSubmissionItems", item["id"], {"resolved": True})
     if not items:
         create("reviewSubmissionItems", relationships={
             "reviewSubmission": rel("reviewSubmissions", submission["id"]),
