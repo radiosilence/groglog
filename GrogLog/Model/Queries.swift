@@ -35,7 +35,8 @@ nonisolated struct DaysRequest: ObservedRequest {
     }
 }
 
-/// Log entries with their drinks for a range of days, oldest first.
+/// Log entries with their drinks for a range of days, oldest first. A pour's day follows from its time, so ordering
+/// by both is ordering by time, and it is the order the `(day, timestamp)` index already holds.
 nonisolated struct EntriesRequest: ObservedRequest {
     static var defaultValue: [Entry] { [] }
     var days: ClosedRange<DayKey>
@@ -44,7 +45,7 @@ nonisolated struct EntriesRequest: ObservedRequest {
         try Pour
             .filter((days.lowerBound.number...days.upperBound.number).contains(Column("day")))
             .including(required: Pour.drink)
-            .order(Column("timestamp"))
+            .order(Column("day"), Column("timestamp"))
             .asRequest(of: Entry.self)
             .fetchAll(db)
     }

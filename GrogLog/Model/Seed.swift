@@ -26,6 +26,9 @@ nonisolated enum Seed {
 
     /// Generic drinks and their starting Log-grid tiles, on a fresh install.
     static func drinksIfNeeded(_ logbook: Logbook) throws {
+        // Every process start comes here, widget refreshes included; a read does not take the write lock the
+        // other process may want.
+        guard try logbook.writer.read({ try Drink.fetchCount($0) }) == 0 else { return }
         try logbook.writer.write { db in
             guard try Drink.fetchCount(db) == 0 else { return }
             let units = try logbook.unitsDrink(db)

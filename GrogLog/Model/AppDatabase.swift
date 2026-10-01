@@ -53,6 +53,14 @@ nonisolated struct AppDatabase: Sendable {
     private static var configuration: Configuration {
         var configuration = Configuration()
         configuration.foreignKeysEnabled = true
+        // The app and its widgets write to the same file from separate processes. A write that finds the other
+        // holding the lock waits for it; failing at once would drop the drink, since `Logbook` cannot retry it.
+        configuration.busyMode = .timeout(5)
+        configuration.prepareDatabase { db in
+            // In WAL mode this survives a crash of the app; only a power loss can lose the last commits. Each drink
+            // logged no longer waits on a sync to storage.
+            try db.execute(sql: "PRAGMA synchronous = NORMAL")
+        }
         return configuration
     }
 
@@ -186,6 +194,11 @@ nonisolated struct AppDatabase: Sendable {
             try db.alter(table: "syncState") { t in
                 t.add(column: "environment", .text)
             }
+        }
+        // Entries are always read by day and in time order, so the index holds both and the rows come back sorted.
+        migrator.registerMigration("v6-pour-day-time-index") { db in
+            try db.create(index: "pour_on_day_timestamp", on: "pour", columns: ["day", "timestamp"])
+            try db.drop(index: "pour_on_day")
         }
         return migrator
     }

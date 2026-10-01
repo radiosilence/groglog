@@ -773,6 +773,20 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(plans.allSatisfy { $0.contains("SEARCH pour USING") }, "\(plans)")
         #expect(!plans.contains { $0.contains("SCAN pour") }, "\(plans)")
     }
+
+    @Test func entriesComeBackInIndexOrderWithoutASort() throws {
+        // The same request `EntriesRequest` makes.
+        let plan = try database().writer.read { db in
+            let sql = try Pour
+                .filter((1...7).contains(Column("day")))
+                .including(required: Pour.drink)
+                .order(Column("day"), Column("timestamp"))
+                .makePreparedRequest(db).statement.sql
+            return try Row.fetchAll(db, sql: "EXPLAIN QUERY PLAN " + sql, arguments: [1, 7]).map { $0["detail"] as String? ?? "" }.joined(separator: " ")
+        }
+        #expect(plan.contains("pour_on_day_timestamp"), "\(plan)")
+        #expect(!plan.contains("TEMP B-TREE"), "\(plan)")
+    }
 }
 
 @Suite struct BudgetTextTests {
