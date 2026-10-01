@@ -276,7 +276,7 @@ nonisolated enum Exporter {
         }
         // Existing entries were assigned days by the old hour and imported ones by the new one, so every day is
         // reassigned.
-        if movesDayEnd { Task.detached { await DatabaseSuspension.awake { logbook.rebuild(reassigningDays: true) } } }
+        if movesDayEnd { Task.detached { logbook.rebuild(reassigningDays: true) } }
         return added
     }
 }

@@ -97,12 +97,7 @@ nonisolated final class Sync: CKSyncEngineDelegate, Sendable {
 
     // MARK: CKSyncEngineDelegate
 
-    /// CloudKit can wake the app in the background to deliver these, so the log is opened for them.
     func handleEvent(_ event: CKSyncEngine.Event, syncEngine: CKSyncEngine) async {
-        await DatabaseSuspension.awake { await handle(event, syncEngine) }
-    }
-
-    private func handle(_ event: CKSyncEngine.Event, _ syncEngine: CKSyncEngine) async {
         do {
             switch event {
             case .stateUpdate(let update):
@@ -152,14 +147,12 @@ nonisolated final class Sync: CKSyncEngineDelegate, Sendable {
 
     func nextRecordZoneChangeBatch(_ context: CKSyncEngine.SendChangesContext, syncEngine: CKSyncEngine) async -> CKSyncEngine.RecordZoneChangeBatch? {
         let changes = syncEngine.state.pendingRecordZoneChanges.filter { context.options.scope.contains($0) }
-        return await DatabaseSuspension.awake {
-            await CKSyncEngine.RecordZoneChangeBatch(pendingChanges: changes) { id in
-                do {
-                    return try self.records.record(for: id)
-                } catch {
-                    self.log.error("Couldn't read \(id.recordName): \(error)")
-                    return nil
-                }
+        return await CKSyncEngine.RecordZoneChangeBatch(pendingChanges: changes) { id in
+            do {
+                return try self.records.record(for: id)
+            } catch {
+                self.log.error("Couldn't read \(id.recordName): \(error)")
+                return nil
             }
         }
     }

@@ -45,7 +45,7 @@ struct SetupScreen: View {
             // Reassigns every entry to a day and recomputes every total: seconds on a long log, so it runs off the main thread.
             .onChange(of: prefs.rolloverHour) {
                 let logbook = database.logbook(prefs)
-                Task.detached { await DatabaseSuspension.awake { logbook.rebuild(reassigningDays: true) } }
+                Task.detached { logbook.rebuild(reassigningDays: true) }
             }
 
             if Health.isAvailable {
@@ -123,7 +123,7 @@ struct SetupScreen: View {
                 Toggle("Demo mode", isOn: $demoMode)
                 Button("Rebuild daily totals") {
                     let logbook = database.logbook(prefs)
-                    Task.detached { await DatabaseSuspension.awake { logbook.rebuild() } }
+                    Task.detached { logbook.rebuild() }
                 }
             } header: {
                 Text("Developer")
