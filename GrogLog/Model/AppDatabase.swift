@@ -56,6 +56,8 @@ nonisolated struct AppDatabase: Sendable {
         // The app and its widgets write to the same file from separate processes. A write that finds the other
         // holding the lock waits for it; failing at once would drop the drink, since `Logbook` cannot retry it.
         configuration.busyMode = .timeout(5)
+        // See `DatabaseSuspension`.
+        configuration.observesSuspensionNotifications = true
         configuration.prepareDatabase { db in
             // In WAL mode this survives a crash of the app; only a power loss can lose the last commits. Each drink
             // logged no longer waits on a sync to storage.

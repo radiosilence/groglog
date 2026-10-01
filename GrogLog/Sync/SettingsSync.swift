@@ -59,7 +59,7 @@ import Observation
                 guard let hour = cloud.object(forKey: key) as? Int, (0...23).contains(hour), hour != prefs.rolloverHour else { continue }
                 prefs.rolloverHour = hour
                 let logbook = logbook()
-                Task.detached { logbook.rebuild(reassigningDays: true) }
+                Task.detached { await DatabaseSuspension.awake { logbook.rebuild(reassigningDays: true) } }
             case "currency":
                 guard let currency = cloud.string(forKey: key), currency != prefs.currency else { continue }
                 prefs.currency = currency

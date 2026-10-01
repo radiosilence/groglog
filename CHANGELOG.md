@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The log stops taking file locks when the app goes to the background, so iOS cannot terminate it for holding one while suspended. iCloud sync, Shortcuts and background rebuilds open it for as long as they run.
 - A drink logged from a widget while the app is writing, or the other way round, waits for the other write to finish rather than failing and being lost. Commits no longer wait on a sync to storage, and starting the app or refreshing a widget no longer takes the write lock to check whether the log needs seeding. Entries are indexed by day and time together, so they are read in order without a sort.
 - Reports no longer stalls on returning to it with years of watch data: heart and sleep history is read and filed off the main thread. Copying the log to Health, checking what is waiting to sync and rebuilding day totals do less work, and a rebuild no longer sends every dry day and hand-set spend back to iCloud.
 - A goal switched back on starts today; it had kept the date it was last on, or first launch, and opened weeks into its cuts. "Use my last 4 weeks" re-checks the pace against the new starting figure.

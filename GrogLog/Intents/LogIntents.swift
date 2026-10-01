@@ -33,15 +33,19 @@ nonisolated struct ServeEntity: AppEntity {
 
 nonisolated struct ServeQuery: EntityQuery {
     func entities(for identifiers: [String]) async throws -> [ServeEntity] {
-        let logbook = try await Store.logbook()
-        return try await logbook.writer.read { db in
-            try identifiers.compactMap { try Serve.matching($0, db) }.map(ServeEntity.init)
+        try await DatabaseSuspension.awake {
+            let logbook = try await Store.logbook()
+            return try await logbook.writer.read { db in
+                try identifiers.compactMap { try Serve.matching($0, db) }.map(ServeEntity.init)
+            }
         }
     }
 
     func suggestedEntities() async throws -> [ServeEntity] {
-        let logbook = try await Store.logbook()
-        return try await logbook.writer.read { try Serve.grid($0).map(ServeEntity.init) }
+        try await DatabaseSuspension.awake {
+            let logbook = try await Store.logbook()
+            return try await logbook.writer.read { try Serve.grid($0).map(ServeEntity.init) }
+        }
     }
 }
 
@@ -58,7 +62,12 @@ struct LogDrinkIntent: AppIntent {
         self.serve = serve
     }
 
+    /// Siri and Shortcuts can run this with the app in the background, so the log is opened for it.
     func perform() async throws -> some IntentResult & ProvidesDialog {
+        try await DatabaseSuspension.awake { try await log() }
+    }
+
+    private func log() async throws -> some IntentResult & ProvidesDialog {
         let logbook = try await Store.logbook()
         guard let pour = try await logbook.writer.read({ try Serve.matching(serve.id, $0) }) else { throw DrinkGone() }
         logbook.log(pour, at: [.now])
@@ -79,6 +88,10 @@ nonisolated struct MarkDayAlcoholFreeIntent: AppIntent {
     static let description = IntentDescription("Marks today as a day without a drink. A day left unmarked is treated as not logged rather than alcohol-free.")
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
+        try await DatabaseSuspension.awake { try await mark() }
+    }
+
+    private func mark() async throws -> some IntentResult & ProvidesDialog {
         let logbook = try await Store.logbook()
         let day = logbook.clock.today
         // Logging a drink clears the mark, so marking a day that already has drinks would be wrong until the next retotal.

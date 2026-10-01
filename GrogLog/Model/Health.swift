@@ -49,7 +49,7 @@ import os
     /// round trips per day, which takes minutes on a long log and blocks drinks logged in the meantime.
     func mirrorEverything(_ logbook: Logbook) async {
         let previous = queue
-        let rewrite = Task { await previous?.value; await self.rewriteAll(logbook) }
+        let rewrite = Task { await previous?.value; await DatabaseSuspension.awake { await self.rewriteAll(logbook) } }
         queue = rewrite
         await rewrite.value
     }
@@ -77,7 +77,7 @@ import os
     /// would clear it before either saved and each would then save both drinks, doubling the count.
     func mirror(_ days: Set<DayKey>, _ logbook: Logbook) async {
         let previous = queue
-        let rewrite = Task { await previous?.value; await self.rewrite(days, logbook) }
+        let rewrite = Task { await previous?.value; await DatabaseSuspension.awake { await self.rewrite(days, logbook) } }
         queue = rewrite
         await rewrite.value
     }
