@@ -5,9 +5,10 @@ Every push to `main` that passes the tests is archived, signed and uploaded to A
 are driven from the terminal by `scripts/app-store.py` (`just store <command>`), so the App Store Connect website is
 needed only for what Apple offers no API for.
 
-Signing is Xcode's cloud-managed kind, authenticated with an App Store Connect API key, so no certificate or
-provisioning profile is kept anywhere and nothing needs renewing. `scripts/testflight.sh` is the whole of it and runs
-the same on a laptop given the same environment.
+Signing is Xcode's cloud-managed kind, authenticated with an App Store Connect API key, so no provisioning profile is
+kept anywhere. Archiving also needs an Apple Development identity, which a runner lacks; without one Xcode has Apple
+issue a new certificate on every run until the account reaches its limit. CI therefore imports one stored certificate,
+shared with koan's CI. `scripts/testflight.sh` runs the same on a laptop given the same environment.
 
 ## Setting it up
 
@@ -22,6 +23,8 @@ Once, in App Store Connect and GitHub:
    - variable `APPLE_TEAM_ID`: the team ID from developer.apple.com › Account › Membership details
    - secret `ASC_KEY_ID`, secret `ASC_ISSUER_ID`
    - secret `ASC_KEY`: the whole contents of the `.p8` file
+   - secret `IOS_CERTIFICATE_P12`: the base64 of the `.p12` in 1Password's "Apple Development certificate for CI
+     (.p12)", and secret `IOS_CERTIFICATE_PASSWORD` from "Apple Development certificate for CI (password)"
 
 Until `APPLE_TEAM_ID` is set, the upload job is skipped and only the tests run.
 

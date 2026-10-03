@@ -50,8 +50,30 @@ jobs:
       - name: Use the newest Xcode on the runner
         run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
 
-      # Signing is Xcode's cloud-managed kind, authenticated with an App Store Connect API key: no certificate or
-      # profile is kept in the repository or its secrets, and nothing has to be renewed by hand.
+      # Automatic signing archives with an Apple Development identity, and a runner has none, so Xcode had Apple issue
+      # a new certificate on every run until the account reached its limit and archiving failed. One certificate,
+      # shared with koan's CI and kept in 1Password as "Apple Development certificate for CI", is imported instead.
+      - name: Import the Apple Development certificate
+        env:
+          IOS_CERTIFICATE_P12: ${{ secrets.IOS_CERTIFICATE_P12 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+        if: env.IOS_CERTIFICATE_P12 != ''
+        run: |
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password=$(openssl rand -hex 24)
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          printf '%s' "$IOS_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" -P "$IOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/certificate.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          security find-identity -v -p codesigning "$keychain" | grep -q "Apple Development" \
+            || { echo "::error::no Apple Development identity in IOS_CERTIFICATE_P12"; exit 1; }
+
+      # Signing is Xcode's cloud-managed kind, authenticated with an App Store Connect API key; the imported
+      # development identity above is the only signing material kept in secrets.
       - name: Archive and upload
         env:
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
