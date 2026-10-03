@@ -132,15 +132,17 @@ private struct HeartPoint: Equatable, Identifiable {
     }
 }
 
-/// Heart readings laid over a units chart, squeezed into its height with their own axis down the trailing edge. HRV
-/// in ms and resting rate in bpm share it: both sit in the same few tens, and the legend says which is which.
+/// One heart reading laid over a units chart, fitted to its height with its own axis down the trailing edge, in the
+/// reading's colour. One at a time: HRV in ms and heart rate in bpm on a shared scale left each a thin band.
 private struct HeartScale: Equatable {
     let low: Double
     let high: Double
     let top: Double
+    let color: Color
 
     init?(_ points: [HeartPoint], top: Double) {
-        guard let lo = points.map(\.value).min(), let hi = points.map(\.value).max() else { return nil }
+        guard let lo = points.map(\.value).min(), let hi = points.map(\.value).max(), let reading = points.first?.reading else { return nil }
+        color = reading.color
         low = (lo / 5).rounded(.down) * 5 - 5
         high = max(low + 20, (hi / 5).rounded(.up) * 5 + 5)
         self.top = top
@@ -157,23 +159,38 @@ private struct HeartScale: Equatable {
 
     var axis: some AxisContent {
         AxisMarks(position: .trailing, values: ticks) { value in
-            AxisValueLabel { Text("\(Int(self.value(atY: value.as(Double.self) ?? 0).rounded()))") }
+            AxisValueLabel { Text("\(Int(self.value(atY: value.as(Double.self) ?? 0).rounded()))").foregroundStyle(color) }
         }
     }
 }
 
-/// Keys for whichever heart lines a chart is drawing, on their own row so the drinking keys above keep theirs.
+/// The heart readings a chart has, as keys that choose which one it draws, on their own row so the drinking keys
+/// above keep theirs. The choice is shared by every chart.
 private struct HeartLegend: View {
     let points: [HeartPoint]
     let suffix: String
+    @Binding var shown: HeartReading
+
+    /// The chosen reading, or the first there is when the chosen one has no data in this chart.
+    static func drawn(_ shown: HeartReading, in points: [HeartPoint]) -> HeartReading? {
+        let readings = Set(points.map(\.reading))
+        return readings.contains(shown) ? shown : HeartReading.allCases.first(where: readings.contains)
+    }
 
     var body: some View {
         let readings = HeartReading.allCases.filter { reading in points.contains { $0.reading == reading } }
-        if !readings.isEmpty {
+        if let drawn = Self.drawn(shown, in: points) {
             HStack(spacing: 16) {
-                ForEach(readings, id: \.self) { LegendKey(label: "\($0.short)\(suffix)", color: $0.color) }
+                ForEach(readings, id: \.self) { reading in
+                    Button { shown = reading } label: {
+                        LegendKey(label: "\(reading.short)\(suffix)", color: reading.color)
+                            .opacity(reading == drawn ? 1 : 0.4)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(reading == drawn ? .isSelected : [])
+                }
                 Spacer()
-                Text(Set(readings.map(\.unit)).sorted(by: >).joined(separator: " · ")).font(.caption).foregroundStyle(.tertiary)
+                Text(drawn.unit).font(.caption).foregroundStyle(.tertiary)
             }
         }
     }
@@ -192,6 +209,7 @@ private struct ProgressCard: View {
     let onSetGoal: () -> Void
     /// Days across, pinchable between a few days and the lot.
     @State private var window: Double
+    @AppStorage("chartHeartReading") private var shownHeart = HeartReading.hrv
     @GestureState private var pinch = 1.0
     /// Held here rather than passed to the chart once: the chart is redrawn every minute for the "now" rule, and one
     /// given only a starting position returns to the start of its range each time.
@@ -281,7 +299,8 @@ private struct ProgressCard: View {
             }
             .font(.subheadline)
             .foregroundStyle(.secondary)
-            ProgressPlot(drank: drank, behind: behind, ahead: ahead, heart: hearts, heartScale: HeartScale(hearts, top: top), dots: heart == .nightly,
+            let drawn = hearts.filter { $0.reading == HeartLegend.drawn(shownHeart, in: hearts) }
+            ProgressPlot(drank: drank, behind: behind, ahead: ahead, heart: drawn, heartScale: HeartScale(drawn, top: top), dots: heart == .nightly,
                          now: now, top: top, days: days,
                          x: Binding(get: { scrolledTo ?? (today - (days - 4)).date(in: calendar) }, set: { scrolledTo = $0 }))
             // Simultaneous, or the chart's own scrolling swallows it and nothing zooms.
@@ -300,7 +319,7 @@ private struct ProgressCard: View {
                     LegendKey(label: "Plan", color: .dry, dashed: true)
                 }
             }
-            HeartLegend(points: hearts, suffix: heart == .nightly ? "" : ", 7-night")
+            HeartLegend(points: hearts, suffix: heart == .nightly ? "" : ", 7-night", shown: $shownHeart)
             if !goal.isEnabled {
                 Button("Set a goal to see your budget come down", systemImage: "target", action: onSetGoal)
                     .font(.subheadline)
@@ -770,6 +789,7 @@ private struct WeeksCard: View {
     /// Held for the same reason as the progress charts', and dropped when the range changes so a new range opens on
     /// the latest weeks.
     @State private var scrolledTo: Date?
+    @AppStorage("chartHeartReading") private var shownHeart = HeartReading.hrv
 
     var body: some View {
         let calendar = prefs.clock.calendar
@@ -786,7 +806,7 @@ private struct WeeksCard: View {
             }
             .pickerStyle(.segmented)
 
-            WeeksPlot(stats: stats, heart: hearts, weeks: weeks, calendar: calendar,
+            WeeksPlot(stats: stats, heart: hearts.filter { $0.reading == HeartLegend.drawn(shownHeart, in: hearts) }, weeks: weeks, calendar: calendar,
                       x: Binding(get: { scrolledTo ?? (stats.last!.start - 7 * (weeks - 1)).date(in: calendar) }, set: { scrolledTo = $0 }))
                 .onChange(of: weeks) { scrolledTo = nil }
 
@@ -796,7 +816,7 @@ private struct WeeksCard: View {
                 Spacer()
                 Text("scroll back").font(.caption).foregroundStyle(.tertiary)
             }
-            HeartLegend(points: hearts, suffix: "")
+            HeartLegend(points: hearts, suffix: "", shown: $shownHeart)
         }
     }
 }
