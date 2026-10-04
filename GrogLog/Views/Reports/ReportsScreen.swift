@@ -164,8 +164,8 @@ private struct HeartScale: Equatable {
     }
 }
 
-/// The heart readings a chart has, as keys that choose which one it draws, on their own row so the drinking keys
-/// above keep theirs. The choice is shared by every chart.
+/// The heart readings a chart has, as chips in each reading's colour that choose which one it draws, on their own
+/// row below the drinking keys. The choice is shared by every chart.
 private struct HeartLegend: View {
     let points: [HeartPoint]
     let suffix: String
@@ -180,16 +180,9 @@ private struct HeartLegend: View {
     var body: some View {
         let readings = HeartReading.allCases.filter { reading in points.contains { $0.reading == reading } }
         if let drawn = Self.drawn(shown, in: points) {
-            HStack(spacing: 16) {
-                ForEach(readings, id: \.self) { reading in
-                    Button { shown = reading } label: {
-                        LegendKey(label: "\(reading.short)\(suffix)", color: reading.color)
-                            .opacity(reading == drawn ? 1 : 0.4)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(reading == drawn ? .isSelected : [])
-                }
-                Spacer()
+            HStack(spacing: 12) {
+                ChipRow(options: readings, selection: Binding(get: { drawn }, set: { shown = $0 }), tint: \.color) { "\($0.short)\(suffix)" }
+                    .controlSize(.small)
                 Text(drawn.unit).font(.caption).foregroundStyle(.tertiary)
             }
         }

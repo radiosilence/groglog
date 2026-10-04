@@ -7,6 +7,8 @@ struct ChipRow<Value: Hashable>: View {
     /// An unavailable option stays on the row, greyed out. Removing it would leave a gap that reads as
     /// a missing feature, with no indication of what the option was.
     var isEnabled: (Value) -> Bool = { _ in true }
+    /// The selected chip's colour, for a row that also serves as a chart's key.
+    var tint: (Value) -> Color = { _ in .grog }
     let label: (Value) -> String
 
     var body: some View {
@@ -15,7 +17,7 @@ struct ChipRow<Value: Hashable>: View {
                 ForEach(options, id: \.self) { option in
                     Button(label(option)) { selection = option }
                         .buttonStyle(.bordered)
-                        .tint(option == selection ? .grog : .secondary)
+                        .tint(option == selection ? tint(option) : .secondary)
                         .fontWeight(option == selection ? .semibold : .regular)
                         .disabled(!isEnabled(option))
                 }
