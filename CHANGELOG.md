@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Inch's in a 440 ml can, at the 4-pack's per-can price.
 - CI imports one stored Apple Development certificate before archiving, so it no longer asks Apple for a new one on every run, which had reached the account's limit and stopped uploads.
 - The Reports charts draw one heart reading at a time, on its own scale, with the axis in its colour. Chips under each chart, in the readings' colours, switch all of them between HRV, resting and asleep heart rate. HRV in ms and heart rate in bpm on one shared scale had left each line in a thin band.
 - A drink logged from a widget while the app is writing, or the other way round, waits for the other write to finish rather than failing and being lost. Commits no longer wait on a sync to storage, and starting the app or refreshing a widget no longer takes the write lock to check whether the log needs seeding. Entries are indexed by day and time together, so they are read in order without a sort.

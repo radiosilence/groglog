@@ -658,7 +658,8 @@ nonisolated enum Catalog {
         ("Strongbow Dark Fruit", .cider, 4.0, [(pint, 6), (can440, 1.46)]),
         ("Bulmers Original", .cider, 4.5, [(pint, 6.15), (bottle500, 1.45)]),
         ("Magners", .cider, 4.5, [(pint, 6.15), (bottle568, 2.5), (can440, 1.19)]),
-        ("Inch's", .cider, 4.5, [(pint, 5.6), (bottle500, 2.85)]),
+        // The can is sold only in packs; it is priced at the 4-pack's rate.
+        ("Inch's", .cider, 4.5, [(pint, 5.6), (bottle500, 2.85), (can440, 1.19)]),
         ("Aspall", .cider, 5.5, [(pint, 6.6), (bottle500, 2.9)]),
         ("Stowford Press", .cider, 4.5, [(pint, 4.4), (can568, 1.8)]),
         ("Stowford Press Mixed Berries", .cider, 4.0, [(can440, 1.25)]),
