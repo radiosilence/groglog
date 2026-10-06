@@ -50,7 +50,7 @@ targets:
         INFOPLIST_KEY_NSHumanReadableCopyright: © 2026 James Cleveland
         INFOPLIST_KEY_NSHealthShareUsageDescription: GrogLog reads your sleep, heart rate and HRV to chart them against what you drank the night before.
         PRODUCT_BUNDLE_IDENTIFIER: cc.blit.groglog
-        MARKETING_VERSION: 1.1.0
+        MARKETING_VERSION: 1.1.1
         CURRENT_PROJECT_VERSION: 1
         TARGETED_DEVICE_FAMILY: "1"
         GENERATE_INFOPLIST_FILE: YES
@@ -90,7 +90,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cc.blit.groglog.widgets
-        MARKETING_VERSION: 1.1.0
+        MARKETING_VERSION: 1.1.1
         CURRENT_PROJECT_VERSION: 1
         TARGETED_DEVICE_FAMILY: "1"
         SKIP_INSTALL: YES
