@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Earlier weeks and last month are drawn faint on Reports, fading with age as earlier days do on the Day chart. "Last month by day N" appears only when last month has a logged day by then, so unlogged days are not read as a dry start. Tapping the Day tab again returns to today.
 - Inch's in a 440 ml can, at the 4-pack's per-can price.
 - CI imports one stored Apple Development certificate before archiving, so it no longer asks Apple for a new one on every run, which had reached the account's limit and stopped uploads.
 - The Reports charts draw one heart reading at a time, on its own scale, with the axis in its colour. Chips under each chart, in the readings' colours, switch all of them between HRV, resting and asleep heart rate. HRV in ms and heart rate in bpm on one shared scale had left each line in a thin band.

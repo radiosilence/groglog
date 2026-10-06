@@ -1,9 +1,10 @@
 import GRDBQuery
 import SwiftUI
 
-/// A day with prev/next navigation.
+/// A day with prev/next navigation. Tapping the Day tab again returns to today.
 struct DayPager: View {
     @State var day: DayKey
+    var reselects = 0
 
     var body: some View {
         LedgerReader { ledger in
@@ -16,6 +17,7 @@ struct DayPager: View {
                             .disabled(day >= ledger.today)
                     }
                 }
+                .onChange(of: reselects) { day = ledger.today }
         }
     }
 }

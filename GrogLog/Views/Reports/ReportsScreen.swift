@@ -631,7 +631,7 @@ private struct WeekCard: View {
 
             HStack(spacing: 16) {
                 LegendKey(label: "This week", color: .grog)
-                LegendKey(label: "Earlier weeks", color: .gray.opacity(0.5))
+                LegendKey(label: "Earlier weeks", color: .gray.opacity(0.4))
                 if !budget.isEmpty { LegendKey(label: "Budget", color: .dry, dashed: true) }
             }
         }
@@ -649,7 +649,8 @@ private struct WeekPlot: View, Equatable {
             ForEach(Array(earlier.enumerated()), id: \.offset) { index, week in
                 ForEach(week) { point in
                     LineMark(x: .value("Day", point.x), y: .value("Units", point.units), series: .value("Week", "-\(index + 1)"))
-                        .foregroundStyle(Color.gray.opacity(0.5 - Double(index) * 0.12))
+                        // Faint, and fainter with age, as the earlier days are on the Day chart: context, not data to read.
+                        .foregroundStyle(Color.gray.opacity([0.4, 0.25, 0.15][min(index, 2)]))
                         .lineStyle(StrokeStyle(lineWidth: 1.5))
                 }
             }
@@ -703,7 +704,10 @@ private struct MonthCard: View {
         let dayOfMonth = today.components.day
         let lastAtSameDay = previous.last { $0.x <= Double(dayOfMonth) }?.units ?? 0
         let now = current.last?.units ?? 0
-        let hasLastMonth = (previous.last?.units ?? 0) > 0
+        // A month with nothing logged has no line. The comparison also needs a logged day by this point in it: days
+        // never logged are a gap, and a zero would read as a dry start to the month.
+        let hasLastMonth = previous.count > 1
+        let comparable = hasLastMonth && (0..<min(dayOfMonth, lastMonth.daysInMonth)).contains { ledger.isLogged(lastMonth + $0) }
 
         Card(title: "This month") {
             HStack(alignment: .firstTextBaseline) {
@@ -711,14 +715,14 @@ private struct MonthCard: View {
                     .font(.system(size: 40, weight: .bold, design: .rounded))
                 Text("units").foregroundStyle(.secondary)
                 Spacer()
-                if lastAtSameDay > 0 {
+                if comparable, lastAtSameDay > 0 {
                     let change = (now - lastAtSameDay) / lastAtSameDay
                     Label(change.formatted(.percent.precision(.fractionLength(0))), systemImage: change <= 0 ? "arrow.down.right" : "arrow.up.right")
                         .font(.headline)
                         .foregroundStyle(change <= 0 ? Color.dry : Color.over)
                 }
             }
-            if hasLastMonth {
+            if comparable {
                 Text("Last month by day \(dayOfMonth): \(lastAtSameDay.unitsText) u")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -729,7 +733,7 @@ private struct MonthCard: View {
             HStack(spacing: 16) {
                 LegendKey(label: thisMonth.date(in: calendar).formatted(.dateTime.month(.wide)), color: .grog)
                 if hasLastMonth {
-                    LegendKey(label: lastMonth.date(in: calendar).formatted(.dateTime.month(.wide)), color: .gray.opacity(0.6))
+                    LegendKey(label: lastMonth.date(in: calendar).formatted(.dateTime.month(.wide)), color: .gray.opacity(0.4))
                 }
             }
         }
@@ -745,7 +749,7 @@ private struct MonthPlot: View, Equatable {
         Chart {
             ForEach(previous) {
                 LineMark(x: .value("Day", $0.x), y: .value("Units", $0.units), series: .value("Month", "Last"))
-                    .foregroundStyle(Color.gray.opacity(0.6))
+                    .foregroundStyle(Color.gray.opacity(0.4))
                     .lineStyle(StrokeStyle(lineWidth: 2))
             }
             ForEach(current) {

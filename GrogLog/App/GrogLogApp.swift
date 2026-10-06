@@ -54,12 +54,14 @@ struct RootView: View {
     /// Opens on Log; `-tab <name>` picks another, for screenshots.
     @State private var tab = UserDefaults.standard.string(forKey: "tab") ?? "log"
     @State private var calendarReselects = 0
+    @State private var dayReselects = 0
 
     var body: some View {
         let today = prefs.clock.today
         // Tapping the selected tab again is the system's scroll-to-top, but the calendar's top is its oldest month.
         let selection = Binding(get: { tab }, set: {
             if $0 == tab, $0 == "calendar" { calendarReselects += 1 }
+            if $0 == tab, $0 == "day" { dayReselects += 1 }
             tab = $0
         })
         TabView(selection: selection) {
@@ -71,7 +73,7 @@ struct RootView: View {
             }
             Tab("Day", systemImage: "chart.line.uptrend.xyaxis", value: "day") {
                 // `-dayOffset 1` opens on yesterday, for screenshots of a finished day.
-                NavigationStack { DayPager(day: today - UserDefaults.standard.integer(forKey: "dayOffset")).id(today) }
+                NavigationStack { DayPager(day: today - UserDefaults.standard.integer(forKey: "dayOffset"), reselects: dayReselects).id(today) }
             }
             Tab("Reports", systemImage: "chart.bar.xaxis", value: "reports") {
                 NavigationStack { LedgerReader { ReportsScreen(ledger: $0) } }
