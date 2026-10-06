@@ -302,6 +302,9 @@ def changelog_notes(version):
     text = (ROOT / "CHANGELOG.md").read_text()
     section = lambda heading: (m := re.search(rf"^## {re.escape(heading)}\n(.*?)(?=^## |\Z)", text, re.S | re.M)) and m.group(1).strip()
     body = section(version) or section("Unreleased") or ""
+    # CI and tooling notes are of no interest to testers; section headings become plain labels.
+    body = re.sub(r"^### Internal\n.*?(?=^### |\Z)", "", body, flags=re.S | re.M)
+    body = re.sub(r"^### (.+)$", lambda m: m.group(1).upper(), body, flags=re.M)
     body = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", body)
     body = re.sub(r"\*\*|`", "", body)
     body = re.sub(r"\n{3,}", "\n\n", body)

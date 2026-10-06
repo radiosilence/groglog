@@ -1,0 +1,1 @@
+- **CI signs with one stored Apple Development certificate.** Without one on the runner, automatic signing had Apple issue a certificate per run until the account reached its limit and uploads stopped.

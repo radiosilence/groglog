@@ -1,0 +1,1 @@
+- **Earlier weeks and last month are drawn faint on Reports,** fading with age as earlier days do on the Day chart.

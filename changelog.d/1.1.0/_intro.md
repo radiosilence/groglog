@@ -1,0 +1,27 @@
+- A drink logged from a widget while the app is writing, or the other way round, waits for the other write to finish rather than failing and being lost. Commits no longer wait on a sync to storage, and starting the app or refreshing a widget no longer takes the write lock to check whether the log needs seeding. Entries are indexed by day and time together, so they are read in order without a sort.
+- Reports no longer stalls on returning to it with years of watch data: heart and sleep history is read and filed off the main thread. Copying the log to Health, checking what is waiting to sync and rebuilding day totals do less work, and a rebuild no longer sends every dry day and hand-set spend back to iCloud.
+- A goal switched back on starts today; it had kept the date it was last on, or first launch, and opened weeks into its cuts. "Use my last 4 weeks" re-checks the pace against the new starting figure.
+- A change made on this phone to an entry or day survives another phone's deletion of it; unticking a dry day elsewhere had wiped a spend typed here. Widgets refresh when changes arrive from iCloud.
+- Widgets and Shortcuts no longer offer the Units tile, which could only log exactly one unit.
+- "Last week by now" is hidden when last week has nothing logged, instead of showing the week before.
+- Backfilling several drinks on a past day keeps them on that day.
+- Money entry works in currencies without minor units, such as yen and won.
+- The Day chart's week-average figure is the unsmoothed mean at that time; only the line is smoothed.
+- Importing a backup refuses a day-end hour outside the day and dates that do not exist or are in the future, any of which could have crashed the app on every later launch, and files over 50 MB. An import that changes the day-end hour moves logged drinks onto the right days, as changing it in Setup does.
+- The site's search and share descriptions say the log syncs through the user's own iCloud, matching the page.
+- CI pins its tools and the store script's Python packages to exact versions, since they run with the App Store Connect key, and only the site's build job can push images.
+- Sake, soju, shochu, umeshu and baijiu carry the kind in their names, so searching for "sake" finds them.
+- Sake, umeshu, shochu, soju, makgeolli and Moutai; Sapporo, Hitachino Nest, Cass, Leo and Beerlao. More whisky (Macallan 18, Oban, Uigeadail, Quarter Cask, Springbank, Yamazaki 12, Kavalan, Amrut, the Irish pot stills and more bourbon), the liqueurs and amari a bar keeps (Chartreuse, Heering, Advocaat, Midori, Frangelico, Galliano, St-Germain, Fernet, Montenegro, Averna), Graham's Six Grapes and Somersby. Seven Bro7hers Easy IPA at Wetherspoon.
+- House pours to search by: vodka, gin, whisky, bourbon, white, dark and spiced rum, brandy and cognac.
+- Whisky: about fifty more, from Grant's and Teacher's through the Speyside and Islay malts to Redbreast, the bourbons, Japanese blends, Penderyn and Cotswolds. Cognac and brandy, the better-known gins, vodkas, rums, Patrón and a mezcal, and De Kuyper Cherry Brandy, Drambuie and Licor 43.
+- Balkan and Central European spirits at UK specialist shops' prices: Maraska and Badel pelinkovac, Gorki List, šljivovica, travarica, loza, Maraschino, vinjak, Bulgarian rakia and pelin, Unicum, Becherovka, slivovitz, Ouzo 12, Metaxa, Yeni Rakı and tsipouro.
+- Vermouth, port and sherry by name (Martini, Noilly Prat, Lillet, Taylor's, Cockburn's, Tio Pepe, Croft), Freixenet, Mionetto, Chandon and Nyetimber, Dassai 45 sake, Chamisul soju, erguotou, Chang and Saigon beer, Thatchers Rosé, Old Mout Berries & Cherries and Crabbie's.
+- Supermarket wine: 47 bottles at their regular single-bottle price, from French, Italian and Spanish appellations to the brands on every shelf, such as Yellow Tail and Whispering Angel. A glass is priced as its share of the bottle.
+- Closing "Where this comes from" no longer closes the Goal sheet with it, which discarded the goal being edited.
+- A search on the Log screen with no matches says so and offers to add the drink under the name searched for. Absinthe is in the catalogue, at 68%.
+- A goal that starts at or under the level low enough to stop says it is already there, rather than giving the start date as the day it gets there.
+- TestFlight builds carry the changelog as their What to Test notes.
+- `just store review-attachment FILE` attaches a file, such as a screen recording, for App Review.
+- `just store withdraw` takes a version out of review, so a newer build of it can be submitted.
+- Setup links to the privacy policy and support page, and shows the version and build number, so a TestFlight report can say which build it came from.
+- iCloud sync (1.1.0): the log is kept in your own iCloud account, two phones' logs merge rather than overwrite, and turning sync off or signing out deletes nothing. The goal, currency and day-end hour sync through iCloud's key-value store while the Health switches stay per phone; the privacy page says where the copy lives and how to remove it.

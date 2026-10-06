@@ -9,6 +9,10 @@ phone config="Debug":
     xcrun devicectl device install app --device "$PHONE" "build/Build/Products/{{config}}-iphoneos/GrogLog.app"
     xcrun devicectl device process launch --device "$PHONE" cc.blit.groglog
 
+# CHANGELOG.md, generated from the fragments in changelog.d/. `--release X.Y.Z` cuts a version.
+changelog *args:
+    python3 scripts/changelog.py {{args}}
+
 # The App Store listing, builds and review, from the terminal. See scripts/app-store.py.
 store command="status" *args:
     scripts/app-store.py {{command}} {{args}}

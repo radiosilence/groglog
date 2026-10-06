@@ -1,0 +1,1 @@
+- **One heart reading at a time on Reports.** HRV in ms and heart rate in bpm shared one scale and each line used a thin band of the chart; chips under each chart, in the readings' colours, choose which is drawn, on its own scale with the axis in its colour.

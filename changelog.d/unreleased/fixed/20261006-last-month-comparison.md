@@ -1,0 +1,1 @@
+- **"Last month by day N" appears only when last month has a logged day by then,** so unlogged days are not read as a dry start to the month.
