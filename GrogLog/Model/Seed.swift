@@ -31,15 +31,20 @@ nonisolated enum Seed {
         guard try logbook.writer.read({ try Drink.fetchCount($0) }) == 0 else { return }
         try logbook.writer.write { db in
             guard try Drink.fetchCount(db) == 0 else { return }
+            // Tiles are marked for sync, which keeps them back until it knows whether iCloud already holds a grid.
+            func tile(_ favourite: Favourite) throws {
+                try favourite.insert(db)
+                try db.execute(sql: "INSERT INTO syncSeeded (recordName) SELECT 'favourite-' || hex(id) FROM favourite WHERE id = ?", arguments: [favourite.id])
+            }
             let units = try logbook.unitsDrink(db)
-            try Favourite(drinkId: units.id, vessel: .shot, volumeMl: 10, price: 0, sortOrder: 99).insert(db)
+            try tile(Favourite(drinkId: units.id, vessel: .shot, volumeMl: 10, price: 0, sortOrder: 99))
             var order = 100
             for generic in generics {
                 let (vessel, ml, price) = generic.serves[0]
                 let drink = Drink(name: generic.name, category: generic.category, abv: generic.category.defaultABV, vessel: vessel, volumeMl: ml, price: price, isGeneric: true, sortOrder: order)
                 try drink.insert(db)
                 for (vessel, ml, price) in generic.serves {
-                    try Favourite(drinkId: drink.id, vessel: vessel, volumeMl: ml, price: price, sortOrder: order).insert(db)
+                    try tile(Favourite(drinkId: drink.id, vessel: vessel, volumeMl: ml, price: price, sortOrder: order))
                     order += 1
                 }
             }

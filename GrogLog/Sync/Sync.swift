@@ -133,6 +133,10 @@ nonisolated final class Sync: CKSyncEngineDelegate, Sendable {
                 )
                 queuePending()
 
+            case .didFetchChanges:
+                try records.finishFetch()
+                queuePending()
+
             case .sentRecordZoneChanges(let sent):
                 try records.acknowledge(saved: sent.savedRecords, deleted: sent.deletedRecordIDs)
                 try resolve(sent.failedRecordSaves, syncEngine)

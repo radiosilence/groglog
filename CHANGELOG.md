@@ -16,6 +16,7 @@
 ### Fixed
 
 - **"Last month by day N" appears only when last month has a logged day by then,** so unlogged days are not read as a dry start to the month.
+- **Reinstalling no longer brings back unpinned Log tiles.** A fresh install holds its starting tiles back from iCloud until the first sync has fetched, and drops them if iCloud already holds one.
 
 ### Internal
 
