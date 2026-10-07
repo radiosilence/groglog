@@ -208,6 +208,9 @@ nonisolated struct AppDatabase: Sendable {
                 t.primaryKey("recordName", .text)
             }
         }
+        migrator.registerMigration("v8-pour-strength") { db in
+            try db.alter(table: "pour") { t in t.add(column: "abvOverride", .double) }
+        }
         return migrator
     }
 }

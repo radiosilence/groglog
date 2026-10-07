@@ -49,7 +49,7 @@ nonisolated struct Favourite: Codable, Hashable, Identifiable, Sendable, Fetchab
 }
 
 /// A logged drink: which drink, plus when, what size and what it cost. Name, strength and type come from the
-/// drink, so correcting a drink corrects everything logged as it.
+/// drink, so correcting a drink corrects everything logged as it, except where this one was logged at its own strength.
 nonisolated struct Pour: Codable, Hashable, Identifiable, Sendable, FetchableRecord, PersistableRecord {
     var id = UUID()
     var drinkId: UUID
@@ -62,6 +62,9 @@ nonisolated struct Pour: Codable, Hashable, Identifiable, Sendable, FetchableRec
     var price: Double
     /// Calories supplied by another app's import; otherwise they are derived from the drink.
     var kcalOverride: Double?
+    /// The strength this one was logged at, when it differs from the drink's: a guest ale logged as Beer at the
+    /// pump clip's 5.2%, without making a drink of it.
+    var abvOverride: Double?
 
     static let drink = belongsTo(Drink.self)
 
@@ -93,15 +96,15 @@ nonisolated struct Entry: Decodable, Hashable, Identifiable, Sendable, Fetchable
     var id: UUID { pour.id }
     var name: String { drink.name }
     var category: DrinkCategory { drink.category }
-    var abv: Double { drink.abv }
+    var abv: Double { pour.abvOverride ?? drink.abv }
     var vessel: Vessel { pour.vessel }
     var volumeMl: Double { pour.volumeMl }
     var price: Double { pour.price }
     var timestamp: Date { pour.timestamp }
     var day: Int { pour.day }
     var dayKey: DayKey { pour.dayKey }
-    var units: Double { Units.of(ml: pour.volumeMl, abv: drink.abv) }
-    var kcal: Double { pour.kcalOverride ?? Units.kcal(ml: pour.volumeMl, abv: drink.abv, category: drink.category) }
+    var units: Double { Units.of(ml: pour.volumeMl, abv: abv) }
+    var kcal: Double { pour.kcalOverride ?? Units.kcal(ml: pour.volumeMl, abv: abv, category: drink.category) }
     var serveKey: String { Serve.key(drink.id, pour.vessel, pour.volumeMl) }
 }
 

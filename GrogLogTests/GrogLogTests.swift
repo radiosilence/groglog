@@ -150,6 +150,20 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(try logbook.writer.read { try Day.fetchCount($0) } == 0)
     }
 
+    /// A guest ale logged as Beer at the pump clip's strength counts at that strength, and leaves Beer and its other
+    /// entries as they were. Logging at the drink's own strength stores no override.
+    @Test func aRoundLoggedAtItsOwnStrengthLeavesTheDrinkAlone() throws {
+        let (logbook, drink) = try logbook()
+        let day = DayKey(year: 2026, month: 9, day: 19)
+        logbook.log(Serve(drink), at: [date(2026, 9, 19, 20)], abv: 5)
+        logbook.log(Serve(drink), at: [date(2026, 9, 19, 21)], abv: 6.5)
+        let logged = try entries(logbook, day...day).sorted { $0.timestamp < $1.timestamp }
+        #expect(logged.map(\.pour.abvOverride) == [nil, 6.5])
+        #expect(logged.map(\.abv) == [5, 6.5])
+        #expect(abs(try ledger(logbook).totals(on: day).units - Units.of(ml: 568, abv: 5) - Units.of(ml: 568, abv: 6.5)) < 0.001)
+        #expect(try logbook.writer.read { try Drink.fetchOne($0, key: drink.id)?.abv } == 5)
+    }
+
     /// Undo takes the drink logged last, not the one drunk last: one backdated from the long-press sheet is
     /// the one you meant to take back.
     @Test func undoTakesTheLastLoggedNotTheLastDrunk() throws {
@@ -659,7 +673,7 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         let drink = Drink(name: "Hepcat", category: .beer, abv: 4.6, vessel: .pint, volumeMl: 568)
         logbook.add(drink)
         logbook.pin(Serve(drink, .can, 440, price: 3))
-        logbook.log(Serve(drink), at: [.now.addingTimeInterval(-3600 * 30)])
+        logbook.log(Serve(drink), at: [.now.addingTimeInterval(-3600 * 30)], abv: 5.2)
         logbook.setAlcoholFree(true, on: prefs.clock.today - 3)
         let settings = Exporter.Settings(prefs)
         let data = try Exporter.json(try source.reader.read { try Exporter.backup($0, settings: settings) })
@@ -669,6 +683,7 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(try Exporter.restore(data, writer: target.writer, prefs: prefs) == 0)
         try target.reader.read { db in
             #expect(try Pour.fetchCount(db) == 1)
+            #expect(try Pour.fetchOne(db)?.abvOverride == 5.2)
             let days = try Day.fetchAll(db)
             #expect(days.count == 2 && days.filter(\.isAlcoholFree).count == 1)
             #expect(try Favourite.fetchCount(db) == 2)

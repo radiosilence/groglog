@@ -23,6 +23,9 @@ struct LogOptionsSheet: View {
     /// What this round cost, when it differs from the usual price. Nil follows the drink and the size, so picking
     /// a different one does not carry over the previous one's price.
     @State private var price: Double?
+    /// The strength this round is logged at, when it differs from the drink's: a guest ale is logged as Beer at the
+    /// pump clip's figure without making a drink of it. Nil follows the drink, so it resets when another is picked.
+    @State private var abv: Double?
 
     init(base: Serve, day: DayKey, ledger: Ledger, after last: Date?, onLog: @escaping (String) -> Void) {
         self.base = base
@@ -38,12 +41,20 @@ struct LogOptionsSheet: View {
         let choices = self.choices
         let choice = choices.first { $0.id == selected } ?? choices[0]
         let usualPrice = usualPrice(for: choice)
+        let strength = abv ?? choice.abv
         let pinned = Set(favourites.filter { $0.favourite.vessel == size.vessel && $0.favourite.volumeMl == size.ml }.map(\.drink.id))
 
         NavigationStack {
             Form {
                 Section {
                     ChipRow(options: base.drink.sizes(including: ServeSize(base.vessel, base.volumeMl)), selection: $size) { $0.label }
+                    if base.drink.category != .units {
+                        NumberRow(label: "Strength", value: Binding(get: { strength }, set: { abv = $0 }), suffix: "% ABV")
+                        NumberRow(label: "Units each", value: Binding(
+                            get: { (Units.of(ml: size.ml, abv: strength) * 10).rounded() / 10 },
+                            set: { abv = $0 * 1000 / size.ml }
+                        ), suffix: "u")
+                    }
                     // Placed under the size, since the size sets the price. Re-created when the drink or the size
                     // changes, so it shows the new usual price.
                     MoneyField(label: "Price", value: Binding(get: { price ?? usualPrice }, set: { price = $0 }), currency: prefs.currency)
@@ -83,7 +94,7 @@ struct LogOptionsSheet: View {
             // empty gap under it.
             .contentMargins(.top, 8, for: .scrollContent)
             .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Find a drink")
-            .onChange(of: selected) { price = nil }
+            .onChange(of: selected) { price = nil; abv = nil }
             .onChange(of: size) { price = nil }
             .navigationTitle(base.drink.name)
             .navigationBarTitleDisplayMode(.inline)
@@ -92,10 +103,10 @@ struct LogOptionsSheet: View {
                     Button("Cancel", role: .cancel) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Log \(count > 1 ? "\(count) " : "")· \((Units.of(ml: size.ml, abv: choice.abv) * Double(count)).unitsText) u", role: .confirm) {
+                    Button("Log \(count > 1 ? "\(count) " : "")· \((Units.of(ml: size.ml, abv: strength) * Double(count)).unitsText) u", role: .confirm) {
                         guard let drink = resolve(choice) else { return }
                         let serve = Serve(drink, size.vessel, size.ml, price: price ?? usualPrice)
-                        database.logbook(prefs).log(serve, at: spreadTimes)
+                        database.logbook(prefs).log(serve, at: spreadTimes, abv: strength)
                         onLog(serve.id)
                         dismiss()
                     }

@@ -263,7 +263,8 @@ nonisolated enum Exporter {
                         let drink = try pour.drinkID.flatMap { drinkIDs[$0] }.flatMap { try Drink.fetchOne(db, key: $0) }
                             ?? logbook.findOrCreate(name: pour.name, category: category, abv: pour.abv ?? category.defaultABV, vessel: vessel, volumeMl: volume, db)
                         let kcal = drink.category == .units ? pour.kcal : nil
-                        try Pour(id: id, drinkId: drink.id, timestamp: time, day: day.number, vessel: vessel, volumeMl: volume, price: pour.price ?? 0, kcalOverride: kcal).insert(db)
+                        let abv = pour.abv.flatMap { $0 == drink.abv ? nil : $0 }
+                        try Pour(id: id, drinkId: drink.id, timestamp: time, day: day.number, vessel: vessel, volumeMl: volume, price: pour.price ?? 0, kcalOverride: kcal, abvOverride: abv).insert(db)
                     } else {
                         let drink = try logbook.unitsDrink(db)
                         try Pour(id: id, drinkId: drink.id, timestamp: time, day: day.number, vessel: .shot, volumeMl: (pour.units ?? 0) * 10, price: pour.price ?? 0, kcalOverride: pour.kcal).insert(db)

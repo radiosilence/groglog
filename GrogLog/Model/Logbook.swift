@@ -16,11 +16,13 @@ nonisolated struct Logbook: Sendable {
 
     // MARK: Entries
 
-    func log(_ serve: Serve, at times: [Date]) {
+    /// `abv` logs these at a strength of their own, leaving the drink as it is.
+    func log(_ serve: Serve, at times: [Date], abv: Double? = nil) {
         defer { mirror(Set(times.map { clock.day(for: $0) })) }
+        let abvOverride = abv == serve.drink.abv ? nil : abv
         write { db in
             for time in times {
-                try Pour(drinkId: serve.drink.id, timestamp: time, day: clock.day(for: time).number, vessel: serve.vessel, volumeMl: serve.volumeMl, price: serve.price).insert(db)
+                try Pour(drinkId: serve.drink.id, timestamp: time, day: clock.day(for: time).number, vessel: serve.vessel, volumeMl: serve.volumeMl, price: serve.price, abvOverride: abvOverride).insert(db)
             }
             if let latest = times.max() {
                 try Favourite
