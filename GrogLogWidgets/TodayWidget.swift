@@ -109,10 +109,7 @@ struct TodayView: View {
             Label(inline, systemImage: entry.isDry ? "checkmark.circle" : "mug.fill")
         default:
             VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .firstTextBaseline, spacing: 3) {
-                    Text(entry.units.unitsText).font(.system(.title, design: .rounded, weight: .bold))
-                    Text("units").font(.system(.subheadline, design: .rounded, weight: .semibold))
-                }
+                Text(entry.units.unitsText).font(.system(.title, design: .rounded, weight: .bold))
                 Text(entry.detail).font(.caption).foregroundStyle(.secondary)
                 if let left = entry.left {
                     DrainBar(left: left, color: entry.heat).frame(height: 5)
@@ -124,10 +121,11 @@ struct TodayView: View {
         }
     }
 
+    /// The Lock Screen is seen by anyone near the phone, so its widgets give the figures without naming what they count.
     private var inline: String {
         if entry.isDry { return "Dry today" }
-        guard let budget = entry.budget else { return "\(entry.units.unitsText) u today" }
-        return "\(entry.units.unitsText) of \(budget.unitsText) u"
+        guard let budget = entry.budget else { return "\(entry.units.unitsText) today" }
+        return "\(entry.units.unitsText) of \(budget.unitsText)"
     }
 }
 
@@ -273,9 +271,11 @@ private struct DrainRing: View {
                     .font(.system(.title3, design: .rounded, weight: .bold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
-                Text(entry.units > (entry.budget ?? .infinity) ? "over" : "units")
-                    .font(.system(size: 9, weight: .semibold, design: .rounded))
-                    .textCase(.uppercase)
+                if entry.units > (entry.budget ?? .infinity) {
+                    Text("over")
+                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                        .textCase(.uppercase)
+                }
             }
             .padding(.horizontal, 8)
         }
