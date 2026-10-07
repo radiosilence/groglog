@@ -44,7 +44,7 @@ struct DrinkEditor: View {
 
                 if draft.category != .units {
                     Section {
-                        ChipRow(options: draft.category.sizes(including: size.wrappedValue), selection: size) { $0.label }
+                        ChipRow(options: draft.sizes(including: size.wrappedValue), selection: size) { $0.label }
                         MoneyField(label: "Price", value: $draft.price, currency: prefs.currency)
                     } header: {
                         Text("Usual size")

@@ -119,11 +119,6 @@ nonisolated enum DrinkCategory: String, CaseIterable, Codable, Identifiable {
         return sizes.map(ServeSize.init)
     }
 
-    /// The usual sizes, led by `size` when it is not among them.
-    func sizes(including size: ServeSize) -> [ServeSize] {
-        serves.contains(size) ? serves : [size] + serves
-    }
-
     /// "Pint · 4.6%" or "440 ml can · 5%", or "any amount" for bare unit counts.
     func serving(_ vessel: Vessel, ml: Double, abv: Double) -> String {
         self == .units ? "any amount" : "\(vessel.label(ml: ml)) · \(abv.formatted(.number.precision(.fractionLength(0...1))))%"

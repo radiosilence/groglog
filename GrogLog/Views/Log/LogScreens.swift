@@ -83,7 +83,7 @@ struct PourEditor: View {
                         NumberRow(label: "Units", value: Binding(get: { volume / 10 }, set: { volume = $0 * 10 }), suffix: "u")
                     } else {
                         let size = ServeSize(vessel, volume)
-                        ChipRow(options: entry.category.sizes(including: size), selection: Binding(get: { size }, set: { vessel = $0.vessel; volume = $0.ml })) { $0.label }
+                        ChipRow(options: entry.drink.sizes(including: size), selection: Binding(get: { size }, set: { vessel = $0.vessel; volume = $0.ml })) { $0.label }
                         NumberRow(label: "Size", value: $volume, suffix: "ml")
                     }
                     MoneyField(label: "Price", value: $price, currency: prefs.currency)

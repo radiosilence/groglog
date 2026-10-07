@@ -2,7 +2,7 @@ import GRDBQuery
 import SwiftUI
 
 /// Long-press on a tile: which drink exactly (one of the user's, or a UK brand of the same type), with a star to keep
-/// it on the Log grid at this size. The size starts as the tile's and can be overridden from the type's usual sizes.
+/// it on the Log grid at this size. The size starts as the tile's and can be overridden from the drink's usual sizes.
 struct LogOptionsSheet: View {
     let base: Serve
     let day: DayKey
@@ -43,7 +43,7 @@ struct LogOptionsSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    ChipRow(options: base.drink.category.sizes(including: ServeSize(base.vessel, base.volumeMl)), selection: $size) { $0.label }
+                    ChipRow(options: base.drink.sizes(including: ServeSize(base.vessel, base.volumeMl)), selection: $size) { $0.label }
                     // Placed under the size, since the size sets the price. Re-created when the drink or the size
                     // changes, so it shows the new usual price.
                     MoneyField(label: "Price", value: Binding(get: { price ?? usualPrice }, set: { price = $0 }), currency: prefs.currency)

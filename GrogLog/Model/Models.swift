@@ -23,6 +23,15 @@ nonisolated struct Drink: Codable, Hashable, Identifiable, Sendable, FetchableRe
         if let known = Catalog.price(name: name, category: category, vessel: vessel, ml: ml) { return known }
         return price * ml / volumeMl
     }
+
+    /// The sizes to offer, led by `size` when it is not among them: the catalogue's sizes for this drink, then its
+    /// type's usual sizes. A type's sizes are a default, so Buckfast is offered in the 750 ml bottle it is sold in
+    /// as well as the fortified-wine pours.
+    func sizes(including size: ServeSize) -> [ServeSize] {
+        var seen = Set<ServeSize>()
+        let usual = (Catalog.sizes(name: name, category: category) + category.serves).filter { seen.insert($0).inserted }
+        return usual.contains(size) ? usual : [size] + usual
+    }
 }
 
 /// A drink in a particular size, pinned to the Log grid with its usual price.

@@ -1460,6 +1460,11 @@ nonisolated enum Catalog {
         byKey[key(name, category)]?.abv == abv
     }
 
+    /// The sizes a drink of this name and kind is listed in, or none for a drink the catalogue does not know.
+    static func sizes(name: String, category: DrinkCategory) -> [ServeSize] {
+        byKey[key(name, category)]?.sizes ?? []
+    }
+
     /// The normal price of a drink of this name in this size: a brand's own price, else a generic's starting price.
     /// Nil when unknown, so callers can distinguish unpriced from free.
     static func price(name: String, category: DrinkCategory, vessel: Vessel, ml: Double, currency: String = currency) -> Double? {
