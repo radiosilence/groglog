@@ -1,0 +1,1 @@
+- **Drag across a progress chart to read a day.** Hold and drag on Weekly or Monthly progress to see that day's units, its budget, and whether it was dry or not logged.

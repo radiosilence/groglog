@@ -39,7 +39,7 @@ struct DayChart: View {
         let at = nowHour ?? 24
 
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 14) {
+            LegendRow(spacing: 14) {
                 Text(nowHour == nil ? "End of day" : "By \(now.formatted(.dateTime.hour().minute()))")
                     .foregroundStyle(.secondary)
                 ForEach(series) { s in
@@ -60,7 +60,7 @@ struct DayChart: View {
                 hours: stride(from: from, through: 24, by: 3).map { (x: $0, label: clock.hourLabel($0)) }
             )
 
-            HStack(spacing: 16) {
+            LegendRow {
                 ForEach(series.filter { !$0.points.isEmpty }) { s in
                     LegendKey(label: s.name, color: s.color, dashed: s.dashed)
                 }
@@ -125,6 +125,12 @@ private struct DayPlot: View, Equatable {
             }
         }
         .frame(height: 200)
+        // The marks are points along running totals, which read out one by one as a list of fractions of an hour; where
+        // each line stands now says more.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Running total through the day")
+        .accessibilityValue(series.compactMap { s in s.value(at: nowHour ?? 24).map { "\(s.name) \($0.unitsText) units" } }.joined(separator: ", ")
+            + (budget.map { ", budget \($0.unitsText)" } ?? ""))
     }
 }
 

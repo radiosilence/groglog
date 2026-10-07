@@ -5,6 +5,8 @@
 ### Added
 
 - **Inch's in a 440 ml can,** at the 4-pack's per-can price.
+- **Accessibility.** Drink tiles, calendar days and the charts read their figures to VoiceOver; larger text sizes reflow the drink grid, totals and legends instead of clipping; with Differentiate Without Colour on, over-budget days are marked with a symbol as well as a colour.
+- **Drag across a progress chart to read a day.** Hold and drag on Weekly or Monthly progress to see that day's units, its budget, and whether it was dry or not logged.
 
 ### Changed
 

@@ -207,6 +207,8 @@ private struct ProgressCard: View {
     /// Held here rather than passed to the chart once: the chart is redrawn every minute for the "now" rule, and one
     /// given only a starting position returns to the start of its range each time.
     @State private var scrolledTo: Date?
+    /// Where a drag across the chart has reached, to read that day's figures out.
+    @State private var selected: Date?
 
     init(title: String, days: Double, history: Int, ledger: Ledger, goal: Goal, nights: Nights, heart: HeartLines, onSetGoal: @escaping () -> Void) {
         self.title = title
@@ -239,11 +241,30 @@ private struct ProgressCard: View {
         let sofar = ledger.totals(on: today).units
         let drank = past.compactMap { day -> DayBar? in
             let noon = day.date(in: calendar).addingTimeInterval(12 * 3600)
-            let heat = { Color.heat(units: $0, budget: ledger.dailyBudget(on: day, goal: goal)) }
-            if day == today { return DayBar(date: noon, units: sofar, partial: true, heat: heat(sofar)) }
+            let budget = ledger.dailyBudget(on: day, goal: goal)
+            let bar = { (units: Double, partial: Bool) in
+                DayBar(date: noon, units: units, partial: partial, budget: budget, heat: .heat(units: units, budget: budget), band: HeatBand(units: units, budget: budget))
+            }
+            if day == today { return bar(sofar, true) }
             guard ledger.isLogged(day) else { return nil }
+            return bar(ledger.totals(on: day).units, false)
+        }
+        // The day under the drag, read from the log rather than off the bars, so a dry day and a day never logged
+        // say which they are.
+        let readout = selected.map { date -> DayReadout in
+            let day = DayKey(date, in: calendar)
             let units = ledger.totals(on: day).units
-            return DayBar(date: noon, units: units, partial: false, heat: heat(units))
+            let budget = ledger.dailyBudget(on: day, goal: goal)
+            let drank: String? = switch ledger.status(on: day) {
+            case .drank: "\(units.unitsText) u\(day == today ? " so far" : "")\(budget.map { ", \(HeatBand(units: units, budget: $0).spoken)" } ?? "")"
+            case .alcoholFree: "Dry"
+            case .today: "Nothing yet"
+            case .unlogged, .untracked: "Not logged"
+            case .future: nil
+            }
+            let limit = budget.map { "\(day > today ? "Plan" : "Budget") \($0.unitsText) u" }
+            return DayReadout(date: noon(day), title: day.date(in: calendar).formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)),
+                              lines: [drank, limit].compactMap(\.self))
         }
         // Every day's budget sits at its own noon, so each day's decay spans the same width. Placing today's
         // point on the "now" rule would stretch the segment before it and squash the one after, each still
@@ -294,7 +315,7 @@ private struct ProgressCard: View {
             .foregroundStyle(.secondary)
             let drawn = hearts.filter { $0.reading == HeartLegend.drawn(shownHeart, in: hearts) }
             ProgressPlot(drank: drank, behind: behind, ahead: ahead, heart: drawn, heartScale: HeartScale(drawn, top: top), dots: heart == .nightly,
-                         now: now, top: top, days: days,
+                         now: now, top: top, days: days, readout: readout, selection: $selected,
                          x: Binding(get: { scrolledTo ?? (today - (days - 4)).date(in: calendar) }, set: { scrolledTo = $0 }))
             // Simultaneous, or the chart's own scrolling swallows it and nothing zooms.
             .simultaneousGesture(
@@ -305,7 +326,7 @@ private struct ProgressCard: View {
                     }
             )
 
-            HStack(spacing: 16) {
+            LegendRow {
                 LegendKey(label: "Drank", color: .grog, bar: true, ramp: [.dry, .grog, .over])
                 if goal.isEnabled {
                     LegendKey(label: "Budget", color: .dry)
@@ -348,7 +369,15 @@ private struct DayBar: Equatable {
     let date: Date
     let units: Double
     let partial: Bool
+    let budget: Double?
     let heat: Color
+    let band: HeatBand
+}
+
+private struct DayReadout: Equatable {
+    let date: Date
+    let title: String
+    let lines: [String]
 }
 
 private struct BudgetPoint: Equatable {
@@ -369,11 +398,15 @@ private struct ProgressPlot: View, Equatable {
     let now: Date
     let top: Double
     let days: Int
+    let readout: DayReadout?
+    @Binding var selection: Date?
     @Binding var x: Date
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiate
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.drank == rhs.drank && lhs.behind == rhs.behind && lhs.ahead == rhs.ahead && lhs.heart == rhs.heart
             && lhs.heartScale == rhs.heartScale && lhs.dots == rhs.dots && lhs.now == rhs.now && lhs.top == rhs.top && lhs.days == rhs.days
+            && lhs.readout == rhs.readout
     }
 
     var body: some View {
@@ -383,11 +416,19 @@ private struct ProgressPlot: View, Equatable {
                 BarMark(x: .value("When", point.date, unit: .day), y: .value("Units", point.units))
                     .foregroundStyle(point.heat.opacity(point.partial ? 0.45 : 1))
                     .cornerRadius(3)
+                    .annotation(position: .top, spacing: 2) {
+                        if differentiate, let symbol = point.band.symbol {
+                            Image(systemName: symbol).font(.caption2.bold()).foregroundStyle(point.heat)
+                        }
+                    }
+                    .accessibilityLabel(point.date.formatted(.dateTime.weekday(.wide).day().month(.wide)))
+                    .accessibilityValue("\(point.units.unitsText) units\(point.partial ? " so far" : "")\(point.budget.map { ", budget \($0.unitsText), \(point.band.spoken)" } ?? "")")
             }
             ForEach(behind, id: \.date) { point in
                 LineMark(x: .value("Day", point.date), y: .value("Units", point.units), series: .value("Line", "Budget"))
                     .foregroundStyle(Color.dry)
                     .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                    .accessibilityHidden(true)
             }
             // Straight between days, like the solid half: a spline through a decaying curve leaves its
             // first point steeper than the chord, which would kink the line downwards at today.
@@ -395,23 +436,47 @@ private struct ProgressPlot: View, Equatable {
                 LineMark(x: .value("Day", point.date), y: .value("Units", point.units), series: .value("Line", "Ahead"))
                     .foregroundStyle(Color.dry)
                     .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round, dash: [4, 4]))
+                    .accessibilityLabel("Plan, \(point.date.formatted(.dateTime.weekday(.wide).day().month(.wide)))")
+                    .accessibilityValue("\(point.units.unitsText) units")
             }
             if let heartScale {
                 ForEach(heart) { point in
                     LineMark(x: .value("Day", point.date), y: .value("Units", heartScale.y(point.value)), series: .value("Line", point.series))
                         .foregroundStyle(point.reading.color.opacity(point.bridge ? 0.6 : 1))
                         .lineStyle(StrokeStyle(lineWidth: point.bridge ? 1.5 : 2, lineCap: .round, lineJoin: .round, dash: point.bridge ? [3, 4] : []))
+                        .accessibilityLabel("\(point.reading.rawValue), \(point.date.formatted(.dateTime.weekday(.wide).day().month(.wide)))")
+                        .accessibilityValue("\(Int(point.value.rounded())) \(point.reading.unit)")
+                        .accessibilityHidden(point.bridge)
                     if !point.bridge, dots || point.alone {
                         PointMark(x: .value("Day", point.date), y: .value("Units", heartScale.y(point.value)))
                             .foregroundStyle(point.reading.color)
                             .symbolSize(24)
+                            .accessibilityHidden(true)
                     }
                 }
             }
             RuleMark(x: .value("Today", now))
                 .foregroundStyle(Color.secondary.opacity(0.7))
                 .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
+                .accessibilityHidden(true)
+            if let readout {
+                RuleMark(x: .value("Selected", readout.date))
+                    .foregroundStyle(Color.secondary.opacity(0.5))
+                    .lineStyle(StrokeStyle(lineWidth: 1))
+                    .annotation(position: .top, spacing: 0, overflowResolution: .init(x: .fit(to: .chart), y: .fit(to: .chart))) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(readout.title).font(.caption.weight(.semibold))
+                            ForEach(readout.lines, id: \.self) { Text($0) }
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(8)
+                        .background(.regularMaterial, in: .rect(cornerRadius: 10))
+                    }
+                    .accessibilityHidden(true)
+            }
         }
+        .chartXSelection(value: $selection)
         .chartYScale(domain: 0...top)
         .chartYAxis {
             AxisMarks(position: .leading)
@@ -465,7 +530,7 @@ private struct SleepCard: View {
                     .foregroundStyle(.secondary)
             }
             SleepPlot(bars: bars, drank: drank, x: Binding(get: { scrolledTo ?? (today - 13).date(in: calendar) }, set: { scrolledTo = $0 }))
-            HStack(spacing: 12) {
+            LegendRow(spacing: 12) {
                 ForEach([SleepBar.Stage.deep, .core, .rem, .awake], id: \.self) { LegendKey(label: $0.label, color: $0.color, bar: true) }
                 LegendKey(label: "Drank", color: .grog)
             }
@@ -551,14 +616,19 @@ private struct SleepPlot: View, Equatable {
             ForEach(Array(bars.enumerated()), id: \.offset) { _, bar in
                 BarMark(x: .value("Night", bar.date, unit: .day), y: .value("Hours", bar.hours))
                     .foregroundStyle(bar.stage.color)
+                    .accessibilityLabel("\(bar.stage.label), night of \(bar.date.formatted(.dateTime.weekday(.wide).day().month(.wide)))")
+                    .accessibilityValue(SleepCard.duration(bar.hours * 3600))
             }
             ForEach(drank, id: \.date) { point in
                 LineMark(x: .value("Night", point.date), y: .value("Hours", y(point.units)), series: .value("Line", "Drank"))
                     .foregroundStyle(Color.grog)
                     .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                    .accessibilityLabel("Drank, \(point.date.formatted(.dateTime.weekday(.wide).day().month(.wide)))")
+                    .accessibilityValue("\(point.units.unitsText) units")
                 PointMark(x: .value("Night", point.date), y: .value("Hours", y(point.units)))
                     .foregroundStyle(Color.grog)
                     .symbolSize(20)
+                    .accessibilityHidden(true)
             }
         }
         .chartYScale(domain: 0...top)
@@ -586,6 +656,7 @@ private struct WeekCard: View {
     let ledger: Ledger
     let goal: Goal
     @Query<EntriesRequest> private var entries: [Entry]
+    @ScaledMetric(relativeTo: .largeTitle) private var figure = 40.0
 
     init(ledger: Ledger, goal: Goal) {
         self.ledger = ledger
@@ -610,7 +681,9 @@ private struct WeekCard: View {
         Card(title: "This week") {
             HStack(alignment: .firstTextBaseline) {
                 Text(now.unitsText)
-                    .font(.system(size: 40, weight: .bold, design: .rounded))
+                    .font(.system(size: figure, weight: .bold, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
                 Text("units").foregroundStyle(.secondary)
                 Spacer()
                 if let lastWeek, lastWeek > 0 {
@@ -629,7 +702,7 @@ private struct WeekCard: View {
             WeekPlot(earlier: earlier, budget: budget, current: current,
                      weekdays: (0...6).map { (start + $0).date(in: clock.calendar).formatted(.dateTime.weekday(.abbreviated)) })
 
-            HStack(spacing: 16) {
+            LegendRow {
                 LegendKey(label: "This week", color: .grog)
                 LegendKey(label: "Earlier weeks", color: .gray.opacity(0.4))
                 if !budget.isEmpty { LegendKey(label: "Budget", color: .dry, dashed: true) }
@@ -681,6 +754,10 @@ private struct WeekPlot: View, Equatable {
             }
         }
         .frame(height: 200)
+        // The marks are points along a running total, which read out one by one as a list of fractions of a day.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Running total this week")
+        .accessibilityValue("\((current.last?.units ?? 0).unitsText) units so far\(budget.last.map { ", week's budget \($0.units.unitsText)" } ?? "")")
     }
 }
 
@@ -688,6 +765,7 @@ private struct WeekPlot: View, Equatable {
 private struct MonthCard: View {
     let ledger: Ledger
     @Query<EntriesRequest> private var entries: [Entry]
+    @ScaledMetric(relativeTo: .largeTitle) private var figure = 40.0
 
     init(ledger: Ledger) {
         self.ledger = ledger
@@ -712,7 +790,9 @@ private struct MonthCard: View {
         Card(title: "This month") {
             HStack(alignment: .firstTextBaseline) {
                 Text(now.unitsText)
-                    .font(.system(size: 40, weight: .bold, design: .rounded))
+                    .font(.system(size: figure, weight: .bold, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
                 Text("units").foregroundStyle(.secondary)
                 Spacer()
                 if comparable, lastAtSameDay > 0 {
@@ -730,7 +810,7 @@ private struct MonthCard: View {
 
             MonthPlot(previous: hasLastMonth ? previous : [], current: current, dayOfMonth: dayOfMonth)
 
-            HStack(spacing: 16) {
+            LegendRow {
                 LegendKey(label: thisMonth.date(in: calendar).formatted(.dateTime.month(.wide)), color: .grog)
                 if hasLastMonth {
                     LegendKey(label: lastMonth.date(in: calendar).formatted(.dateTime.month(.wide)), color: .gray.opacity(0.4))
@@ -774,6 +854,9 @@ private struct MonthPlot: View, Equatable {
             AxisMarks(values: [1, 8, 15, 22, 29]) { AxisGridLine(); AxisValueLabel() }
         }
         .frame(height: 200)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Running total this month")
+        .accessibilityValue("\((current.last?.units ?? 0).unitsText) units so far\(previous.last.map { ", last month \($0.units.unitsText)" } ?? "")")
     }
 }
 
@@ -807,7 +890,7 @@ private struct WeeksCard: View {
                       x: Binding(get: { scrolledTo ?? (stats.last!.start - 7 * (weeks - 1)).date(in: calendar) }, set: { scrolledTo = $0 }))
                 .onChange(of: weeks) { scrolledTo = nil }
 
-            HStack(spacing: 16) {
+            LegendRow {
                 LegendKey(label: "Units", color: .grog)
                 LegendKey(label: "Budget", color: .dry)
                 Spacer()
@@ -824,6 +907,7 @@ private struct WeeksPlot: View, Equatable {
     let weeks: Int
     let calendar: Calendar
     @Binding var x: Date
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiate
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.stats == rhs.stats && lhs.heart == rhs.heart && lhs.weeks == rhs.weeks && lhs.calendar == rhs.calendar
@@ -834,20 +918,30 @@ private struct WeeksPlot: View, Equatable {
         let heartScale = HeartScale(heart, top: top)
         Chart {
             ForEach(stats) { week in
+                let over = week.budget.map { week.totals.units > $0 } == true
                 BarMark(x: .value("Week", week.start.date(in: calendar), unit: .weekOfYear), y: .value("Units", week.totals.units))
-                    .foregroundStyle(week.budget.map { week.totals.units > $0 } == true ? Color.over.gradient : Color.grog.gradient)
+                    .foregroundStyle(over ? Color.over.gradient : Color.grog.gradient)
                     .clipShape(.rect(cornerRadius: 4))
+                    .annotation(position: .top, spacing: 2) {
+                        if differentiate, over {
+                            Image(systemName: "exclamationmark").font(.caption2.bold()).foregroundStyle(Color.over)
+                        }
+                    }
+                    .accessibilityLabel("Week of \(week.start.date(in: calendar).formatted(.dateTime.day().month(.wide)))")
+                    .accessibilityValue("\(week.totals.units.unitsText) units\(week.budget.map { ", budget \($0.unitsText)\(over ? ", over budget" : "")" } ?? "")")
             }
             ForEach(stats.filter { $0.budget != nil }) { week in
                 LineMark(x: .value("Week", week.start.date(in: calendar), unit: .weekOfYear), y: .value("Budget", week.budget!))
                     .interpolationMethod(.stepCenter)
                     .foregroundStyle(Color.dry)
                     .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                    .accessibilityHidden(true)
             }
             if let thisWeek = stats.last?.start.date(in: calendar) {
                 RuleMark(x: .value("This week", thisWeek.addingTimeInterval(3 * 24 * 3600)))
                     .foregroundStyle(Color.secondary.opacity(0.7))
                     .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
+                    .accessibilityHidden(true)
             }
             RuleMark(y: .value("Guideline", Units.weeklyGuideline))
                 .foregroundStyle(.secondary.opacity(0.6))
@@ -861,10 +955,14 @@ private struct WeeksPlot: View, Equatable {
                     LineMark(x: .value("Week", point.date, unit: .weekOfYear), y: .value("Units", heartScale.y(point.value)), series: .value("Line", point.series))
                         .foregroundStyle(point.reading.color.opacity(point.bridge ? 0.6 : 1))
                         .lineStyle(StrokeStyle(lineWidth: (point.reading == .resting ? 2.5 : 1.5) * (point.bridge ? 0.6 : 1), lineCap: .round, lineJoin: .round, dash: point.bridge ? [3, 4] : []))
+                        .accessibilityLabel("\(point.reading.rawValue), week of \(point.date.formatted(.dateTime.day().month(.wide)))")
+                        .accessibilityValue("\(Int(point.value.rounded())) \(point.reading.unit)")
+                        .accessibilityHidden(point.bridge)
                     if !point.bridge, point.alone {
                         PointMark(x: .value("Week", point.date, unit: .weekOfYear), y: .value("Units", heartScale.y(point.value)))
                             .foregroundStyle(point.reading.color)
                             .symbolSize(30)
+                            .accessibilityHidden(true)
                     }
                 }
             }
@@ -886,6 +984,7 @@ private struct SummaryTiles: View {
     let stats: [WeekStat]
     let days: ClosedRange<DayKey>
     let currency: String
+    @Environment(\.dynamicTypeSize) private var size
 
     var body: some View {
         let totals = stats.reduce(DayTotals()) { $0 + $1.totals }
@@ -894,7 +993,8 @@ private struct SummaryTiles: View {
         // Complete weeks only: this one is still being drunk.
         let average = stats.count > 1 ? ledger.weeklyAverage(over: stats[0].start...(stats[stats.count - 1].start - 1)) : nil
 
-        LazyVGrid(columns: [GridItem(spacing: 12), GridItem(spacing: 12)], spacing: 12) {
+        // One column at the accessibility sizes, where two leave each figure too narrow to read.
+        LazyVGrid(columns: Array(repeating: GridItem(spacing: 12), count: size.isAccessibilitySize ? 1 : 2), spacing: 12) {
             Tile(title: "Average week", value: average.map { "\($0.unitsText) u" } ?? "—")
             Tile(title: "Dry streak", value: "\(ledger.dryStreak()) days", detail: "Best \(ledger.longestDryStreak(in: days))", tint: .dry)
             Tile(title: "Dry days", value: "\(dry) of \(days.count)", tint: .dry)
@@ -966,6 +1066,7 @@ private struct WeekdayPlot: View, Equatable {
                 BarMark(x: .value("Day", bar.label), y: .value("Units", bar.average))
                     .foregroundStyle(Color.grog.opacity(bar.isToday ? 1 : 0.45).gradient)
                     .clipShape(.rect(cornerRadius: 4))
+                    .accessibilityValue("\(bar.average.unitsText) units on average")
             }
         }
         .chartYAxis { AxisMarks(position: .leading) }

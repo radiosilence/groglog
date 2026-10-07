@@ -16,13 +16,15 @@ struct UnitsSheet: View {
         _time = State(initialValue: time)
     }
 
+    @ScaledMetric(relativeTo: .largeTitle) private var figure = 52.0
+
     var body: some View {
         NavigationStack {
             Form {
                 Section {
                     HStack(alignment: .firstTextBaseline) {
                         TextField("0", value: $units, format: .number)
-                            .font(.system(size: 52, weight: .bold, design: .rounded))
+                            .font(.system(size: figure, weight: .bold, design: .rounded))
                             .keyboardType(.decimalPad)
                             .focused($focused)
                             .keypadDone($focused)

@@ -1,0 +1,1 @@
+- **Accessibility.** Drink tiles, calendar days and the charts read their figures to VoiceOver; larger text sizes reflow the drink grid, totals and legends instead of clipping; with Differentiate Without Colour on, over-budget days are marked with a symbol as well as a colour.
