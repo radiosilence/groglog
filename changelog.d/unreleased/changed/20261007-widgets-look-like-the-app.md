@@ -1,0 +1,1 @@
+- **The widgets look like the app.** Home Screen tiles draw each drink's glass to scale as the Log grid does, the day's total and its budget line are coloured by how the day is going, and the Lock Screen ring drains with the budget like the Day screen's bar.

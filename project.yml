@@ -69,6 +69,8 @@ targets:
       - GrogLog/Export
       - GrogLog/Intents
       - GrogLog/Views/Shared/Theme.swift
+      # Tiles draw the same vessels as the Log grid, so a pint reads as a pint at a glance.
+      - GrogLog/Views/Shared/DrinkGlyph.swift
     dependencies:
       - package: GRDB
       - package: GRDBQuery
