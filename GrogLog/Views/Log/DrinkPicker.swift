@@ -182,6 +182,12 @@ private struct DrinkTile: View {
 
     private var units: Double { Units.of(ml: volumeMl, abv: abv) }
 
+    private var spoken: String {
+        let serve: [String] = category == .units ? [] : [vessel.label(ml: volumeMl), abv.abvText, units.unitsText + " units"]
+        let logged: [String] = count > 0 ? ["\(count) logged"] : []
+        return (serve + logged).joined(separator: ", ")
+    }
+
     var body: some View {
         KeyframeAnimator(initialValue: Pour(), trigger: pulse) { pour in
             card(pour)
@@ -212,8 +218,7 @@ private struct DrinkTile: View {
         // Its own words rather than the tile's text combined, which would also read the "+2.3 u" that floats off it.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(name)
-        .accessibilityValue(([vessel.label(ml: volumeMl), abv.abvText, "\(units.unitsText) units"].filter { _ in category != .units }
-            + [count > 0 ? "\(count) logged" : nil].compactMap(\.self)).joined(separator: ", "))
+        .accessibilityValue(spoken)
         .accessibilityHint(category == .units ? "Enter a number of units" : "Logs one")
         .accessibilityAddTraits(.isButton)
     }

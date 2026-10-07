@@ -705,8 +705,13 @@ private struct WeekCard: View {
                     .foregroundStyle(.secondary)
             }
 
+            let weekBudget = budget.last.map { ", week's budget " + $0.units.unitsText } ?? ""
             WeekPlot(earlier: earlier, budget: budget, current: current,
                      weekdays: (0...6).map { (start + $0).date(in: clock.calendar).formatted(.dateTime.weekday(.abbreviated)) })
+                // The marks are points along a running total, which read out one by one as a list of fractions of a day.
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Running total this week")
+                .accessibilityValue(now.unitsText + " units so far" + weekBudget)
 
             LegendRow {
                 LegendKey(label: "This week", color: .grog)
@@ -760,10 +765,6 @@ private struct WeekPlot: View, Equatable {
             }
         }
         .frame(height: 200)
-        // The marks are points along a running total, which read out one by one as a list of fractions of a day.
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Running total this week")
-        .accessibilityValue((current.last?.units ?? 0).unitsText + " units so far" + (budget.last.map { ", week's budget " + $0.units.unitsText } ?? ""))
     }
 }
 
@@ -814,7 +815,11 @@ private struct MonthCard: View {
                     .foregroundStyle(.secondary)
             }
 
+            let lastMonthTotal = hasLastMonth ? ", last month " + (previous.last?.units ?? 0).unitsText : ""
             MonthPlot(previous: hasLastMonth ? previous : [], current: current, dayOfMonth: dayOfMonth)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Running total this month")
+                .accessibilityValue(now.unitsText + " units so far" + lastMonthTotal)
 
             LegendRow {
                 LegendKey(label: thisMonth.date(in: calendar).formatted(.dateTime.month(.wide)), color: .grog)
@@ -860,9 +865,6 @@ private struct MonthPlot: View, Equatable {
             AxisMarks(values: [1, 8, 15, 22, 29]) { AxisGridLine(); AxisValueLabel() }
         }
         .frame(height: 200)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Running total this month")
-        .accessibilityValue((current.last?.units ?? 0).unitsText + " units so far" + (previous.last.map { ", last month " + $0.units.unitsText } ?? ""))
     }
 }
 
