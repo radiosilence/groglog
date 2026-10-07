@@ -42,6 +42,15 @@ struct TodayEntry: TimelineEntry {
         return budget.map { units.leftText(of: $0) } ?? "today"
     }
 
+    /// How the day is going, in the app's colours: teal inside the budget, amber just over, red well past it.
+    var heat: Color { Color.heat(units: units, budget: budget) }
+
+    /// The share of the budget still left, 0 once it is spent, as the Day screen's budget bar drains.
+    var left: Double? {
+        guard let budget, budget > 0 else { return nil }
+        return max(0, min(1, (budget - units) / budget))
+    }
+
     /// The budget draining through the day. Once spent, the line stays at zero rather than going negative, since
     /// the detail line already reports how far over.
     var burndown: [CurvePoint] {
@@ -95,28 +104,22 @@ struct TodayView: View {
     var body: some View {
         switch family {
         case .accessoryCircular:
-            // The ring measures against the budget, so with no goal it is left out. Clamping to the guideline instead
-            // would pin it full all evening, which looks broken.
-            if let budget = entry.budget, budget > 0 {
-                Gauge(value: min(entry.units, budget), in: 0...budget) {
-                    Text("u")
-                } currentValueLabel: {
-                    Text(entry.units.unitsText)
-                }
-                .gaugeStyle(.accessoryCircularCapacity)
-            } else {
-                VStack(spacing: -2) {
-                    Text(entry.units.unitsText).font(.title2.bold())
-                    Text("units").font(.caption2)
-                }
-            }
+            DrainRing(entry: entry)
         case .accessoryInline:
             Label(inline, systemImage: entry.isDry ? "checkmark.circle" : "mug.fill")
         default:
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(entry.units.unitsText) u").font(.title2.bold())
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    Text(entry.units.unitsText).font(.system(.title, design: .rounded, weight: .bold))
+                    Text("units").font(.system(.subheadline, design: .rounded, weight: .semibold))
+                }
                 Text(entry.detail).font(.caption).foregroundStyle(.secondary)
+                if let left = entry.left {
+                    DrainBar(left: left, color: entry.heat).frame(height: 5)
+                }
             }
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -134,7 +137,8 @@ struct LogWidget: Widget {
         StaticConfiguration(kind: "cc.blit.groglog.log", provider: TodayProvider()) { entry in
             LogView(entry: entry)
                 .widgetURL(URL(string: "groglog://log"))
-                .containerBackground(.fill.tertiary, for: .widget)
+                // The Log screen's colours: grouped background, tiles as cards on it.
+                .containerBackground(Color(.systemGroupedBackground), for: .widget)
         }
         .configurationDisplayName("Log")
         .description("Your usual drinks, one tap each, against what is left of the day's budget.")
@@ -147,23 +151,32 @@ struct LogView: View {
     @Environment(\.widgetFamily) private var family
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             summary
             if family == .systemMedium, !entry.tiles.isEmpty {
-                tiles.frame(width: 168)
+                tiles.frame(width: 184)
             }
         }
     }
 
     private var summary: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("\(entry.units.unitsText) u").font(.title2.bold())
-            Text(entry.detail)
-                .font(.caption2)
+            // The Day screen's total: large, rounded, and coloured by how the day is going.
+            Text(entry.units.unitsText)
+                .font(.system(size: 40, weight: .bold, design: .rounded))
+                .foregroundStyle(entry.units > 0 ? entry.heat : .secondary)
                 .lineLimit(1)
-                .minimumScaleFactor(0.75)
+                .minimumScaleFactor(0.6)
+            Text(entry.budget == nil ? "units today" : "units")
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
             Burndown(entry: entry).padding(.top, 6)
+            Text(entry.detail)
+                .font(.caption.weight(.semibold).monospacedDigit())
+                .foregroundStyle(entry.isDry ? Color.dry : entry.units > 0 ? entry.heat : .secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -186,23 +199,28 @@ private struct Tile: View {
     var body: some View {
         Button(intent: LogDrinkIntent(serve: serve)) {
             VStack(spacing: 1) {
-                // Two lines and a scale floor: the catalogue has long names such as "Fuller's London Pride (bottle)",
-                // and a name clipped mid-word is harder to read than a small one.
+                DrinkGlyph(category: serve.category, vessel: serve.vessel, volumeMl: serve.volumeMl)
+                    .frame(maxHeight: .infinity)
+                // As on the Log grid, the name shrinks first and then truncates in the middle, where a long catalogue
+                // name such as "Fuller's London Pride (bottle)" loses the least.
                 Text(serve.name)
                     .font(.caption2.weight(.semibold))
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.7)
-                    .multilineTextAlignment(.center)
-                // The size matters as much as the name: a can and a bottle of the same beer differ by a unit.
-                Text("\(serve.shortSize) · \(serve.units.unitsText) u")
-                    .font(.system(size: 9))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                    .foregroundStyle(.secondary)
+                    .minimumScaleFactor(0.7)
+                    .truncationMode(.middle)
+                // The size matters as much as the name: a can and a bottle of the same beer differ by a unit.
+                HStack(spacing: 3) {
+                    Text(serve.shortSize).foregroundStyle(.secondary)
+                    Text("\(serve.units.unitsText) u").fontWeight(.bold).foregroundStyle(Color.grog)
+                }
+                .font(.system(size: 10).monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
             }
-            .padding(.horizontal, 3)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 5)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(.quaternary, in: .rect(cornerRadius: 10))
+            .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 14))
         }
         .buttonStyle(.plain)
     }
@@ -213,17 +231,73 @@ private struct Burndown: View {
     let entry: TodayEntry
 
     var body: some View {
+        let color = entry.heat
         Chart(entry.burndown) { point in
             AreaMark(x: .value("Hour", point.x), y: .value("Units", point.units))
-                .foregroundStyle(Color.grog.opacity(0.22))
+                .foregroundStyle(color.opacity(0.22))
+                .interpolationMethod(.stepEnd)
             LineMark(x: .value("Hour", point.x), y: .value("Units", point.units))
-                .foregroundStyle(Color.grog)
+                .foregroundStyle(color)
+                .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
                 .interpolationMethod(.stepEnd)
         }
         .chartXScale(domain: 0...24)
         .chartXAxis(.hidden)
         .chartYAxis(.hidden)
         .chartLegend(.hidden)
+    }
+}
+
+/// The day's budget as a ring that drains as drinks are logged, like the Day screen's budget bar, with the total
+/// inside. Lock Screen accessories render in one tint, so the ring's length carries the reading and the colour only
+/// repeats it where the system shows colour.
+private struct DrainRing: View {
+    let entry: TodayEntry
+
+    var body: some View {
+        ZStack {
+            AccessoryWidgetBackground()
+            // The ring measures against the budget, so with no goal it is left out. Clamping to the guideline instead
+            // would pin it full all evening, which looks broken.
+            if let left = entry.left {
+                Circle().stroke(.tertiary, lineWidth: 4).padding(3)
+                Circle()
+                    .trim(from: 0, to: left)
+                    .stroke(entry.heat, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .padding(3)
+                    .widgetAccentable()
+            }
+            VStack(spacing: -3) {
+                Text(entry.units.unitsText)
+                    .font(.system(.title3, design: .rounded, weight: .bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                Text(entry.units > (entry.budget ?? .infinity) ? "over" : "units")
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .textCase(.uppercase)
+            }
+            .padding(.horizontal, 8)
+        }
+    }
+}
+
+/// The Day screen's budget bar at Lock Screen size.
+private struct DrainBar: View {
+    let left: Double
+    let color: Color
+
+    var body: some View {
+        Capsule()
+            .fill(.tertiary)
+            .overlay(alignment: .leading) {
+                GeometryReader { proxy in
+                    Capsule()
+                        .fill(color)
+                        .frame(width: proxy.size.width * left)
+                        .widgetAccentable()
+                }
+            }
     }
 }
 
@@ -240,8 +314,14 @@ private extension Array where Element == ServeEntity {
         units: 3.5,
         budget: 4.5,
         curve: [CurvePoint(x: 0, units: 0), CurvePoint(x: 18, units: 1.2), CurvePoint(x: 20, units: 3.5), CurvePoint(x: 21, units: 3.5)],
-        tiles: []
+        tiles: [
+            Serve(Drink(name: "Staropramen", category: .beer, abv: 5, vessel: .pint, volumeMl: 568)),
+            Serve(Drink(name: "Fuller's London Pride (bottle)", category: .beer, abv: 4.7, vessel: .bottle, volumeMl: 500)),
+            Serve(Drink(name: "Red wine", category: .redWine, abv: 12, vessel: .wineGlass, volumeMl: 175)),
+            Serve(Drink(name: "Whisky", category: .spirit, abv: 40, vessel: .tumbler, volumeMl: 50)),
+        ].map(ServeEntity.init)
     )
+    TodayEntry(units: 7.2, budget: 4.5, curve: [CurvePoint(x: 0, units: 0), CurvePoint(x: 19, units: 7.2), CurvePoint(x: 22, units: 7.2)])
 }
 
 #Preview("Circular", as: .accessoryCircular) {

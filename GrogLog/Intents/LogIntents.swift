@@ -17,6 +17,10 @@ nonisolated struct ServeEntity: AppEntity {
     /// The size in short form, for a widget tile.
     var shortSize: String
     var units: Double
+    /// What a widget tile draws: the vessel at its volume, holding this kind of drink.
+    var category: DrinkCategory
+    var vessel: Vessel
+    var volumeMl: Double
 
     var displayRepresentation: DisplayRepresentation {
         DisplayRepresentation(title: "\(name)", subtitle: "\(size) · \(units.unitsText) u")
@@ -28,6 +32,9 @@ nonisolated struct ServeEntity: AppEntity {
         size = serve.vessel.label(ml: serve.volumeMl)
         shortSize = serve.vessel.shortLabel(ml: serve.volumeMl)
         units = serve.units
+        category = serve.drink.category
+        vessel = serve.vessel
+        volumeMl = serve.volumeMl
     }
 }
 
