@@ -11,6 +11,18 @@ struct GrogLogApp: App {
     /// The real log's setting, whichever log is on screen.
     private var syncing: Bool { (try? real.get())?.prefs.syncsWithICloud ?? false }
 
+    init() {
+        // A tapped field puts the cursor at the end, so a figure is corrected by deleting back rather than by
+        // hunting for the caret in the middle of "4.5". SwiftUI exposes no caret for value-formatted fields, so
+        // this is done once for every UIKit text field the app shows.
+        NotificationCenter.default.addObserver(forName: UITextField.textDidBeginEditingNotification, object: nil, queue: .main) { note in
+            guard let field = note.object as? UITextField else { return }
+            DispatchQueue.main.async {
+                field.selectedTextRange = field.textRange(from: field.endOfDocument, to: field.endOfDocument)
+            }
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             Group {

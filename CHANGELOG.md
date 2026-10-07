@@ -14,6 +14,7 @@
 - **One heart reading at a time on Reports.** HRV in ms and heart rate in bpm shared one scale and each line used a thin band of the chart; chips under each chart, in the readings' colours, choose which is drawn, on its own scale with the axis in its colour.
 - **Tapping the Day tab again returns to today.**
 - **Earlier weeks and last month are drawn faint on Reports,** fading with age as earlier days do on the Day chart.
+- **Tapping a field puts the cursor at the end,** so a figure is corrected by deleting back rather than by placing the cursor inside it.
 - **The widgets look like the app.** Home Screen tiles draw each drink's glass to scale as the Log grid does, the day's total and its budget line are coloured by how the day is going, and the Lock Screen ring drains with the budget like the Day screen's bar. Lock Screen widgets show the figures without the word "units", since anyone near the phone can read them.
 
 ### Fixed

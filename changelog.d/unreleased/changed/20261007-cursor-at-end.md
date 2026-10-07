@@ -1,0 +1,1 @@
+- **Tapping a field puts the cursor at the end,** so a figure is corrected by deleting back rather than by placing the cursor inside it.
