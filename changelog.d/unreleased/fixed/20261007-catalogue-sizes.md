@@ -1,0 +1,1 @@
+- **A drink can be logged in any size the catalogue lists for it,** not only its type's usual sizes, so Buckfast is offered in its 750 ml bottle from the long-press sheet.

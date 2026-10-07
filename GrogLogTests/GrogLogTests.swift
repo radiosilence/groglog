@@ -48,6 +48,24 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
     }
 }
 
+@Suite struct ServeSizeTests {
+    @Test func aCatalogueSizeOutsideTheTypesSizesIsOffered() {
+        let bottle = ServeSize(.wineBottle, 750)
+        #expect(!DrinkCategory.fortified.serves.contains(bottle))
+        let buckfast = Drink(name: "Buckfast", category: .fortified, abv: 15, vessel: .wineGlass, volumeMl: 50)
+        let sizes = buckfast.sizes(including: ServeSize(.wineGlass, 50))
+        #expect(sizes.contains(bottle))
+        #expect(DrinkCategory.fortified.serves.allSatisfy(sizes.contains))
+        #expect(Set(sizes).count == sizes.count)
+    }
+
+    @Test func aDrinkTheCatalogueDoesntKnowKeepsItsTypesSizes() {
+        let own = Drink(name: "Home brew", category: .fortified, abv: 15, vessel: .wineBottle, volumeMl: 750)
+        #expect(own.sizes(including: ServeSize(.wineGlass, 50)) == DrinkCategory.fortified.serves)
+        #expect(own.sizes(including: ServeSize(.wineBottle, 750)) == [ServeSize(.wineBottle, 750)] + DrinkCategory.fortified.serves)
+    }
+}
+
 @Suite struct DayKeyTests {
     @Test func roundTripsThroughCivilDates() {
         #expect(DayKey(year: 1970, month: 1, day: 1).number == 0)

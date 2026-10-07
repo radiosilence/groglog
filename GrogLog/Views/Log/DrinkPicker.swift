@@ -130,7 +130,7 @@ struct DrinkPicker: View {
                     // Every size it comes in, not only the one it was added as, so a drink found by name can
                     // be logged at any size without going through the long-press sheet.
                     let pinned = favourites.filter { $0.drink.id == drink.id }
-                    return drink.category.sizes(including: ServeSize(drink.vessel, drink.volumeMl)).map { size in
+                    return drink.sizes(including: ServeSize(drink.vessel, drink.volumeMl)).map { size in
                         pinned.first { $0.favourite.vessel == size.vessel && $0.favourite.volumeMl == size.ml }?.serve
                             ?? Serve(drink, size.vessel, size.ml)
                     }
