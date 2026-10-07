@@ -60,6 +60,7 @@ private struct WeekdayHeader: View {
             }
         }
         .font(.caption.weight(.semibold))
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .foregroundStyle(.secondary)
         .padding(.horizontal)
         .padding(.vertical, 8)
@@ -100,6 +101,8 @@ private struct MonthGrid: View {
                     )
                 }
             }
+            // Seven to a row leaves no room past this size; VoiceOver reads each day in full.
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         }
     }
 }
@@ -112,6 +115,7 @@ private struct DayCell: View, Equatable {
     let units: Double
     let budget: Double?
     let isToday: Bool
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiate
     @Environment(\.databaseContext) private var database
     @Environment(Prefs.self) private var prefs
 
@@ -132,6 +136,11 @@ private struct DayCell: View, Equatable {
                 .font(.caption2.weight(.semibold))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .opacity(status == .drank || status == .alcoholFree ? 0.85 : 0.6)
+                .overlay(alignment: .trailing) {
+                    if differentiate, status == .drank, let symbol = HeatBand(units: units, budget: budget).symbol {
+                        Image(systemName: symbol).font(.caption2.bold())
+                    }
+                }
             Spacer(minLength: 0)
             switch status {
             case .drank:
@@ -161,6 +170,9 @@ private struct DayCell: View, Equatable {
             }
         }
         .contentShape(shape)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(day.date(in: prefs.clock.calendar).formatted(.dateTime.weekday(.wide).day().month(.wide)))
+        .accessibilityValue(spoken)
 
         switch status {
         case .future:
@@ -180,6 +192,16 @@ private struct DayCell: View, Equatable {
                 .contextMenu {
                     Button("Alcohol-free", systemImage: "leaf") { database.logbook(prefs).setAlcoholFree(true, on: day) }
                 }
+        }
+    }
+
+    private var spoken: String {
+        switch status {
+        case .drank: "\(units.unitsText) units\(budget.map { ", \(HeatBand(units: units, budget: $0).spoken)" } ?? "")"
+        case .alcoholFree: "Alcohol-free"
+        case .unlogged: "Not logged"
+        case .today: "Nothing logged yet"
+        case .future, .untracked: ""
         }
     }
 }

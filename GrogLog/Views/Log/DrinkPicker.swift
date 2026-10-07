@@ -22,7 +22,8 @@ struct DrinkPicker: View {
     /// Bumped per tile each time it is logged, to play the pour.
     @State private var pulses: [String: Int] = [:]
 
-    private let columns = [GridItem(.adaptive(minimum: 104), spacing: 12)]
+    /// Grows with the text size, so the tiles go to fewer columns rather than clipping their names.
+    @ScaledMetric private var tileWidth = 104.0
 
     init(day: DayKey, ledger: Ledger) {
         self.day = day
@@ -32,6 +33,7 @@ struct DrinkPicker: View {
 
     var body: some View {
         let counts = Dictionary(grouping: pours, by: \.serveKey).mapValues(\.count)
+        let columns = [GridItem(.adaptive(minimum: tileWidth), spacing: 12)]
 
         ScrollView {
             let tiles = self.tiles
@@ -180,6 +182,12 @@ private struct DrinkTile: View {
 
     private var units: Double { Units.of(ml: volumeMl, abv: abv) }
 
+    private var spoken: String {
+        let serve: [String] = category == .units ? [] : [vessel.label(ml: volumeMl), abv.abvText, units.unitsText + " units"]
+        let logged: [String] = count > 0 ? ["\(count) logged"] : []
+        return (serve + logged).joined(separator: ", ")
+    }
+
     var body: some View {
         KeyframeAnimator(initialValue: Pour(), trigger: pulse) { pour in
             card(pour)
@@ -207,7 +215,11 @@ private struct DrinkTile: View {
             }
         }
         .contentShape(.rect(cornerRadius: 20))
-        .accessibilityElement(children: .combine)
+        // Its own words rather than the tile's text combined, which would also read the "+2.3 u" that floats off it.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(name)
+        .accessibilityValue(spoken)
+        .accessibilityHint(category == .units ? "Enter a number of units" : "Logs one")
         .accessibilityAddTraits(.isButton)
     }
 

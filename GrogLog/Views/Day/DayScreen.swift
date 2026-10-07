@@ -225,20 +225,26 @@ struct TotalsHeader: View {
     let totals: DayTotals
     let budget: Double?
     let currency: String
+    @ScaledMetric(relativeTo: .largeTitle) private var figure = 52.0
+    @Environment(\.dynamicTypeSize) private var size
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
+        // Stacked at the accessibility sizes, where the units and the kcal and cost beside them no longer fit a row.
+        let layout = size.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
+        layout {
             VStack(alignment: .leading, spacing: 0) {
                 Text(totals.units.unitsText)
-                    .font(.system(size: 52, weight: .bold, design: .rounded))
+                    .font(.system(size: figure, weight: .bold, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
                     .foregroundStyle(totals.units > 0 ? Color.heat(units: totals.units, budget: budget) : .secondary)
                     .contentTransition(.numericText(value: totals.units))
                 Text(budget.map { "units of \($0.unitsText) budget" } ?? "units")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 4) {
+            if !size.isAccessibilitySize { Spacer() }
+            VStack(alignment: size.isAccessibilitySize ? .leading : .trailing, spacing: 4) {
                 Text("\(totals.kcal.kcalText) kcal")
                 Text(totals.cost.money(currency))
             }

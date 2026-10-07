@@ -20,6 +20,34 @@ extension Color {
     }
 }
 
+/// The bands `Color.heat` shades between, for telling them apart by something other than hue: a symbol where the
+/// system asks for shapes as well as colours, and words for VoiceOver.
+enum HeatBand {
+    case within, over, wellOver
+
+    /// Well over is half as much again as the budget, where the colour is halfway from amber to red.
+    init(units: Double, budget: Double?) {
+        let limit = budget ?? Units.weeklyGuideline / 7
+        self = units <= limit ? .within : units < limit * 1.5 ? .over : .wellOver
+    }
+
+    var symbol: String? {
+        switch self {
+        case .within: nil
+        case .over: "exclamationmark"
+        case .wellOver: "exclamationmark.2"
+        }
+    }
+
+    var spoken: String {
+        switch self {
+        case .within: "within budget"
+        case .over: "over budget"
+        case .wellOver: "well over budget"
+        }
+    }
+}
+
 nonisolated extension Double {
     var unitsText: String { formatted(.number.precision(.fractionLength(1))) }
     var kcalText: String { Int(rounded()).formatted() }
@@ -60,6 +88,18 @@ struct LedgerReader<Content: View>: View {
 
     var body: some View {
         content(Ledger(days: days, clock: prefs.clock))
+    }
+}
+
+/// A chart's keys in a row, stacked at the accessibility text sizes, where a row of them runs off the card.
+struct LegendRow<Content: View>: View {
+    var spacing = 16.0
+    @ViewBuilder var content: Content
+    @Environment(\.dynamicTypeSize) private var size
+
+    var body: some View {
+        let layout = size.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6)) : AnyLayout(HStackLayout(spacing: spacing))
+        layout { content }
     }
 }
 
