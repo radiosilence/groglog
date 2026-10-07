@@ -1,0 +1,1 @@
+- **Reinstalling no longer brings back unpinned Log tiles.** A fresh install holds its starting tiles back from iCloud until the first sync has fetched, and drops them if iCloud already holds one.

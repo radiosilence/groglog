@@ -34,10 +34,12 @@ nonisolated struct SyncRecords: Sendable {
 
     // MARK: Going up
 
-    /// Every change not yet acknowledged by iCloud.
+    /// Every change not yet acknowledged by iCloud, apart from seeded tiles waiting on the first fetch.
     func pending() throws -> [Pending] {
         try writer.read { db in
-            try Row.fetchAll(db, sql: "SELECT recordName, changedAt FROM syncPending").map { row in
+            try Row.fetchAll(db, sql: """
+                SELECT recordName, changedAt FROM syncPending WHERE recordName NOT IN (SELECT recordName FROM syncSeeded)
+                """).map { row in
                 let name: String = row["recordName"]
                 return Pending(id: Self.id(name), changedAt: row["changedAt"], exists: try Self.exists(name, db))
             }
@@ -104,6 +106,12 @@ nonisolated struct SyncRecords: Sendable {
         }
     }
 
+    /// Called when a fetch from iCloud finishes. Seeded tiles that survived it are the user's grid from then on, and
+    /// are sent like any other.
+    func finishFetch() throws {
+        try writer.write { try $0.execute(sql: "DELETE FROM syncSeeded") }
+    }
+
     /// The engine's serialised state from `syncState`, or nil if this log has never synced.
     var engineState: CKSyncEngine.State.Serialization? {
         get throws {
@@ -151,6 +159,15 @@ nonisolated struct SyncRecords: Sendable {
                 guard let record = try NSKeyedUnarchiver.unarchivedObject(ofClass: CKRecord.self, from: data) else { continue }
                 try db.execute(sql: "DELETE FROM syncParked WHERE recordName = ?", arguments: [record.recordID.recordName])
                 try apply(record, touched: &touched, db)
+            }
+            // iCloud holds a grid, so this install's seeded tiles are dropped rather than added to it. They were never
+            // sent, so nothing elsewhere needs telling.
+            if modified.contains(where: { Self.kind(of: $0.recordID.recordName) == .favourite }) {
+                try db.execute(sql: """
+                    DELETE FROM favourite WHERE 'favourite-' || hex(id) IN (SELECT recordName FROM syncSeeded);
+                    DELETE FROM syncPending WHERE recordName IN (SELECT recordName FROM syncSeeded);
+                    DELETE FROM syncSeeded;
+                    """)
             }
             for (id, _) in deleted {
                 try delete(id.recordName, touched: &touched, resend: &resend, db)

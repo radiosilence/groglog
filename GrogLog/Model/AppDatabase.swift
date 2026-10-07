@@ -200,6 +200,14 @@ nonisolated struct AppDatabase: Sendable {
             try db.create(index: "pour_on_day_timestamp", on: "pour", columns: ["day", "timestamp"])
             try db.drop(index: "pour_on_day")
         }
+        // Log tiles a fresh install seeded, held back from iCloud until the first fetch finishes. A tile the user
+        // unpinned elsewhere has no record saying so, so a seeded copy would otherwise be uploaded and come back on
+        // every device. If the fetch brings in the user's own tiles, the seeded ones are dropped.
+        migrator.registerMigration("v7-sync-seeded") { db in
+            try db.create(table: "syncSeeded") { t in
+                t.primaryKey("recordName", .text)
+            }
+        }
         return migrator
     }
 }
