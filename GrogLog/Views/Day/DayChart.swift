@@ -87,6 +87,11 @@ private struct DayPlot: View, Equatable {
 
     var body: some View {
         let top = max(2, budget ?? 0, series.flatMap(\.points).map(\.units).max() ?? 0) * 1.1
+        let figures: [String] = series.compactMap { s in
+            guard let value = s.value(at: nowHour ?? 24) else { return nil }
+            return "\(s.name) \(value.unitsText) units"
+        }
+        let spoken = (figures + [budget.map { "budget \($0.unitsText)" }].compactMap(\.self)).joined(separator: ", ")
         Chart {
             ForEach(series.reversed()) { s in
                 ForEach(s.points) { point in
@@ -129,8 +134,7 @@ private struct DayPlot: View, Equatable {
         // each line stands now says more.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Running total through the day")
-        .accessibilityValue(series.compactMap { s in s.value(at: nowHour ?? 24).map { "\(s.name) \($0.unitsText) units" } }.joined(separator: ", ")
-            + (budget.map { ", budget \($0.unitsText)" } ?? ""))
+        .accessibilityValue(spoken)
     }
 }
 

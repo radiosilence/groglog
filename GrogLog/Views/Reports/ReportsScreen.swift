@@ -372,6 +372,12 @@ private struct DayBar: Equatable {
     let budget: Double?
     let heat: Color
     let band: HeatBand
+
+    var spoken: String {
+        let units = "\(units.unitsText) units\(partial ? " so far" : "")"
+        guard let budget else { return units }
+        return "\(units), budget \(budget.unitsText), \(band.spoken)"
+    }
 }
 
 private struct DayReadout: Equatable {
@@ -422,7 +428,7 @@ private struct ProgressPlot: View, Equatable {
                         }
                     }
                     .accessibilityLabel(point.date.formatted(.dateTime.weekday(.wide).day().month(.wide)))
-                    .accessibilityValue("\(point.units.unitsText) units\(point.partial ? " so far" : "")\(point.budget.map { ", budget \($0.unitsText), \(point.band.spoken)" } ?? "")")
+                    .accessibilityValue(point.spoken)
             }
             ForEach(behind, id: \.date) { point in
                 LineMark(x: .value("Day", point.date), y: .value("Units", point.units), series: .value("Line", "Budget"))
@@ -757,7 +763,7 @@ private struct WeekPlot: View, Equatable {
         // The marks are points along a running total, which read out one by one as a list of fractions of a day.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Running total this week")
-        .accessibilityValue("\((current.last?.units ?? 0).unitsText) units so far\(budget.last.map { ", week's budget \($0.units.unitsText)" } ?? "")")
+        .accessibilityValue((current.last?.units ?? 0).unitsText + " units so far" + (budget.last.map { ", week's budget " + $0.units.unitsText } ?? ""))
     }
 }
 
@@ -856,7 +862,7 @@ private struct MonthPlot: View, Equatable {
         .frame(height: 200)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Running total this month")
-        .accessibilityValue("\((current.last?.units ?? 0).unitsText) units so far\(previous.last.map { ", last month \($0.units.unitsText)" } ?? "")")
+        .accessibilityValue((current.last?.units ?? 0).unitsText + " units so far" + (previous.last.map { ", last month " + $0.units.unitsText } ?? ""))
     }
 }
 
@@ -919,6 +925,7 @@ private struct WeeksPlot: View, Equatable {
         Chart {
             ForEach(stats) { week in
                 let over = week.budget.map { week.totals.units > $0 } == true
+                let budget = week.budget.map { ", budget \($0.unitsText)" + (over ? ", over budget" : "") } ?? ""
                 BarMark(x: .value("Week", week.start.date(in: calendar), unit: .weekOfYear), y: .value("Units", week.totals.units))
                     .foregroundStyle(over ? Color.over.gradient : Color.grog.gradient)
                     .clipShape(.rect(cornerRadius: 4))
@@ -928,7 +935,7 @@ private struct WeeksPlot: View, Equatable {
                         }
                     }
                     .accessibilityLabel("Week of \(week.start.date(in: calendar).formatted(.dateTime.day().month(.wide)))")
-                    .accessibilityValue("\(week.totals.units.unitsText) units\(week.budget.map { ", budget \($0.unitsText)\(over ? ", over budget" : "")" } ?? "")")
+                    .accessibilityValue(week.totals.units.unitsText + " units" + budget)
             }
             ForEach(stats.filter { $0.budget != nil }) { week in
                 LineMark(x: .value("Week", week.start.date(in: calendar), unit: .weekOfYear), y: .value("Budget", week.budget!))
