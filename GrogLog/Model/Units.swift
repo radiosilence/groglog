@@ -4,6 +4,9 @@ nonisolated enum Units {
     /// UK units: 10 ml of pure alcohol.
     static func of(ml: Double, abv: Double) -> Double { ml * abv / 1000 }
 
+    /// Whether a typed strength is one a drink can have: above zero and at most pure alcohol.
+    static func isStrength(_ abv: Double) -> Bool { abv > 0 && abv <= 100 }
+
     /// Ethanol at 0.789 g/ml and 7 kcal/g, plus the category's non-alcohol calories.
     static func kcal(ml: Double, abv: Double, category: DrinkCategory) -> Double {
         ml * abv / 100 * 0.789 * 7 + ml * category.kcalPerMl

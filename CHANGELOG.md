@@ -6,7 +6,7 @@
 
 - **Inch's in a 440 ml can,** at the 4-pack's per-can price.
 - **Accessibility.** Drink tiles, calendar days and the charts read their figures to VoiceOver; larger text sizes reflow the drink grid, totals and legends instead of clipping; with Differentiate Without Colour on, over-budget days are marked with a symbol as well as a colour.
-- **Log a drink at its own strength.** The long-press sheet takes a strength or a unit count for that round, so a guest ale can be logged as Beer at the pump clip's figure without creating a drink for it. The drink and its other entries keep their own strength.
+- **Log a drink at its own strength.** The long-press sheet takes a strength or a unit count for that round, so a guest ale can be logged as Beer at the pump clip's figure without creating a drink for it. The drink and its other entries keep their own strength, and an entry's strength can be corrected afterwards from the Day screen.
 - **Drag across a progress chart to read a day.** Hold and drag on Weekly or Monthly progress to see that day's units, its budget, and whether it was dry or not logged.
 
 ### Changed

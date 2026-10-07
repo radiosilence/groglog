@@ -62,10 +62,11 @@ nonisolated struct Logbook: Sendable {
         }
     }
 
-    func update(_ pour: Pour, time: Date, vessel: Vessel, volumeMl: Double, price: Double) {
+    func update(_ pour: Pour, time: Date, vessel: Vessel, volumeMl: Double, price: Double, abvOverride: Double? = nil) {
         defer { mirror([pour.dayKey, clock.day(for: time)]) }
         write { db in
             var updated = pour
+            updated.abvOverride = abvOverride
             updated.timestamp = time
             updated.day = clock.day(for: time).number
             updated.vessel = vessel

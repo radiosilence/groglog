@@ -47,6 +47,7 @@ struct PourEditor: View {
     @State private var vessel: Vessel
     @State private var volume: Double
     @State private var price: Double
+    @State private var abv: Double
     @State private var editingDrink = false
 
     init(entry: Entry, day: DayKey) {
@@ -56,6 +57,7 @@ struct PourEditor: View {
         _vessel = State(initialValue: entry.vessel)
         _volume = State(initialValue: entry.volumeMl)
         _price = State(initialValue: entry.price)
+        _abv = State(initialValue: entry.abv)
     }
 
     var body: some View {
@@ -68,7 +70,7 @@ struct PourEditor: View {
                             .frame(width: 56, height: 56)
                         VStack(alignment: .leading) {
                             Text(entry.name).font(.headline)
-                            Text("\(Units.of(ml: volume, abv: entry.abv).unitsText) u")
+                            Text("\(Units.of(ml: volume, abv: abv).unitsText) u")
                                 .font(.subheadline.monospacedDigit())
                                 .foregroundStyle(.secondary)
                         }
@@ -85,6 +87,7 @@ struct PourEditor: View {
                         let size = ServeSize(vessel, volume)
                         ChipRow(options: entry.drink.sizes(including: size), selection: Binding(get: { size }, set: { vessel = $0.vessel; volume = $0.ml })) { $0.label }
                         NumberRow(label: "Size", value: $volume, suffix: "ml")
+                        NumberRow(label: "Strength", value: $abv, suffix: "% ABV")
                     }
                     MoneyField(label: "Price", value: $price, currency: prefs.currency)
                 }
@@ -103,9 +106,10 @@ struct PourEditor: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done", role: .confirm) {
-                        database.logbook(prefs).update(entry.pour, time: time, vessel: vessel, volumeMl: volume, price: price)
+                        database.logbook(prefs).update(entry.pour, time: time, vessel: vessel, volumeMl: volume, price: price, abvOverride: isUnits || abv == entry.drink.abv ? nil : abv)
                         dismiss()
                     }
+                    .disabled(!isUnits && !Units.isStrength(abv))
                 }
             }
             .sheet(isPresented: $editingDrink) { DrinkEditor(drink: entry.drink) }

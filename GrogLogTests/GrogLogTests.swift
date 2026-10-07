@@ -162,6 +162,13 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(logged.map(\.abv) == [5, 6.5])
         #expect(abs(try ledger(logbook).totals(on: day).units - Units.of(ml: 568, abv: 5) - Units.of(ml: 568, abv: 6.5)) < 0.001)
         #expect(try logbook.writer.read { try Drink.fetchOne($0, key: drink.id)?.abv } == 5)
+
+        let guest = logged[1].pour
+        logbook.update(guest, time: guest.timestamp, vessel: .pint, volumeMl: 568, price: guest.price, abvOverride: 5.8)
+        #expect(try entries(logbook, day...day).first { $0.id == guest.id }?.abv == 5.8)
+        logbook.update(guest, time: guest.timestamp, vessel: .pint, volumeMl: 568, price: guest.price)
+        #expect(try entries(logbook, day...day).allSatisfy { $0.abv == 5 })
+        #expect(!Units.isStrength(0) && !Units.isStrength(101) && Units.isStrength(5.2))
     }
 
     /// Undo takes the drink logged last, not the one drunk last: one backdated from the long-press sheet is

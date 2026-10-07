@@ -111,6 +111,7 @@ struct LogOptionsSheet: View {
                         dismiss()
                     }
                     .fontWeight(.semibold)
+                    .disabled(!Units.isStrength(strength))
                 }
             }
             .sheet(item: $editing) { DrinkEditor(drink: $0) }
