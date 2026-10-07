@@ -65,6 +65,7 @@ The log syncs through the user's private CloudKit database with `CKSyncEngine` (
 - **What is sent is read when it goes.** A pending row names a record, not an operation: if the row exists it is saved, otherwise deleted. Totals are never synced; each device works them out from the entries.
 - **One JSON payload per record.** Each record carries the row as JSON, so a new column needs no CloudKit schema change.
 - **Logs merge.** Pours, drinks and tiles have random ids, so two phones' logs combine rather than overwrite. Drinks with the same name and type (every phone seeds its own Beer) become the one with the lowest id, which every phone picks without asking the others. The later edit wins a conflict; a drink deleted on one phone while logged on another comes back.
+- **A fresh install defers to iCloud's grid.** Unpinning a tile deletes its row, so nothing records that the starting Beer can was removed. A new install's seeded tiles are therefore held back until the first fetch finishes, and dropped if that fetch brings in tiles, so a reinstall cannot put them back on every device.
 - **Nothing is deleted on the way out.** Signing out of iCloud, turning sync off or the zone disappearing leaves the phone's log alone; it goes up whole on the next sign-in.
 
 Settings that belong to the log (goal, currency, the hour the day ends) sync separately through `NSUbiquitousKeyValueStore` (`SettingsSync`); the Health switches stay per device, since each device grants its own Health permission.

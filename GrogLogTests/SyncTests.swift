@@ -13,16 +13,17 @@ private let london: Calendar = {
 private let clock = DayClock(rolloverHour: 5, calendar: london)
 
 /// One phone: its own log, seeded as a fresh install is, and the sync records over it. iCloud is played by handing
-/// one phone's outgoing records to the other.
+/// one phone's outgoing records to the other. A phone is taken to have finished its first fetch unless `fresh`.
 private struct Phone {
     let logbook: Logbook
     let records: SyncRecords
 
-    init() throws {
+    init(fresh: Bool = false) throws {
         let database = try AppDatabase.inMemory()
         logbook = Logbook(writer: database.writer, clock: clock)
         records = SyncRecords(writer: database.writer, clock: clock)
         try Seed.drinksIfNeeded(logbook)
+        if !fresh { try records.finishFetch() }
     }
 
     func drink(_ name: String) throws -> Drink {
@@ -32,6 +33,7 @@ private struct Phone {
     func pours() throws -> [Pour] { try logbook.writer.read { try Pour.fetchAll($0) } }
     func days() throws -> [Day] { try logbook.writer.read { try Day.order(Column("number")).fetchAll($0) } }
     func drinks() throws -> [Drink] { try logbook.writer.read { try Drink.fetchAll($0) } }
+    func tiles() throws -> [Favourite] { try logbook.writer.read { try Favourite.fetchAll($0) } }
 
     /// Everything this phone would send, marked as taken by iCloud.
     func send() throws -> (saved: [CKRecord], deleted: [(CKRecord.ID, String)]) {
@@ -212,5 +214,41 @@ private let evening = london.date(from: DateComponents(year: 2026, month: 9, day
         #expect(try phone.records.pending().isEmpty)
         #expect(try phone.days().map(\.costOverride) == [20, nil])
         #expect(try phone.days().map(\.isAlcoholFree) == [false, true])
+    }
+
+    @Test func aFreshInstallDoesNotBringBackATileUnpinnedElsewhere() throws {
+        let a = try Phone()
+        let beer = try a.drink("Beer")
+        let can = try #require(try a.tiles().first { $0.drinkId == beer.id && $0.vessel == .can && $0.volumeMl == 440 })
+        a.logbook.unpin(can)
+        try a.records.queueEverything()
+
+        // A reinstall seeds the can again, then syncs. Its seeded tiles wait for the fetch.
+        let b = try Phone(fresh: true)
+        try b.records.queueEverything()
+        let early = try b.send()
+        #expect(!early.saved.contains { $0.recordID.recordName.hasPrefix("favourite-") })
+        try a.receive(early)
+        try b.receive(try a.send())
+        try b.records.finishFetch()
+        try settle(a, b)
+
+        let isCan = { (tile: Favourite) in tile.vessel == .can && tile.volumeMl == 440 }
+        #expect(try !a.tiles().contains(where: isCan))
+        #expect(try !b.tiles().contains(where: isCan))
+        #expect(Set(try a.tiles().map(\.id)) == Set(try b.tiles().map(\.id)))
+    }
+
+    @Test func aFreshInstallWithNothingInICloudKeepsAndSendsItsTiles() throws {
+        let phone = try Phone(fresh: true)
+        try phone.records.queueEverything()
+        let tiles = try phone.tiles().count
+        #expect(try !phone.send().saved.contains { $0.recordID.recordName.hasPrefix("favourite-") })
+
+        try phone.receive(([], []))
+        try phone.records.finishFetch()
+
+        #expect(try phone.tiles().count == tiles)
+        #expect(try phone.send().saved.filter { $0.recordID.recordName.hasPrefix("favourite-") }.count == tiles)
     }
 }
