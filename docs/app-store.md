@@ -65,8 +65,18 @@ service. If you are dependent on alcohol, stopping suddenly can be dangerous: pl
 
 ## What's new
 
-iCloud sync. Your log is kept in your own iCloud account, so it comes back on a new iPhone. Only you can read it,
-and you can turn it off in Setup.
+A round can be logged at its own strength: long-press a drink and enter the strength or units, so a guest ale
+counts at the figure on the pump clip. An entry's strength can be corrected later from the Day screen.
+
+Hold and drag across Weekly or Monthly progress to read any day's units against its budget.
+
+The widgets now draw each drink's glass as the app does and colour the day by how it is going. Lock Screen widgets
+show the figures without the word "units".
+
+VoiceOver reads the drink tiles, calendar and charts, and larger text sizes no longer clip.
+
+Fixes: drinks can be logged in every size the catalogue lists, and reinstalling no longer brings back tiles you
+had removed.
 
 ## Keywords (100)
 
