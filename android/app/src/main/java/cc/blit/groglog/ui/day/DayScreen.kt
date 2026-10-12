@@ -41,7 +41,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -49,7 +48,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -60,6 +58,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -98,7 +97,6 @@ import cc.blit.groglog.ui.shared.DrinkGlyph
 import cc.blit.groglog.ui.shared.GrogIcons
 import cc.blit.groglog.ui.theme.GrogColors
 import cc.blit.groglog.ui.theme.GrogLogTheme
-import java.time.Instant
 import java.util.Date
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -190,7 +188,7 @@ internal fun DayPage(
         modifier = modifier.nestedScroll(scroll.nestedScrollConnection),
         topBar = {
             TopAppBar(
-                title = { Text(state.title()) },
+                title = { Text(state.title(LocalLocale.current.platformLocale)) },
                 navigationIcon = {
                     if (onBack != null) {
                         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
@@ -262,7 +260,8 @@ private fun LazyListScope.dayContent(
     item { TotalsHeader(state.totals, state.budget, currency) }
     item {
         Group {
-            val chart = remember(state) { dayChart(state.day, state.ledger, state.budget, state.entries, state.now) }
+            val locale = LocalLocale.current.platformLocale
+            val chart = remember(state, locale) { dayChart(state.day, state.ledger, state.budget, state.entries, state.now, locale) }
             DayChart(chart, state.now, Modifier.padding(16.dp))
         }
     }

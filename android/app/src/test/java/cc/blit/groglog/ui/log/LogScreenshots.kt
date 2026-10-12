@@ -15,7 +15,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performTextInput
@@ -49,7 +49,7 @@ import org.robolectric.shadows.ShadowLooper
 @OptIn(ExperimentalTestApi::class)
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(qualifiers = "w411dp-h891dp-xhdpi")
+@Config(qualifiers = "en-rGB-w411dp-h891dp-xhdpi")
 class LogScreenshots {
     @get:Rule val compose = createComposeRule()
 
@@ -157,7 +157,7 @@ class LogScreenshots {
         save("log-units")
     }
 
-    @Test @Config(qualifiers = "w411dp-h1100dp-xhdpi")
+    @Test @Config(qualifiers = "en-rGB-w411dp-h1100dp-xhdpi")
     fun glyphs() {
         assumeTrue(out != null)
         compose.setContent {

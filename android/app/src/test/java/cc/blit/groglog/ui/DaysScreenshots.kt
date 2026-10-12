@@ -7,7 +7,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.unit.Density
 import cc.blit.groglog.ui.calendar.CalendarContent
 import cc.blit.groglog.ui.calendar.sampleCalendarState
@@ -25,7 +25,7 @@ import org.robolectric.annotation.GraphicsMode
 /** Renders the Calendar and Day tabs to PNGs under build/shots, for checking against the iOS screens by eye. */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(qualifiers = "w411dp-h891dp-xxhdpi")
+@Config(qualifiers = "en-rGB-w411dp-h891dp-xxhdpi")
 class DaysScreenshots {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
 

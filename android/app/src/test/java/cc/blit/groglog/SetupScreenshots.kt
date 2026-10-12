@@ -47,7 +47,7 @@ import org.robolectric.annotation.GraphicsMode
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(qualifiers = "w411dp-h891dp-xxhdpi", sdk = [36])
+@Config(qualifiers = "en-rGB-w411dp-h891dp-xxhdpi", sdk = [36])
 class SetupScreenshots {
     private val out = "build/outputs/roborazzi/setup"
 

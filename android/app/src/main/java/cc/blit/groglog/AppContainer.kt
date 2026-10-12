@@ -3,6 +3,7 @@ package cc.blit.groglog
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
+import androidx.core.content.edit
 import cc.blit.groglog.data.AppDatabase
 import cc.blit.groglog.data.Logbook
 import cc.blit.groglog.data.Prefs
@@ -44,7 +45,8 @@ class AppContainer(private val context: Context) {
 
     /** Turns demo mode on or off and restarts the app on the chosen log, since every screen holds the database. */
     fun setDemo(on: Boolean) {
-        context.getSharedPreferences(DEVELOPER, Context.MODE_PRIVATE).edit().putBoolean(DEMO_MODE, on).commit()
+        // Written before returning, since the process exits next.
+        context.getSharedPreferences(DEVELOPER, Context.MODE_PRIVATE).edit(commit = true) { putBoolean(DEMO_MODE, on) }
         val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)?.component ?: return
         context.startActivity(Intent.makeRestartActivityTask(launch))
         Runtime.getRuntime().exit(0)

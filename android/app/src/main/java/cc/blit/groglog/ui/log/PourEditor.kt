@@ -26,8 +26,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -120,11 +121,11 @@ private fun PourForm(
     onDelete: () -> Unit,
 ) {
     val isUnits = entry.category == DrinkCategory.UNITS
-    var time by remember { mutableStateOf(entry.timestamp) }
-    var vessel by remember { mutableStateOf(entry.vessel) }
-    var volume by remember { mutableStateOf(entry.volumeMl) }
-    var price by remember { mutableStateOf(entry.price) }
-    var abv by remember { mutableStateOf(entry.abv) }
+    var time by rememberSaveable { mutableStateOf(entry.timestamp) }
+    var vessel by rememberSaveable { mutableStateOf(entry.vessel) }
+    var volume by rememberSaveable { mutableDoubleStateOf(entry.volumeMl) }
+    var price by rememberSaveable { mutableDoubleStateOf(entry.price) }
+    var abv by rememberSaveable { mutableDoubleStateOf(entry.abv) }
     val valid = isUnits || Units.isStrength(abv)
 
     Column(Modifier.imePadding().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {

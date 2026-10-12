@@ -13,7 +13,6 @@ import cc.blit.groglog.model.DayStatus
 import cc.blit.groglog.model.Entry
 import cc.blit.groglog.model.Ledger
 import cc.blit.groglog.model.Pour
-import cc.blit.groglog.model.Vessel
 import cc.blit.groglog.ui.LedgerState
 import cc.blit.groglog.ui.ledgerState
 import java.time.Instant

@@ -42,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
@@ -82,7 +83,6 @@ import cc.blit.groglog.ui.theme.GrogLogTheme
 import java.time.DayOfWeek
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle as DateTextStyle
-import java.util.Locale
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 
@@ -161,7 +161,7 @@ private fun CappedText(content: @Composable () -> Unit) {
 
 @Composable
 private fun WeekdayHeader(firstWeekday: Int) {
-    val locale = Locale.getDefault()
+    val locale = LocalLocale.current.platformLocale
     CappedText {
         Row(
             Modifier
@@ -194,7 +194,7 @@ private fun MonthGrid(
     onOpen: (DayKey) -> Unit,
     onAlcoholFree: (Boolean, DayKey) -> Unit,
 ) {
-    val locale = Locale.getDefault()
+    val locale = LocalLocale.current.platformLocale
     val cells = state.cells(month)
     val units = cells.sumOf { it.units }
     val dry = cells.count { it.status == DayStatus.ALCOHOL_FREE }
@@ -258,7 +258,7 @@ private fun DayCell(
         else -> null
     }
     val dryLabel = if (dryMark == true) "Alcohol-free" else "Not alcohol-free"
-    val locale = Locale.getDefault()
+    val locale = LocalLocale.current.platformLocale
     val label = cell.day.localDate.format(DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, "EEEEdMMMM"), locale))
 
     Box(
