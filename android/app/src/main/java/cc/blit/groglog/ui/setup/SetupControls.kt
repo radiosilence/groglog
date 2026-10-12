@@ -50,8 +50,9 @@ internal fun SettingsSection(
         if (title != null) {
             Text(
                 title,
+                // Not the primary colour: GrogLog's amber is too light to read as small text on a light background.
                 style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 16.dp, bottom = 8.dp).semantics { heading() },
             )
         }

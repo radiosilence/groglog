@@ -460,7 +460,7 @@ private fun BurndownChart(points: List<BudgetPoint>, steps: List<PaceStep>, star
             drawText(text, topLeft = Offset(left - text.size.width - 6.dp.toPx(), y(tick) - text.size.height / 2))
         }
         val unit = measurer.measure("u/day", caption.copy(color = axis))
-        drawText(unit, topLeft = Offset(0f, 0f))
+        drawText(unit, topLeft = Offset(0f, size.height - unit.size.height))
 
         val line = Path().apply {
             points.forEachIndexed { index, point -> if (index == 0) moveTo(x(point.step), y(point.units)) else lineTo(x(point.step), y(point.units)) }
@@ -472,10 +472,15 @@ private fun BurndownChart(points: List<BudgetPoint>, steps: List<PaceStep>, star
             close()
         }
         drawPath(area, Brush.verticalGradient(listOf(dry.copy(alpha = 0.4f), dry.copy(alpha = 0.05f)), startY = above, endY = above + height))
+        // A label that would run into the one before is left off; its rule still marks the change.
+        var clear = left
         for (step in steps) {
             drawLine(dry.copy(alpha = 0.35f), Offset(x(step.step), above), Offset(x(step.step), y(0.0)), 1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f)))
             val label = measurer.measure("10%/${step.pace}d", caption.copy(color = dry))
-            drawText(label, topLeft = Offset((x(step.step) - label.size.width / 2).coerceIn(left, size.width - label.size.width), 0f))
+            val at = (x(step.step) - label.size.width / 2).coerceIn(left, size.width - label.size.width)
+            if (at < clear) continue
+            drawText(label, topLeft = Offset(at, 0f))
+            clear = at + label.size.width + 4.dp.toPx()
         }
         drawPath(line, dry, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
 
