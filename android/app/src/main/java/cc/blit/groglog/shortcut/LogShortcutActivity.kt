@@ -26,7 +26,7 @@ class LogShortcutActivity : Activity() {
         val app = applicationContext
         val container = app.container
         container.scope.launch {
-            val logged = QuickLog.log(key, container.database, container.prefs.current())
+            val logged = QuickLog.log(key, container.liveDatabase, container.livePrefs.current())
             if (logged != null) ShortcutManagerCompat.reportShortcutUsed(app, key)
             val message = logged?.let { "Logged ${it.serve.drink.name}. ${it.summary}" } ?: "That drink is no longer in GrogLog."
             withContext(Dispatchers.Main) { Toast.makeText(app, message, Toast.LENGTH_LONG).show() }

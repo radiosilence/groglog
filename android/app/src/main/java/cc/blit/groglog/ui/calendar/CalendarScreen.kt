@@ -38,6 +38,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -220,7 +221,8 @@ private fun MonthGrid(
                             if (cell == null) {
                                 Spacer(Modifier.weight(1f))
                             } else {
-                                DayCell(cell, differentiate, onOpen, onAlcoholFree, Modifier.weight(1f))
+                                // Keyed by day, so a cell's open menu stays with its day rather than its place in the grid.
+                                key(cell.day.number) { DayCell(cell, differentiate, onOpen, onAlcoholFree, Modifier.weight(1f)) }
                             }
                         }
                     }

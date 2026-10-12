@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import cc.blit.groglog.model.DayKey
 import kotlin.math.ceil
 import kotlin.math.floor
+import androidx.compose.ui.text.drawText
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -160,6 +161,8 @@ fun TimeChart(
     val axisStyle = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
     val grid = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
     val ruleColour = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+    // The card behind the chart, laid under a caption so the lines it sits among do not run through it.
+    val plate = MaterialTheme.colorScheme.surfaceContainerLow
     val leftWidth = remember(plot.leftTicks, axisStyle) {
         (plot.leftTicks.maxOfOrNull { measurer.width(it.second, axisStyle) } ?: 0f) + with(density) { 6.dp.toPx() }
     }
@@ -262,10 +265,9 @@ fun TimeChart(
                         )
                     }
                 }
-                plot.guide?.let { (value, caption) ->
+                plot.guide?.let { (value, _) ->
                     val y = py(value)
                     drawLine(ruleColour.copy(alpha = 0.6f), Offset(area.left, y), Offset(area.right, y), strokeWidth = 1.dp.toPx(), pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 3.dp.toPx())))
-                    label(measurer, caption, axisStyle, Offset(area.right - 2.dp.toPx(), y - 2.dp.toPx()), alignX = 1f, alignY = 1f)
                 }
                 for (line in plot.lines) {
                     val points = if (line.step != null) {
@@ -290,6 +292,15 @@ fun TimeChart(
                 for (dot in plot.dots) drawCircle(dot.color, dot.size.toPx() / 2, Offset(px(dot.x), py(dot.y)))
                 for (x in plot.rules) verticalRule(px(x), area.top, area.bottom, ruleColour)
                 readout?.let { verticalRule(px(it.x), area.top, area.bottom, ruleColour.copy(alpha = 0.5f), width = 1.dp, dash = false) }
+                // Last, so nothing is drawn over it: above its rule and short of today's, on a plate of the card's colour.
+                plot.guide?.let { (value, caption) ->
+                    val layout = measurer.measure(caption, axisStyle)
+                    val end = (plot.rules.map(::px).filter { it in area.left..area.right }.minOrNull() ?: area.right) - 4.dp.toPx()
+                    val pad = 2.dp.toPx()
+                    val topLeft = Offset(max(area.left, end - layout.size.width), py(value) - layout.size.height - pad)
+                    drawRect(plate, Offset(topLeft.x - pad, topLeft.y), androidx.compose.ui.geometry.Size(layout.size.width + 2 * pad, layout.size.height.toFloat()))
+                    drawText(layout, topLeft = topLeft)
+                }
             }
         }
 

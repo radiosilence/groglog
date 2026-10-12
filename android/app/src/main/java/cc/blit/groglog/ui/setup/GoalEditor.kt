@@ -465,7 +465,11 @@ private fun BurndownChart(points: List<BudgetPoint>, steps: List<PaceStep>, star
             .padding(horizontal = 16.dp, vertical = 8.dp)
             .semantics { contentDescription = summary },
     ) {
-        val left = 32.dp.toPx()
+        // The axis column is wide enough for its widest label, the unit included, so the unit beneath it stays clear of
+        // the start date beside it at any text size.
+        val unit = measurer.measure("u/day", caption.copy(color = axis))
+        val tickWidth = listOf(0.0, top / 2, top).maxOf { measurer.measure(oneDecimal(it), caption).size.width }
+        val left = maxOf(32.dp.toPx(), unit.size.width + 6.dp.toPx(), tickWidth + 6.dp.toPx())
         val above = 14.dp.toPx()
         val below = 18.dp.toPx()
         val width = size.width - left
@@ -478,7 +482,6 @@ private fun BurndownChart(points: List<BudgetPoint>, steps: List<PaceStep>, star
             val text = measurer.measure(oneDecimal(tick), caption.copy(color = axis))
             drawText(text, topLeft = Offset(left - text.size.width - 6.dp.toPx(), y(tick) - text.size.height / 2))
         }
-        val unit = measurer.measure("u/day", caption.copy(color = axis))
         drawText(unit, topLeft = Offset(0f, size.height - unit.size.height))
 
         val line = Path().apply {

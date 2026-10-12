@@ -38,13 +38,18 @@ import cc.blit.groglog.ui.shared.LegendRow
 
 /** A day's drinking as a bar over its own noon. */
 @Immutable
-data class DayBar(val day: DayKey, val units: Double, val partial: Boolean, val budget: Double?) {
+data class DayBar(val day: DayKey, val units: Double, val partial: Boolean, val budget: Double?, val dry: Boolean = false) {
     val x: Double get() = day.number + 0.5
     val band: HeatBand get() = HeatBand.of(units, budget)
 
+    /** What TalkBack says: a day marked dry is alcohol-free, not nought units, and today with nothing is nothing yet. */
     val spoken: String
         get() {
-            val drank = "${units.unitsText} units${if (partial) " so far" else ""}"
+            val drank = when {
+                dry -> "alcohol-free"
+                partial && units == 0.0 -> "nothing yet"
+                else -> "${units.unitsText} units${if (partial) " so far" else ""}"
+            }
             return if (budget == null) drank else "$drank, budget ${budget.unitsText}, ${band.spoken}"
         }
 }
@@ -86,8 +91,8 @@ data class Progress(
             val budgets = (start..(today + 14)).mapNotNull { day -> ledger.dailyBudget(day, goal)?.let { day to it } }.toMap()
             val bars = (start..today).mapNotNull { day ->
                 when {
-                    day == today -> DayBar(day, ledger.totals(day).units, partial = true, budget = budgets[day])
-                    ledger.isLogged(day) -> DayBar(day, ledger.totals(day).units, partial = false, budget = budgets[day])
+                    day == today -> DayBar(day, ledger.totals(day).units, partial = true, budget = budgets[day], dry = ledger.status(day) == DayStatus.ALCOHOL_FREE)
+                    ledger.isLogged(day) -> DayBar(day, ledger.totals(day).units, partial = false, budget = budgets[day], dry = ledger.status(day) == DayStatus.ALCOHOL_FREE)
                     else -> null
                 }
             }

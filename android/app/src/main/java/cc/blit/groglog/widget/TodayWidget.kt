@@ -49,7 +49,7 @@ class TodayWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val container = context.container
-        val today = Today.observe(container.database, container.prefs)
+        val today = Today.observe(container.liveDatabase, container.livePrefs)
         val first = today.first()
         provideContent {
             val current by today.collectAsState(first)

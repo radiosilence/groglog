@@ -6,6 +6,7 @@ import cc.blit.groglog.model.Goal
 import cc.blit.groglog.model.Ledger
 import cc.blit.groglog.model.Night
 import cc.blit.groglog.model.Nights
+import cc.blit.groglog.ui.reports.DayBar
 import cc.blit.groglog.ui.reports.HeartLines
 import cc.blit.groglog.ui.reports.HeartPoint
 import cc.blit.groglog.ui.reports.HeartReading
@@ -127,5 +128,20 @@ class ProgressTests {
         assertTrue(range.start <= (today.monthStart - 1).monthStart)
         assertTrue(range.start <= clock.weekStart(today) - 21)
         assertEquals(today, range.endInclusive)
+    }
+}
+
+/** What TalkBack says for a day's bar. */
+class DayBarSpokenTests {
+    private val day = DayKey.of(2026, 9, 19)
+
+    @Test fun aDryDayIsAlcoholFreeNotNoughtUnits() {
+        assertEquals("alcohol-free", DayBar(day, 0.0, partial = false, budget = null, dry = true).spoken)
+        assertEquals("alcohol-free, budget 4.0, within budget", DayBar(day, 0.0, partial = false, budget = 4.0, dry = true).spoken)
+    }
+
+    @Test fun todayWithNothingIsNothingYet() {
+        assertEquals("nothing yet", DayBar(day, 0.0, partial = true, budget = null).spoken)
+        assertEquals("2.0 units so far", DayBar(day, 2.0, partial = true, budget = null).spoken)
     }
 }

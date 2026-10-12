@@ -22,7 +22,7 @@ class LogDrinkTileService : TileService() {
     override fun onStartListening() {
         val container = applicationContext.container
         container.scope.launch {
-            val serve = Serves.grid(container.database).firstOrNull()
+            val serve = Serves.grid(container.liveDatabase).firstOrNull()
             withContext(Dispatchers.Main) { show(serve, null) }
         }
     }
@@ -31,8 +31,8 @@ class LogDrinkTileService : TileService() {
         val container = applicationContext.container
         // The process-wide scope, so the write finishes even if the shade closes and the service is unbound.
         container.scope.launch {
-            val serve = Serves.grid(container.database).firstOrNull() ?: return@launch
-            val logged = QuickLog.log(serve.id, container.database, container.prefs.current())
+            val serve = Serves.grid(container.liveDatabase).firstOrNull() ?: return@launch
+            val logged = QuickLog.log(serve.id, container.liveDatabase, container.livePrefs.current())
             withContext(Dispatchers.Main) { show(serve, logged) }
         }
     }

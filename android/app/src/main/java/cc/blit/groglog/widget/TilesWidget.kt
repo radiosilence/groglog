@@ -69,7 +69,7 @@ class TilesWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val container = context.container
-        val today = Today.observe(container.database, container.prefs)
+        val today = Today.observe(container.liveDatabase, container.livePrefs)
         val first = today.first()
         provideContent {
             val current by today.collectAsState(first)
@@ -99,7 +99,7 @@ class LogTileAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val key = parameters[serve] ?: return
         val container = context.container
-        if (QuickLog.log(key, container.database, container.prefs.current()) == null) {
+        if (QuickLog.log(key, container.liveDatabase, container.livePrefs.current()) == null) {
             withContext(Dispatchers.Main) { Toast.makeText(context, "That drink is no longer in GrogLog.", Toast.LENGTH_SHORT).show() }
             return
         }
