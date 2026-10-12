@@ -24,9 +24,10 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -59,6 +60,10 @@ import cc.blit.groglog.ui.shared.DrinkGlyph
 import cc.blit.groglog.ui.shared.MoneyField
 import cc.blit.groglog.ui.shared.NumberRow
 import cc.blit.groglog.ui.shared.TimeRow
+import cc.blit.groglog.ui.shared.decimalText
+import cc.blit.groglog.ui.shared.moneyDigits
+import cc.blit.groglog.ui.shared.moneyValue
+import cc.blit.groglog.ui.shared.parseDecimal
 import cc.blit.groglog.ui.theme.GrogLogTheme
 import java.time.Instant
 import kotlinx.coroutines.flow.SharingStarted
@@ -123,10 +128,12 @@ private fun PourForm(
     val isUnits = entry.category == DrinkCategory.UNITS
     var time by rememberSaveable { mutableStateOf(entry.timestamp) }
     var vessel by rememberSaveable { mutableStateOf(entry.vessel) }
-    var volume by rememberSaveable { mutableDoubleStateOf(entry.volumeMl) }
-    var price by rememberSaveable { mutableDoubleStateOf(entry.price) }
-    var abv by rememberSaveable { mutableDoubleStateOf(entry.abv) }
-    val valid = isUnits || Units.isStrength(abv)
+    // Units logged as a bare figure are stored as millilitres of pure alcohol at 1%, ten to the unit.
+    val amount = rememberTextFieldState(decimalText(if (isUnits) entry.volumeMl / 10 else entry.volumeMl))
+    val strength = rememberTextFieldState(decimalText(entry.abv))
+    val price = rememberTextFieldState(moneyDigits(entry.price, currency))
+    val volume = parseDecimal(amount.text)?.takeIf { it > 0 }?.let { if (isUnits) it * 10 else it }
+    val abv = if (isUnits) entry.abv else parseDecimal(strength.text)?.takeIf(Units::isStrength)
 
     Column(Modifier.imePadding().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -134,17 +141,18 @@ private fun PourForm(
             Text("Drink", Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
             Button(
                 onClick = {
-                    onSave(time, vessel, volume, price, if (isUnits || abv == entry.drink.abv) null else abv)
+                    if (volume == null || abv == null) return@Button
+                    onSave(time, vessel, volume, moneyValue(price.text, currency), if (isUnits || abv == entry.drink.abv) null else abv)
                     onDismiss()
                 },
-                enabled = valid,
+                enabled = volume != null && abv != null,
             ) { Text("Done") }
         }
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            DrinkGlyph(entry.category, vessel, Modifier.size(56.dp), volumeMl = volume)
+            DrinkGlyph(entry.category, vessel, Modifier.size(56.dp), volumeMl = volume ?: entry.volumeMl)
             Column {
                 Text(entry.name, style = MaterialTheme.typography.titleMedium)
-                Text("${Units.of(volume, abv).unitsText} u", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(if (volume != null && abv != null) "${Units.of(volume, abv).unitsText} u" else "–", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         if (!isUnits && onEditDrink != null) {
@@ -157,17 +165,17 @@ private fun PourForm(
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
         TimeRow("Time", time, { time = it }, clock, day)
         if (isUnits) {
-            NumberRow("Units", volume / 10, { volume = it * 10 }, "u")
+            NumberRow("Units", amount, "u", error = if (volume == null) "Enter how many units." else null)
         } else {
-            val size = ServeSize(vessel, volume)
-            ChipRow(entry.drink.sizes(size), size, {
+            val size = ServeSize(vessel, volume ?: 0.0)
+            ChipRow(entry.drink.sizes(ServeSize(vessel, volume ?: entry.volumeMl)), size, {
                 vessel = it.vessel
-                volume = it.ml
+                amount.setTextAndPlaceCursorAtEnd(decimalText(it.ml))
             }, Modifier.padding(vertical = 8.dp)) { it.label }
-            NumberRow("Size", volume, { volume = it }, "ml")
-            NumberRow("Strength", abv, { abv = it }, "% ABV")
+            NumberRow("Size", amount, "ml", error = if (volume == null) "Enter a size above 0 ml." else null)
+            NumberRow("Strength", strength, "% ABV", error = if (abv == null) "Enter a strength above 0% and at most 100%." else null)
         }
-        MoneyField("Price", price, { price = it }, currency)
+        MoneyField("Price", price, currency)
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
         TextButton(
             onClick = {

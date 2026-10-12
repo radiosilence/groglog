@@ -6,18 +6,25 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.byValue
+import androidx.compose.foundation.text.input.maxLength
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
@@ -30,8 +37,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,25 +44,26 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import cc.blit.groglog.model.DayClock
 import cc.blit.groglog.model.DayKey
 import cc.blit.groglog.model.money
 import cc.blit.groglog.ui.theme.GrogColors
 import cc.blit.groglog.ui.theme.GrogLogTheme
+import java.text.DecimalFormatSymbols
 import java.text.NumberFormat
 import java.time.Instant
 import java.time.LocalTime
@@ -65,16 +71,16 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.Currency
 import kotlin.math.pow
-import kotlin.math.roundToLong
 
 /** The inset form rows share, so labels line up down a sheet. */
 val RowPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
 
 /**
- * A row of chips for picking one of a few values. An unavailable option stays on the row, greyed out: removing it
+ * Chips for picking one of a few values, wrapping onto further lines as iOS's do, so none is hidden off the edge. An unavailable option stays on the row, greyed out: removing it
  * would leave a gap that reads as a missing feature, with no indication of what the option was. `tint` colours the
  * selected chip, for a row that also serves as a chart's key.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun <T> ChipRow(
     options: List<T>,
@@ -85,12 +91,11 @@ fun <T> ChipRow(
     tint: (T) -> Color = { GrogColors.grog },
     label: (T) -> String,
 ) {
-    LazyRow(
-        modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(horizontal = 16.dp),
+    FlowRow(
+        modifier.fillMaxWidth().padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        items(options) { option ->
+        for (option in options) {
             val isSelected = option == selected
             FilterChip(
                 selected = isSelected,
@@ -104,90 +109,111 @@ fun <T> ChipRow(
 }
 
 /**
- * A labelled decimal field with a unit suffix. While focused the field keeps what was typed, so "3" on the way to "30"
- * is not reformatted under the cursor. `onEditingEnded` is for anything that reacts to the value by changing something
- * else: halfway through typing "30" the value is 3, and acting on that interferes with the typing.
+ * A labelled decimal field with a unit suffix, over a `TextFieldState` its owner holds and reads with `parseDecimal`.
+ * Typing is limited to digits and one decimal separator, the reader's or a full stop. `error` is shown beneath, for a
+ * figure that is empty or out of range, which the owner refuses rather than saving a figure it did not mean.
+ * `onEditingEnded` is for anything that reacts to the value by changing something else: halfway through typing "30" the
+ * value is 3, and acting on that interferes with the typing.
  */
 @Composable
 fun NumberRow(
     label: String,
-    value: Double,
-    onValueChange: (Double) -> Unit,
+    state: TextFieldState,
     suffix: String,
     modifier: Modifier = Modifier,
+    error: String? = null,
     onEditingEnded: () -> Unit = {},
 ) {
-    var typed by remember { mutableStateOf<String?>(null) }
+    var focused by remember { mutableStateOf(false) }
     val focus = LocalFocusManager.current
-    FormRow(label, modifier) {
-        BasicTextField(
-            value = typed ?: decimal.format(value),
-            onValueChange = { text ->
-                typed = text
-                text.replace(',', '.').toDoubleOrNull()?.let(onValueChange)
-            },
-            modifier = Modifier
-                .widthIn(min = 56.dp, max = 120.dp)
-                .semantics { contentDescription = label }
-                .onFocusChanged {
-                    if (!it.isFocused && typed != null) {
-                        typed = null
-                        onEditingEnded()
+    Column(modifier) {
+        FormRow(label) {
+            BasicTextField(
+                state = state,
+                modifier = Modifier
+                    .widthIn(min = 56.dp, max = 120.dp)
+                    .semantics {
+                        contentDescription = label
+                        if (error != null) error(error)
                     }
-                },
-            textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.End),
-            singleLine = true,
-            cursorBrush = SolidColor(GrogColors.grog),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }),
-            decorationBox = { FieldFrame(it) },
-        )
-        Text(suffix, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp))
+                    .onFocusChanged {
+                        if (focused && !it.isFocused) onEditingEnded()
+                        focused = it.isFocused
+                    },
+                inputTransformation = DecimalInput,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.End),
+                lineLimits = TextFieldLineLimits.SingleLine,
+                cursorBrush = SolidColor(GrogColors.grog),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+                onKeyboardAction = { focus.clearFocus() },
+                decorator = { FieldFrame(isError = error != null, field = it) },
+            )
+            Text(suffix, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp))
+        }
+        if (error != null) {
+            Text(
+                error,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
+            )
+        }
     }
 }
 
+/** Digits and one decimal separator, either the reader's or a full stop. */
+private val DecimalInput = InputTransformation.byValue { current, proposed ->
+    val separator = DecimalFormatSymbols.getInstance().decimalSeparator
+    val valid = proposed.all { it.isDigit() || it == '.' || it == separator } &&
+        proposed.count { it == '.' || it == separator } <= 1 && proposed.length <= 8
+    if (valid) proposed else current
+}
+
+/** Reads a typed decimal in the reader's notation or with a full stop, or null if it is not a number. */
+fun parseDecimal(text: CharSequence): Double? {
+    val separator = DecimalFormatSymbols.getInstance().decimalSeparator
+    return text.toString().trim().replace(separator, '.').takeIf { it.isNotEmpty() && it != "." }?.toDoubleOrNull()
+}
+
+/** A figure as a field starts out showing it: no trailing zeros, no grouping, in the reader's notation. */
+fun decimalText(value: Double, maxDigits: Int = 2): String =
+    NumberFormat.getNumberInstance().apply {
+        isGroupingUsed = false
+        maximumFractionDigits = maxDigits
+    }.format(value)
+
+/** Digits per whole unit of a currency: 100 for pence and cents, 1 for yen and won, which have no minor unit. */
+private fun minorUnits(currency: String): Double =
+    10.0.pow(runCatching { Currency.getInstance(currency).defaultFractionDigits }.getOrNull()?.coerceAtLeast(0) ?: 2)
+
+/** The digits a `MoneyField` holds for an amount. */
+fun moneyDigits(amount: Double, currency: String): String = Math.round(amount * minorUnits(currency)).toString()
+
+/** The amount a `MoneyField`'s digits stand for. Empty is nothing, since a drink can be free. */
+fun moneyValue(digits: CharSequence, currency: String): Double = (digits.toString().toLongOrNull() ?: 0L) / minorUnits(currency)
+
 /**
- * Money entered like a banking app: digits only, filling from the pence up, so typing 1, 5, 0 reads £0.01, £0.15,
- * £1.50. A hidden digits field takes the keystrokes; the label shows them as money.
+ * Money entered as banking apps take it: digits only, filling from the pence up, so typing 1, 5, 0 reads £0.01, £0.15,
+ * £1.50. The state holds the digits (`moneyDigits`, `moneyValue`); the field shows them as money.
  */
 @Composable
-fun MoneyField(label: String, value: Double, onValueChange: (Double) -> Unit, currency: String, modifier: Modifier = Modifier) {
-    // Digits per whole unit of the currency: 100 for pence and cents, 1 for yen and won, which have no minor unit.
-    val scale = 10.0.pow(runCatching { Currency.getInstance(currency).defaultFractionDigits }.getOrDefault(2).coerceAtLeast(0))
-    var typed by remember { mutableStateOf<String?>(null) }
-    var focused by remember { mutableStateOf(false) }
-    val digits = typed ?: (value * scale).roundToLong().toString()
-    val shown = ((digits.toLongOrNull() ?: 0) / scale).money(currency)
+fun MoneyField(label: String, state: TextFieldState, currency: String, modifier: Modifier = Modifier) {
     val focus = LocalFocusManager.current
+    val shown = moneyValue(state.text, currency).money(currency)
     FormRow(label, modifier) {
         BasicTextField(
-            value = digits,
-            onValueChange = { text ->
-                val clean = text.filter(Char::isDigit).take(9)
-                typed = clean
-                onValueChange((clean.toLongOrNull() ?: 0) / scale)
-            },
-            modifier = Modifier
-                .semantics { contentDescription = "$label, $shown" }
-                .onFocusChanged {
-                    focused = it.isFocused
-                    if (!it.isFocused) typed = null
-                },
-            singleLine = true,
+            state = state,
+            modifier = Modifier.widthIn(min = 56.dp, max = 160.dp).semantics { contentDescription = "$label, $shown" },
+            inputTransformation = InputTransformation.byValue { current, proposed ->
+                if (proposed.all { it.isDigit() }) proposed else current
+            }.maxLength(9),
+            outputTransformation = { replace(0, length, moneyValue(asCharSequence(), currency).money(currency)) },
+            textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.End),
+            lineLimits = TextFieldLineLimits.SingleLine,
+            cursorBrush = SolidColor(GrogColors.grog),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }),
-            decorationBox = { field ->
-                FieldFrame {
-                    Box(contentAlignment = Alignment.CenterEnd) {
-                        Text(
-                            shown,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = if (focused) GrogColors.grog else MaterialTheme.colorScheme.onSurface,
-                        )
-                        Box(Modifier.alpha(0f)) { field() }
-                    }
-                }
-            },
+            onKeyboardAction = { focus.clearFocus() },
+            decorator = { FieldFrame(field = it) },
         )
     }
 }
@@ -252,20 +278,14 @@ fun FormRow(label: String, modifier: Modifier = Modifier, onClick: (() -> Unit)?
 }
 
 @Composable
-private fun FieldFrame(field: @Composable () -> Unit) {
+private fun FieldFrame(isError: Boolean = false, field: @Composable () -> Unit) {
     Box(
         Modifier
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
+            .border(1.dp, if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
             .padding(horizontal = 12.dp, vertical = 8.dp),
         contentAlignment = Alignment.CenterEnd,
     ) { field() }
 }
-
-private val decimal: NumberFormat
-    get() = NumberFormat.getNumberInstance().apply {
-        maximumFractionDigits = 2
-        isGroupingUsed = false
-    }
 
 @Preview(showBackground = true)
 @Composable
@@ -274,8 +294,9 @@ private fun ControlsPreview() {
         Surface {
             Column {
                 ChipRow(listOf("Pint", "Half", "440 ml can"), "Pint", {}) { it }
-                NumberRow("Strength", 4.6, {}, "% ABV")
-                MoneyField("Price", 6.5, {}, "GBP")
+                NumberRow("Strength", rememberTextFieldState("4.6"), "% ABV")
+                NumberRow("Size", rememberTextFieldState(""), "ml", error = "Enter a size.")
+                MoneyField("Price", rememberTextFieldState("650"), "GBP")
                 StepperRow("How many: 2", 2, {}, 1..12)
                 TimeRow("At", Instant.now(), {}, DayClock(5), DayClock(5).today)
             }

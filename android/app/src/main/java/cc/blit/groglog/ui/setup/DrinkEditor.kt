@@ -6,9 +6,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
@@ -32,7 +30,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -63,7 +60,10 @@ import cc.blit.groglog.model.Vessel
 import cc.blit.groglog.ui.shared.ChipRow
 import cc.blit.groglog.ui.shared.MoneyField
 import cc.blit.groglog.ui.shared.NumberRow
-import cc.blit.groglog.ui.shared.RowPadding
+import cc.blit.groglog.ui.shared.decimalText
+import cc.blit.groglog.ui.shared.moneyDigits
+import cc.blit.groglog.ui.shared.moneyValue
+import cc.blit.groglog.ui.shared.parseDecimal
 import cc.blit.groglog.model.abvText
 import cc.blit.groglog.model.kcalText
 import cc.blit.groglog.model.unitsText
@@ -115,8 +115,8 @@ class DrinkEditorViewModel(
     private val startingName: String = "",
 ) : ViewModel() {
     val name = TextFieldState()
-    var strength by mutableDoubleStateOf(DrinkCategory.BEER.defaultABV)
-    var price by mutableDoubleStateOf(0.0)
+    val strength = TextFieldState(decimalText(DrinkCategory.BEER.defaultABV))
+    val price = TextFieldState()
 
     /** The parts of the draft that are not typed. Null until the drink has loaded. */
     private val _draft = MutableStateFlow<Drink?>(null)
@@ -138,8 +138,8 @@ class DrinkEditorViewModel(
             original = drink
             val start = drink ?: Drink(name = startingName, category = DrinkCategory.BEER, abv = DrinkCategory.BEER.defaultABV, vessel = Vessel.PINT, volumeMl = 568.0)
             name.setTextAndPlaceCursorAtEnd(start.name)
-            strength = start.abv
-            price = start.price
+            strength.setTextAndPlaceCursorAtEnd(decimalText(start.abv))
+            price.setTextAndPlaceCursorAtEnd(moneyDigits(start.price, currency))
             _draft.value = start
         }
     }
@@ -147,7 +147,7 @@ class DrinkEditorViewModel(
     val isNew: Boolean get() = id == null
 
     /** The typed strength, if it is one a drink can have. Impossible figures are refused rather than saved. */
-    val abv: Double? get() = strength.takeIf(Units::isStrength)
+    val abv: Double? get() = parseDecimal(strength.text)?.takeIf(Units::isStrength)
 
     val canSave: Boolean get() = name.text.isNotBlank() && abv != null && _draft.value != null
 
@@ -155,7 +155,7 @@ class DrinkEditorViewModel(
     fun setCategory(category: DrinkCategory) {
         val size = category.serves[0]
         _draft.update { it?.copy(category = category, vessel = size.vessel, volumeMl = size.ml) }
-        if (isNew) strength = category.defaultABV
+        if (isNew) strength.setTextAndPlaceCursorAtEnd(decimalText(category.defaultABV))
     }
 
     fun setSize(size: ServeSize) {
@@ -171,7 +171,7 @@ class DrinkEditorViewModel(
         val draft = _draft.value ?: return null
         val abv = abv ?: return null
         val name = name.text.trim().toString().ifEmpty { return null }
-        return draft.copy(name = name, abv = abv, price = price)
+        return draft.copy(name = name, abv = abv, price = moneyValue(price.text, currency))
     }
 
     suspend fun save(): Boolean {
@@ -296,16 +296,13 @@ internal fun DrinkEditorPage(
                         label = { it.label },
                     )
                 }
-                NumberRow("Strength", model.strength, { model.strength = it }, "% ABV")
-                if (model.abv == null) {
-                    Text(
-                        "Enter a strength above 0% and at most 100%.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(RowPadding),
-                    )
-                }
-                Spacer(Modifier.height(8.dp))
+                NumberRow(
+                    "Strength",
+                    model.strength,
+                    "% ABV",
+                    Modifier.padding(bottom = 8.dp),
+                    error = if (model.abv == null) "Enter a strength above 0% and at most 100%." else null,
+                )
             }
         }
         if (draft.category != DrinkCategory.UNITS) {
@@ -318,7 +315,7 @@ internal fun DrinkEditorPage(
                         label = { it.label },
                         modifier = Modifier.padding(top = 8.dp),
                     )
-                    MoneyField("Price", model.price, { model.price = it }, model.currency, Modifier.padding(bottom = 8.dp))
+                    MoneyField("Price", model.price, model.currency, Modifier.padding(bottom = 8.dp))
                 }
             }
         }

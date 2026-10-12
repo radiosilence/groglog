@@ -7,7 +7,6 @@ import cc.blit.groglog.data.Logbook
 import cc.blit.groglog.data.Prefs
 import cc.blit.groglog.data.Settings
 import cc.blit.groglog.database
-import cc.blit.groglog.date
 import cc.blit.groglog.model.Day
 import cc.blit.groglog.model.DayKey
 import cc.blit.groglog.model.DayStatus

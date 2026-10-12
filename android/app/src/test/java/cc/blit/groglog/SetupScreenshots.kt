@@ -103,7 +103,7 @@ class SetupScreenshots {
             new.draft.first { it != null }
         }
         shoot("drink-editor") { DrinkEditorPage(existing, timesLogged = 40, onClose = {}) }
-        new.strength = 0.0
+        new.strength.edit { replace(0, length, "") }
         shoot("drink-editor-new-invalid") { DrinkEditorPage(new, timesLogged = 0, onClose = {}) }
     }
 

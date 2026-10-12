@@ -16,6 +16,9 @@ import cc.blit.groglog.ui.setup.DrinkEditorViewModel
 import cc.blit.groglog.ui.setup.GoalViewModel
 import cc.blit.groglog.ui.setup.Notice
 import cc.blit.groglog.ui.setup.SetupViewModel
+import cc.blit.groglog.ui.shared.moneyDigits
+import cc.blit.groglog.ui.shared.moneyValue
+import cc.blit.groglog.ui.shared.parseDecimal
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.time.Instant
@@ -166,13 +169,13 @@ class SetupTests {
     @Test fun impossibleStrengthsAreRefused() = runBlocking {
         val model = editor(database(), prefs())
         model.name.setTextAndPlaceCursorAtEnd("Hepcat")
-        for (figure in listOf(0.0, -1.0, 100.1, 250.0)) {
-            model.strength = figure
+        for (figure in listOf("0", "0.0", "100.1", "250", "", ".")) {
+            model.strength.setTextAndPlaceCursorAtEnd(figure)
             assertFalse("Accepted $figure", model.canSave)
             assertFalse("Saved $figure", model.save())
         }
-        for (figure in listOf(0.5, 4.6, 100.0)) {
-            model.strength = figure
+        for (figure in listOf("0.5", "4.6", "100")) {
+            model.strength.setTextAndPlaceCursorAtEnd(figure)
             assertTrue("Refused $figure", model.canSave)
         }
     }
@@ -195,8 +198,8 @@ class SetupTests {
         val database = database()
         val model = editor(database, prefs())
         model.name.setTextAndPlaceCursorAtEnd("Hepcat")
-        model.strength = 4.6
-        model.price = 6.9
+        model.strength.setTextAndPlaceCursorAtEnd("4.6")
+        model.price.setTextAndPlaceCursorAtEnd("690")
         assertTrue(model.save())
         val drink = database.rows().drinks().single()
         assertEquals(4.6, drink.abv, 0.0)
@@ -209,7 +212,7 @@ class SetupTests {
         model.setCategory(DrinkCategory.RED_WINE)
         assertEquals(Vessel.WINE_GLASS, model.draft.value!!.vessel)
         assertEquals(125.0, model.draft.value!!.volumeMl, 0.0)
-        assertEquals(12.0, model.strength, 0.0)
+        assertEquals(12.0, parseDecimal(model.strength.text)!!, 0.0)
     }
 
     @Test fun aCorrectedStrengthCarriesToEverythingLoggedAsTheDrink() = runBlocking {
@@ -222,8 +225,8 @@ class SetupTests {
 
         val model = editor(database, prefs, drink.id)
         model.setCategory(DrinkCategory.STOUT)
-        assertEquals("An existing drink keeps its strength when its type changes", 46.0, model.strength, 0.0)
-        model.strength = 4.6
+        assertEquals("An existing drink keeps its strength when its type changes", 46.0, parseDecimal(model.strength.text)!!, 0.0)
+        model.strength.setTextAndPlaceCursorAtEnd("4.6")
         assertTrue(model.save())
 
         assertEquals(2.6, database.rows().days().single().units, 0.05)
@@ -240,11 +243,18 @@ class SetupTests {
         val model = editor(database, prefs, drink.id)
         assertEquals(1, model.timesLogged.first { it == 1 })
         model.name.setTextAndPlaceCursorAtEnd("Hepcat (can)")
-        model.strength = 5.0
+        model.strength.setTextAndPlaceCursorAtEnd("5")
         assertTrue(model.saveAsNew())
 
         assertEquals(4.6, database.rows().drink(drink.id)!!.abv, 0.0)
         assertEquals(listOf("Hepcat", "Hepcat (can)"), database.rows().drinks().map { it.name }.sorted())
+    }
+
+    @Test fun moneyFillsFromThePenceUp() {
+        assertEquals(1.5, moneyValue("150", "GBP"), 0.0)
+        assertEquals(150.0, moneyValue("150", "JPY"), 0.0)
+        assertEquals("690", moneyDigits(6.9, "GBP"))
+        assertEquals(0.0, moneyValue("", "EUR"), 0.0)
     }
 
     // The goal editor
@@ -274,7 +284,7 @@ class SetupTests {
         assertEquals(1, model.goal!!.periodDays)
 
         // While typing nothing moves; it settles when editing ends.
-        model.from = 30.0
+        model.from.setTextAndPlaceCursorAtEnd("30")
         assertEquals(1, model.goal!!.periodDays)
         model.settle()
         assertEquals(4, model.goal!!.periodDays)
@@ -286,7 +296,7 @@ class SetupTests {
         prefs.setGoal(Goal(isEnabled = true, taper = Taper.LINEAR, baselineWeekly = 70.0, reductionUnits = 1.0, periodDays = 1))
         val model = goalEditor(prefs)
         assertEquals(1.0, model.goal!!.reductionUnits, 0.0)
-        model.from = 6.0
+        model.from.setTextAndPlaceCursorAtEnd("6")
         model.settle()
         assertEquals(1, model.goal!!.periodDays)
         assertEquals(0.5, model.goal!!.reductionUnits, 0.0)
@@ -296,16 +306,16 @@ class SetupTests {
         val model = goalEditor(prefs())
         model.useRecent(30.486 * 7)
         assertEquals(210.0, model.goal!!.baselineWeekly, 0.0)
-        assertEquals(30.0, model.from, 0.0)
+        assertEquals(30.0, parseDecimal(model.from.text)!!, 0.0)
     }
 
     @Test fun aGoalNeedsAStartingFigure() = runBlocking {
         val prefs = prefs()
         val model = goalEditor(prefs)
-        model.from = 0.0
+        model.from.setTextAndPlaceCursorAtEnd("")
         assertFalse(model.canSave)
-        model.from = 12.0
-        model.target = 2.0
+        model.from.setTextAndPlaceCursorAtEnd("12")
+        model.target.setTextAndPlaceCursorAtEnd("2")
         assertTrue(model.canSave)
         model.save()
         assertEquals(84.0, prefs.current().goal.baselineWeekly, 0.0)

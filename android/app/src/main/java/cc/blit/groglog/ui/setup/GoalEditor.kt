@@ -21,9 +21,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -64,6 +65,8 @@ import cc.blit.groglog.ui.theme.GrogColors
 import cc.blit.groglog.ui.theme.GrogLogTheme
 import cc.blit.groglog.ui.shared.ChipRow
 import cc.blit.groglog.ui.shared.NumberRow
+import cc.blit.groglog.ui.shared.decimalText
+import cc.blit.groglog.ui.shared.parseDecimal
 import cc.blit.groglog.ui.shared.Section
 import java.text.NumberFormat
 import java.time.Instant
@@ -90,8 +93,8 @@ import kotlinx.coroutines.launch
  */
 class GoalViewModel(private val database: AppDatabase, private val prefs: Prefs) : ViewModel() {
     /** The figures as typed, per day. */
-    var from by mutableDoubleStateOf(0.0)
-    var target by mutableDoubleStateOf(0.0)
+    val from = TextFieldState()
+    val target = TextFieldState()
 
     private val _draft = MutableStateFlow<Goal?>(null)
     val draft: StateFlow<Goal?> = _draft.asStateFlow()
@@ -106,8 +109,8 @@ class GoalViewModel(private val database: AppDatabase, private val prefs: Prefs)
             // from then would open weeks into its cuts.
             if (!goal.isEnabled) goal = goal.copy(start = Instant.now())
             goal = goal.copy(isEnabled = true)
-            from = goal.baselineWeekly / 7
-            target = goal.targetWeekly / 7
+            from.setTextAndPlaceCursorAtEnd(decimalText(goal.baselineWeekly / 7, 1))
+            target.setTextAndPlaceCursorAtEnd(decimalText(goal.targetWeekly / 7, 1))
             _draft.value = settled(goal)
         }
     }
@@ -116,12 +119,16 @@ class GoalViewModel(private val database: AppDatabase, private val prefs: Prefs)
     val goal: Goal? get() = _draft.value?.let(::typed)
 
     private fun typed(draft: Goal) = draft.copy(
-        baselineWeekly = from.takeIf { it > 0 }?.times(7) ?: draft.baselineWeekly,
-        targetWeekly = target.takeIf { it >= 0 }?.times(7) ?: draft.targetWeekly,
+        baselineWeekly = fromDaily?.times(7) ?: draft.baselineWeekly,
+        targetWeekly = targetDaily?.times(7) ?: draft.targetWeekly,
     )
 
     val canSave: Boolean
-        get() = _draft.value != null && from > 0 && target >= 0
+        get() = _draft.value != null && fromDaily != null && targetDaily != null
+
+    /** The typed figures, if they are ones a goal can have. */
+    val fromDaily: Double? get() = parseDecimal(from.text)?.takeIf { it > 0 }
+    val targetDaily: Double? get() = parseDecimal(target.text)?.takeIf { it >= 0 }
 
     /**
      * Moves the plan back to an offered pace after a change alters which paces are offered. Steps to the quickest still
@@ -154,7 +161,7 @@ class GoalViewModel(private val database: AppDatabase, private val prefs: Prefs)
 
     /** Rounded to a whole unit a day, since a figure such as 30.486 is not useful to plan from. */
     fun useRecent(weekly: Double) {
-        from = roundedDaily(weekly) / 7
+        from.setTextAndPlaceCursorAtEnd(decimalText(roundedDaily(weekly) / 7, 1))
         settle()
     }
 
@@ -300,7 +307,14 @@ private fun GoalSection(goal: Goal, ledger: Ledger, model: GoalViewModel, onGuid
             ChipRow(Goal.periods.map { it.days }, goal.periodDays, model::setPeriod, isEnabled = { it in offeredPeriods }, label = ::periodLabel)
         }
         // Options grey out while typing, so the narrowing is visible; the selection moves when typing ends.
-        NumberRow("From", model.from, { model.from = it }, "u/day", Modifier.padding(top = 8.dp), onEditingEnded = model::settle)
+        NumberRow(
+            "From",
+            model.from,
+            "u/day",
+            Modifier.padding(top = 8.dp),
+            error = if (model.fromDaily == null) "Enter how much you drink a day now." else null,
+            onEditingEnded = model::settle,
+        )
         if (recent != null) {
             val rounded = GoalViewModel.roundedDaily(recent)
             if (abs(rounded - goal.baselineWeekly) > 0.5) {
@@ -310,7 +324,7 @@ private fun GoalSection(goal: Goal, ledger: Ledger, model: GoalViewModel, onGuid
             }
         }
         SettingsRow(title = "Starting", value = dateText(goal.start, zone), onClick = { pickingDate = true })
-        NumberRow("Down to", model.target, { model.target = it }, "u/day")
+        NumberRow("Down to", model.target, "u/day", error = if (model.targetDaily == null) "Enter a daily amount to reach, 0 or more." else null)
         BurndownPreview(goal, ledger)
         ProjectionRow(goal, ledger)
         Warnings(goal, drinking)

@@ -62,6 +62,15 @@ import java.time.Instant
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import kotlin.math.roundToInt
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
+import cc.blit.groglog.ui.shared.decimalText
+import cc.blit.groglog.ui.shared.moneyDigits
+import cc.blit.groglog.ui.shared.moneyValue
+import cc.blit.groglog.ui.shared.parseDecimal
+import kotlin.math.abs
 
 /** One of the user's drinks or a catalogue brand, presented the same way. */
 data class Choice(
@@ -99,10 +108,6 @@ fun LogOptionsSheet(
     var count by rememberSaveable { mutableIntStateOf(1) }
     var time by remember { mutableStateOf(state.suggestedTime) }
     var search by rememberSaveable { mutableStateOf("") }
-    // What this round cost and its strength, when they differ from the usual. Null follows the drink and size, so
-    // picking another does not carry over the previous one's figures.
-    var price by remember(selected, size) { mutableStateOf<Double?>(null) }
-    var abv by remember(selected) { mutableStateOf<Double?>(null) }
 
     val choices = remember(search, state.drinks) { Picker.choices(base.drink, search, state.drinks) }
     val choice = choices.firstOrNull { it.key == selected } ?: choices[0]
@@ -110,8 +115,31 @@ fun LogOptionsSheet(
         ?: choice.drink?.price(size.vessel, size.ml)
         ?: choice.brand?.let { Catalog.price(it, size.vessel, size.ml, state.currency) }
         ?: 0.0
-    val strength = abv ?: choice.abv
-    val each = Units.of(size.ml, strength)
+    // This round's strength and cost, starting from the drink's and the size's, so picking another does not carry
+    // over the previous one's figures.
+    val abvField = rememberSaveable(selected, saver = TextFieldState.Saver) { TextFieldState(decimalText(choice.abv)) }
+    val unitsField = rememberSaveable(selected, saver = TextFieldState.Saver) { TextFieldState(decimalText(Units.of(size.ml, choice.abv), 1)) }
+    val priceField = rememberSaveable(selected, size, saver = TextFieldState.Saver) { TextFieldState(moneyDigits(usualPrice, state.currency)) }
+    val strength = if (base.drink.category == DrinkCategory.UNITS) choice.abv else parseDecimal(abvField.text)?.takeIf(Units::isStrength)
+    val each = strength?.let { Units.of(size.ml, it) } ?: 0.0
+    // Strength and units each are one figure two ways. Each follows the other, but only where they disagree at the
+    // units' one decimal place, so neither rewrites the other while it is being typed.
+    LaunchedEffect(abvField, unitsField, size.ml) {
+        snapshotFlow { abvField.text }.collect { text ->
+            val abv = parseDecimal(text)?.takeIf(Units::isStrength) ?: return@collect
+            val units = Units.of(size.ml, abv)
+            if (parseDecimal(unitsField.text)?.let { abs(it - units) < 0.05 } != true) {
+                unitsField.setTextAndPlaceCursorAtEnd(decimalText(units, 1))
+            }
+        }
+    }
+    LaunchedEffect(abvField, unitsField, size.ml) {
+        snapshotFlow { unitsField.text }.collect { text ->
+            val units = parseDecimal(text)?.takeIf { it > 0 } ?: return@collect
+            val current = parseDecimal(abvField.text)?.let { Units.of(size.ml, it) }
+            if (current == null || abs(current - units) >= 0.05) abvField.setTextAndPlaceCursorAtEnd(decimalText(units * 1000 / size.ml))
+        }
+    }
     val times = Picker.spreadTimes(time, count, state.day, state.clock)
     val pinned = state.favourites
         .filter { it.favourite.vessel == size.vessel && it.favourite.volumeMl == size.ml }
@@ -133,11 +161,12 @@ fun LogOptionsSheet(
             )
             Button(
                 onClick = {
-                    viewModel.log(choice, size, price ?: usualPrice, times, strength, state.currency)
+                    if (strength == null) return@Button
+                    viewModel.log(choice, size, moneyValue(priceField.text, state.currency), times, strength, state.currency)
                     onLogged("${if (count > 1) "$count " else ""}${choice.name} · ${(each * count).unitsText} u", count)
                     onDismiss()
                 },
-                enabled = Units.isStrength(strength),
+                enabled = strength != null,
             ) {
                 Text("Log ${if (count > 1) "$count " else ""}· ${(each * count).unitsText} u", fontWeight = FontWeight.SemiBold)
             }
@@ -155,13 +184,13 @@ fun LogOptionsSheet(
                 ) { it.label }
             }
             if (base.drink.category != DrinkCategory.UNITS) {
-                item { NumberRow("Strength", strength, { abv = it }, "% ABV") }
                 item {
-                    NumberRow("Units each", (each * 10).roundToInt() / 10.0, { abv = it * 1000 / size.ml }, "u")
+                    NumberRow("Strength", abvField, "% ABV", error = if (strength == null) "Enter a strength above 0% and at most 100%." else null)
                 }
+                item { NumberRow("Units each", unitsField, "u") }
             }
             // Under the size, since the size sets the price.
-            item { MoneyField("Price", price ?: usualPrice, { price = it }, state.currency) }
+            item { MoneyField("Price", priceField, state.currency) }
             item { StepperRow("How many: $count", count, { count = it }, 1..12) }
             if (isToday) {
                 item {
