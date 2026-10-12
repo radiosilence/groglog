@@ -31,7 +31,8 @@ object Shortcuts {
         val shortcuts = ordered.mapIndexed { rank, serve ->
             val size = serve.vessel.label(serve.volumeMl)
             ShortcutInfoCompat.Builder(context, serve.id)
-                .setShortLabel(serve.drink.name)
+                // The size as well as the name: the menu often holds one beer in two sizes.
+                .setShortLabel("${serve.drink.name}, ${serve.vessel.shortLabel(serve.volumeMl).lowercase()}")
                 .setLongLabel("${serve.drink.name}, ${size.replaceFirstChar { it.lowercase() }} (${serve.units.unitsText} u)")
                 .setIcon(IconCompat.createWithResource(context, R.drawable.ic_shortcut_drink))
                 .setIntent(LogShortcutActivity.intent(context, serve.id))
