@@ -123,11 +123,11 @@ off by default:
 | `android.permission.health.READ_HEART_RATE_VARIABILITY` | Reports shows overnight heart rate variability against the previous evening's drinking. A lower HRV after drinking is the most direct measure of its effect on the user's recovery. |
 | `android.permission.health.READ_SLEEP` | Reports shows each night's sleep, by stage, against the evening before, and the heart readings above are taken from inside the sleep session. |
 | `android.permission.health.WRITE_NUTRITION` | When the user turns on copying, the energy (kcal) of each drink they log is written as a nutrition record, so the calories from alcohol count in the other health and diet apps they use. |
+| `android.permission.health.READ_HEALTH_DATA_HISTORY` | The weekly and monthly charts compare recovery before and after the user started cutting down, which needs readings from before they installed the app. Health Connect otherwise allows only the 30 days before the first grant. Requested with the heart and sleep switches. |
 
-If the app reads data from before the permission was granted (Health Connect allows 30 days by default), it also needs
-`android.permission.health.READ_HEALTH_DATA_HISTORY`, justified as: the weekly and monthly charts compare recovery
-before and after the user started cutting down, which needs readings from before they installed the app. Request it
-only if the app does this.
+Health Connect has no record type for alcohol, so GrogLog writes no alcohol data at all; the nutrition records carry
+only energy, named after the drink. Turning copying off deletes them. Background reading is not requested: Reports reads
+only while it is on screen.
 
 The use case to select is **fitness, wellness and coaching**: the app helps the user understand and improve their own
 wellbeing. Play reviews substance use more closely; GrogLog neither reads nor writes any substance-use data type, and
@@ -136,7 +136,8 @@ the justifications make clear that the heart and sleep readings serve a user-fac
 Health Connect also requires, in the app itself:
 
 - an activity that handles `androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE`, showing the privacy policy, which Health
-  Connect opens from its permission screen;
+  Connect opens from its permission screen (`PrivacyActivity`, which shows `site/public/privacy.html` as packaged at
+  build time, so a change to the policy reaches the app with the next build);
 - on Android 14 and later, an `activity-alias` handling `android.intent.action.VIEW_PERMISSION_USAGE` with category
   `android.intent.category.HEALTH_PERMISSIONS`, pointing at the same activity;
 - the permissions listed in the manifest, and nothing requested that is not used.
