@@ -303,7 +303,7 @@ private fun PickerGrid(
         }
     }
     // Grows with the text size, so the tiles go to fewer columns rather than clipping their names.
-    val tileWidth = 104.dp * LocalDensity.current.fontScale.coerceIn(1f, 2f)
+    val tileWidth = 104.dp * LocalDensity.current.fontScale.coerceIn(1f, 1.5f)
     val query = state.query.trim()
 
     LazyVerticalGrid(

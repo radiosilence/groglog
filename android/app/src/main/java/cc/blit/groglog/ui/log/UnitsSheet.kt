@@ -2,6 +2,9 @@ package cc.blit.groglog.ui.log
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -81,7 +84,7 @@ private fun UnitsForm(day: DayKey, clock: DayClock, initialTime: Instant, onDism
             BasicTextField(
                 value = text,
                 onValueChange = { new -> text = new.filter { it.isDigit() || it == '.' || it == ',' }.take(6) },
-                modifier = Modifier.weight(1f).focusRequester(focus).semantics { contentDescription = "Units" },
+                modifier = Modifier.width(IntrinsicSize.Min).widthIn(min = 40.dp).focusRequester(focus).semantics { contentDescription = "Units" },
                 textStyle = figure,
                 singleLine = true,
                 cursorBrush = SolidColor(GrogColors.grog),
@@ -92,7 +95,7 @@ private fun UnitsForm(day: DayKey, clock: DayClock, initialTime: Instant, onDism
                     field()
                 },
             )
-            Text("units", Modifier.padding(bottom = 8.dp), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("units", Modifier.weight(1f).padding(bottom = 8.dp), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         TimeRow("At", time, { time = it }, clock, day)
         Text(
