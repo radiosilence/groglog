@@ -191,6 +191,8 @@ private fun TileGrid(tiles: List<Serve>, logged: String?, modifier: GlanceModifi
     }
 }
 
+private val GLYPH = 40.dp
+
 @Composable
 private fun Tile(serve: Serve, logged: Boolean, modifier: GlanceModifier) {
     val size = serve.vessel.shortLabel(serve.volumeMl)
@@ -213,6 +215,12 @@ private fun Tile(serve: Serve, logged: Boolean, modifier: GlanceModifier) {
             )
             Text("Logged", style = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Medium, color = GlanceTheme.colors.onSecondaryContainer))
         } else {
+            val density = LocalContext.current.resources.displayMetrics.density
+            Image(
+                ImageProvider(Drawings.glyph(serve, (GLYPH.value * density).toInt())),
+                contentDescription = null,
+                modifier = GlanceModifier.defaultWeight().fillMaxWidth(),
+            )
             Text(
                 serve.drink.name,
                 style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Medium, color = GlanceTheme.colors.onSecondaryContainer),
