@@ -79,6 +79,22 @@ class SetupTests {
         assertTrue(database.rows().pours().isEmpty())
     }
 
+    @Test fun aBackupKeepsEntriesTimedAfterToday() = runBlocking {
+        val prefs = prefs()
+        val database = database()
+        val logbook = local(prefs, database)
+        val drink = beer()
+        logbook.rows.insert(drink)
+        val tomorrow = logbook.clock.today + 1
+        logbook.log(Serve(drink), listOf(logbook.clock.start(tomorrow).plusSeconds(15 * 3600)))
+        val bytes = setup(database, prefs).export(Exporter.Kind.JSON)
+        assertTrue(Exporter.decode(bytes).days.any { it.date == tomorrow.toString() && it.pours?.size == 1 })
+
+        val elsewhere = database()
+        setup(elsewhere).import { ByteArrayInputStream(bytes) }
+        assertEquals(tomorrow.number, elsewhere.rows().pours().single().day)
+    }
+
     @Test fun aBackupThatFailsChangesNoSettings() = runBlocking {
         val prefs = prefs()
         val database = database()

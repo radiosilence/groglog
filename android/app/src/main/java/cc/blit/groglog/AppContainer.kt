@@ -15,6 +15,7 @@ import cc.blit.groglog.data.Seed
 import cc.blit.groglog.data.health.Health
 import cc.blit.groglog.data.settingsStore
 import cc.blit.groglog.model.Catalog
+import cc.blit.groglog.model.Ledger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -53,7 +54,15 @@ class AppContainer(private val context: Context) {
         scope.launch {
             prefs.finishDayEndMove(database)
             Seed.drinksIfNeeded(logbook())
-            if (isDemo) Seed.sample(logbook())
+            if (isDemo) {
+                val logbook = logbook()
+                Seed.sample(logbook)
+                // The demo's taper starts with its log, so Reports and the Day tab show a taper under way, budget and
+                // all, rather than one begun this morning.
+                Ledger(database.rows().days(), logbook.clock).firstDay?.let { first ->
+                    prefs.setGoal(prefs.current().goal.copy(start = logbook.clock.start(first)))
+                }
+            }
         }
         scope.launch { prefs.settings.collect { Catalog.currency = it.currency } }
         if (!isDemo) mirrorToHealth()

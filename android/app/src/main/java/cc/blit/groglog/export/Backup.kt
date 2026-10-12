@@ -149,7 +149,9 @@ object Exporter {
         val ledger = Ledger(rows.days(), settings.clock)
         val byDay = rows.entriesByTime().groupBy { it.day }
         val first = ledger.firstDay
-        val days = if (first == null) emptyList() else (minOf(first, ledger.today)..ledger.today).toList()
+        // Through today, or further where an entry was timed after it, so nothing logged is left out of the file.
+        val last = maxOf(ledger.today, byDay.keys.maxOrNull()?.let(::DayKey) ?: ledger.today)
+        val days = if (first == null) emptyList() else (minOf(first, ledger.today)..last).toList()
 
         Backup(
             dayStartsAtHour = settings.rolloverHour,
@@ -164,6 +166,7 @@ object Exporter {
                 val totals = ledger.totals(day)
                 val status = when (ledger.status(day)) {
                     DayStatus.DRANK -> "drank"
+                    DayStatus.FUTURE -> if (byDay[day.number].isNullOrEmpty()) "not_logged" else "drank"
                     DayStatus.ALCOHOL_FREE -> "alcohol_free"
                     DayStatus.TODAY -> "in_progress"
                     else -> "not_logged"
@@ -277,20 +280,24 @@ object Exporter {
             val daysWithPours = rows.daysWithPours().toSet()
             val touched = mutableSetOf<DayKey>()
             for (record in backup.days) {
-                // A future day cannot have been drunk on, and would put the log's first day after today.
                 val day = DayKey.parse(record.date) ?: continue
-                if (day > clock.today || day.number in daysWithPours) continue
-                if (record.status == "alcohol_free") {
+                if (day.number in daysWithPours) continue
+                // Only entries are taken from a day after today, as the backup gives them: a future day cannot be marked
+                // dry or given a spend, and a bare total for one would put the log's first day after today.
+                val future = day > clock.today
+                if (!future && record.status == "alcohol_free") {
                     rows.save((rows.day(day.number) ?: Day(day.number)).copy(isAlcoholFree = true))
                 }
-                record.spentByHand?.let { spent ->
-                    rows.save((rows.day(day.number) ?: Day(day.number)).copy(costOverride = spent))
-                    touched += day
+                if (!future) {
+                    record.spentByHand?.let { spent ->
+                        rows.save((rows.day(day.number) ?: Day(day.number)).copy(costOverride = spent))
+                        touched += day
+                    }
                 }
                 val evening = clock.suggestedTime(day, null)
                 val pours = record.pours ?: emptyList()
                 val units = record.units
-                if (pours.isEmpty() && units != null && units > 0) {
+                if (!future && pours.isEmpty() && units != null && units > 0) {
                     val drink = logbook.unitsDrink()
                     rows.insert(Pour(drinkId = drink.id, timestamp = evening, day = day.number, vessel = Vessel.SHOT, volumeMl = units * 10, price = record.cost ?: 0.0, kcalOverride = record.kcal))
                     added += 1
