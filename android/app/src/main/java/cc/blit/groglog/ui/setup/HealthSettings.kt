@@ -1,10 +1,7 @@
 package cc.blit.groglog.ui.setup
 
-import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
-import android.health.connect.HealthConnectManager
-import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,6 +29,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import androidx.activity.result.ActivityResultLauncher
+import cc.blit.groglog.ui.shared.launchSafely
+import cc.blit.groglog.ui.shared.rememberNotice
+import cc.blit.groglog.ui.shared.startSafely
 
 /** Whether Health Connect can be used here, and if not, whether installing or updating it would fix that. */
 enum class HealthConnectStatus { AVAILABLE, NEEDS_INSTALL, UNSUPPORTED }
@@ -129,17 +130,22 @@ fun HealthSettings(modifier: Modifier = Modifier) {
         model.refresh()
         onPauseOrDispose {}
     }
+    val notice = rememberNotice()
+    // Health Connect's permission screen, or word that it could not be shown.
+    fun <I> launch(launcher: ActivityResultLauncher<I>, input: I) {
+        if (!launcher.launchSafely(input)) notice("Health Connect could not be opened.")
+    }
     val contract = PermissionController.createRequestPermissionResultContract()
     val copy = rememberLauncherForActivityResult(contract, model::copyGranted)
     val heart = rememberLauncherForActivityResult(contract, model::heartGranted)
     val sleep = rememberLauncherForActivityResult(contract, model::sleepGranted)
     HealthSettingsContent(
         state = state,
-        onCopies = { if (it) copy.launch(model.copyPermissions()) else model.stopCopying() },
-        onHeart = { if (it) heart.launch(model.heartPermissions()) else model.stopReading(heart = true) },
-        onSleep = { if (it) sleep.launch(model.sleepPermissions()) else model.stopReading(heart = false) },
-        onInstall = { context.openHealthConnectListing() },
-        onManage = { context.openHealthConnect() },
+        onCopies = { if (it) launch(copy, model.copyPermissions()) else model.stopCopying() },
+        onHeart = { if (it) launch(heart, model.heartPermissions()) else model.stopReading(heart = true) },
+        onSleep = { if (it) launch(sleep, model.sleepPermissions()) else model.stopReading(heart = false) },
+        onInstall = { if (!context.openHealthConnectListing()) notice("Google Play is not on this phone.") },
+        onManage = { if (!context.openHealthConnect()) notice("Health Connect could not be opened.") },
         modifier = modifier,
     )
 }
@@ -187,38 +193,24 @@ internal fun HealthSettingsContent(
 }
 
 /**
- * GrogLog's own page in Health Connect, where its permissions are granted and withdrawn; failing that, Health Connect's
- * data screen, and failing that, its Play listing.
+ * Health Connect's screen for GrogLog's data and permissions where the platform offers one, otherwise its settings, and
+ * failing both its Play listing. False when none of them opens. Android 14's own "manage permissions" action is not
+ * used: it is protected by a permission only the system holds.
  */
-private fun Context.openHealthConnect() {
-    // Part of the platform from Android 14; before that, the Health Connect app answers its own action.
-    val manage = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-        Intent(HealthConnectManager.ACTION_MANAGE_HEALTH_PERMISSIONS)
-    } else {
-        Intent("androidx.health.ACTION_MANAGE_HEALTH_PERMISSIONS").setPackage(Health.PROVIDER)
-    }
+internal fun Context.openHealthConnect(): Boolean {
     val intents = listOf(
-        manage.putExtra(Intent.EXTRA_PACKAGE_NAME, packageName),
         HealthConnectClient.getHealthConnectManageDataIntent(this),
+        Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS),
     )
-    for (intent in intents) {
-        try {
-            startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            return
-        } catch (_: ActivityNotFoundException) {
-            continue
-        }
-    }
-    openHealthConnectListing()
+    return intents.any { startSafely(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } || openHealthConnectListing()
 }
 
-private fun Context.openHealthConnectListing() {
+/** Health Connect's Play listing, in the Play Store or failing that the browser. False when neither opens. */
+internal fun Context.openHealthConnectListing(): Boolean {
     val listing = "market://details?id=${Health.PROVIDER}&url=healthconnect%3A%2F%2Fonboarding".toUri()
-    try {
-        startActivity(Intent(Intent.ACTION_VIEW, listing).setPackage("com.android.vending").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    } catch (_: ActivityNotFoundException) {
-        startActivity(Intent(Intent.ACTION_VIEW, "https://play.google.com/store/apps/details?id=${Health.PROVIDER}".toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    }
+    val web = "https://play.google.com/store/apps/details?id=${Health.PROVIDER}".toUri()
+    return startSafely(Intent(Intent.ACTION_VIEW, listing).setPackage("com.android.vending").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) ||
+        startSafely(Intent(Intent.ACTION_VIEW, web).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 }
 
 @Preview(showBackground = true)

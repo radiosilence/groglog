@@ -65,7 +65,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.text.style.TextOverflow
@@ -96,6 +95,13 @@ import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.material3.TopAppBarScrollBehavior
+import androidx.core.net.toUri
+import cc.blit.groglog.ui.shared.LocalSnackbar
+import cc.blit.groglog.ui.shared.launchSafely
+import cc.blit.groglog.ui.shared.rememberNotice
+import cc.blit.groglog.ui.shared.startSafely
 
 /** Setup's pushed pages, for MainActivity's back stack. A page closes only itself, so a double tap cannot close two. */
 fun EntryProviderScope<NavKey>.setupEntries(modifier: Modifier, backStack: NavBackStack<NavKey>) {
@@ -197,10 +203,22 @@ internal fun SetupContent(
         onCurrency = model::setCurrency,
         dynamicColour = dynamicColour,
         onDynamicColour = model::setDynamicColour,
-        onExportMarkdown = { scope.launch { share(context, model.exportFile(Exporter.Kind.MARKDOWN)) } },
-        onExportBackup = { scope.launch { saver.launch(model.fileName(Exporter.Kind.JSON)) } },
+        onExportMarkdown = {
+            scope.launch {
+                if (!share(context, model.exportFile(Exporter.Kind.MARKDOWN))) snackbar.showSnackbar("No app on this phone can take the log.")
+            }
+        },
+        onExportBackup = {
+            scope.launch {
+                if (!saver.launchSafely(model.fileName(Exporter.Kind.JSON))) snackbar.showSnackbar("No app on this phone can save files.")
+            }
+        },
         // Files from cloud drives often arrive without a JSON type, so anything textual is offered.
-        onImport = { importer.launch(arrayOf(Exporter.Kind.JSON.mimeType, "text/*", "application/octet-stream")) },
+        onImport = {
+            if (!importer.launchSafely(arrayOf(Exporter.Kind.JSON.mimeType, "text/*", "application/octet-stream"))) {
+                scope.launch { snackbar.showSnackbar("No app on this phone can open files.") }
+            }
+        },
         onDemo = onDemo,
         onRebuild = model::rebuild,
     )
@@ -210,7 +228,7 @@ internal fun SetupContent(
  * Hands an export to the share sheet as a file. Plain text is the type chat apps accept, which is where this log is
  * pasted; the text itself is not attached, since a long log would exceed what an intent can carry.
  */
-private fun share(context: Context, file: File) {
+private fun share(context: Context, file: File): Boolean {
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.exports", file)
     val send = Intent(Intent.ACTION_SEND)
         .setType("text/plain")
@@ -218,7 +236,7 @@ private fun share(context: Context, file: File) {
         .putExtra(Intent.EXTRA_TITLE, file.name)
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     send.clipData = ClipData.newRawUri(file.name, uri)
-    context.startActivity(Intent.createChooser(send, "GrogLog log"))
+    return context.startSafely(Intent.createChooser(send, "GrogLog log"))
 }
 
 private fun versionText(context: Context): String {
@@ -249,7 +267,6 @@ internal fun SetupHome(
     onRebuild: () -> Unit = {},
 ) {
     var dialog by rememberSaveable { mutableStateOf<String?>(null) }
-    val uri = LocalUriHandler.current
 
     SetupPage(title = "Setup", large = true, snackbar = snackbar, list = list) {
         item(key = "goal") {
@@ -423,10 +440,27 @@ internal fun SetupPage(
             null -> Unit
         }
     }
+    // Every page has a snackbar, for a row that opens another app to say when none can.
+    val host = snackbar ?: remember { SnackbarHostState() }
+    CompositionLocalProvider(LocalSnackbar provides host) { SetupScaffold(title, large, behavior, icon, actions, host, list, content) }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SetupScaffold(
+    title: String,
+    large: Boolean,
+    behavior: TopAppBarScrollBehavior,
+    icon: @Composable () -> Unit,
+    actions: @Composable () -> Unit,
+    host: SnackbarHostState,
+    list: LazyListState,
+    content: LazyListScope.() -> Unit,
+) {
     Scaffold(
         modifier = Modifier.nestedScroll(behavior.nestedScrollConnection),
         contentWindowInsets = WindowInsets(0),
-        snackbarHost = { snackbar?.let { SnackbarHost(it) } },
+        snackbarHost = { SnackbarHost(host) },
         topBar = {
             val heading = @Composable { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             if (large) {
@@ -502,8 +536,14 @@ internal fun SwitchRow(title: String, checked: Boolean, onChange: (Boolean) -> U
 
 @Composable
 internal fun LinkRow(title: String, url: String) {
-    val uri = LocalUriHandler.current
-    SettingsRow(title, valueColor = MaterialTheme.colorScheme.primary, onClick = { uri.openUri(url) }, onClickLabel = "Open in browser")
+    val context = LocalContext.current
+    val notice = rememberNotice()
+    SettingsRow(
+        title,
+        valueColor = MaterialTheme.colorScheme.primary,
+        onClick = { if (!context.startSafely(Intent(Intent.ACTION_VIEW, url.toUri()))) notice("No app on this phone can open the link.") },
+        onClickLabel = "Open in browser",
+    )
 }
 
 @Composable
