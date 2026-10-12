@@ -12,3 +12,7 @@ sealed interface Tab : NavKey {
     @Serializable data object Reports : Tab
     @Serializable data object Setup : Tab
 }
+
+/** A day opened from the calendar, as `DayKey.number`. */
+@Serializable
+data class CalendarDay(val day: Int) : NavKey

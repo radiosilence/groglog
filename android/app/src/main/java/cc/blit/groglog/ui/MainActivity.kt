@@ -4,6 +4,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
@@ -18,6 +20,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -30,11 +33,16 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import cc.blit.groglog.container
 import cc.blit.groglog.ui.calendar.CalendarScreen
+import cc.blit.groglog.model.DayKey
+import cc.blit.groglog.ui.day.CalendarDayScreen
 import cc.blit.groglog.ui.day.DayScreen
 import cc.blit.groglog.ui.log.LogScreen
 import cc.blit.groglog.ui.reports.ReportsScreen
 import cc.blit.groglog.ui.setup.SetupScreen
 import cc.blit.groglog.ui.theme.GrogLogTheme
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -64,13 +72,14 @@ private val tabs: List<Triple<Tab, String, ImageVector>> = listOf(
 private fun Root() {
     val backStack = rememberNavBackStack(Tab.Log)
     val current = backStack.filterIsInstance<Tab>().lastOrNull() ?: Tab.Log
+    val reselected = remember { MutableSharedFlow<Tab>(extraBufferCapacity = 1) }
     Scaffold(
         bottomBar = {
             NavigationBar {
                 for ((tab, label, icon) in tabs) {
                     NavigationBarItem(
                         selected = current == tab,
-                        onClick = { backStack.select(tab) },
+                        onClick = { if (backStack.lastOrNull() == tab) reselected.tryEmit(tab) else backStack.select(tab) },
                         icon = { Icon(icon, contentDescription = null) },
                         label = { Text(label) },
                     )
@@ -85,8 +94,20 @@ private fun Root() {
             entryDecorators = listOf(rememberSaveableStateHolderNavEntryDecorator(), rememberViewModelStoreNavEntryDecorator()),
             entryProvider = entryProvider {
                 entry<Tab.Log> { LogScreen(modifier) }
-                entry<Tab.Calendar> { CalendarScreen(modifier) }
-                entry<Tab.Day> { DayScreen(modifier) }
+                // These draw their own top bars under the status bar, so they take only the bottom of the padding.
+                entry<Tab.Calendar> {
+                    CalendarScreen(
+                        onOpen = { backStack.add(CalendarDay(it.number)) },
+                        modifier = padding.bottomOnly(),
+                        reselected = remember { reselected.filter { it == Tab.Calendar }.map {} },
+                    )
+                }
+                entry<CalendarDay> { key ->
+                    CalendarDayScreen(DayKey(key.day), onBack = { backStack.removeLastOrNull() }, modifier = padding.bottomOnly(), onSetGoal = { backStack.select(Tab.Setup) })
+                }
+                entry<Tab.Day> {
+                    DayScreen(padding.bottomOnly(), remember { reselected.filter { it == Tab.Day }.map {} }, onSetGoal = { backStack.select(Tab.Setup) })
+                }
                 entry<Tab.Reports> { ReportsScreen(modifier) }
                 entry<Tab.Setup> { SetupScreen(modifier) }
             },
@@ -98,4 +119,9 @@ private fun NavBackStack<NavKey>.select(tab: Tab) {
     if (lastOrNull() == tab) return
     clear()
     add(tab)
+}
+
+private fun PaddingValues.bottomOnly(): Modifier {
+    val bottom = PaddingValues(bottom = calculateBottomPadding())
+    return Modifier.padding(bottom).consumeWindowInsets(bottom)
 }
