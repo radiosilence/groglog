@@ -35,7 +35,8 @@ Graphics, rendered by `scripts/render-play-graphics.sh` from the pint glyph the 
 - **Feature graphic** (1024 × 500, `android/store/feature-graphic.png`): the name to the left and the glyph to the
   right, leaving the centre clear of the play button Play may lay over it.
 - **Phone screenshots:** 2 to 8 PNGs in `android/store/screenshots/phone/`, uploaded in name order. Play will not
-  publish the listing without at least two. They have to come from the Android app, so none exist yet.
+  publish the listing without at least two. The eight there are from the app in demo mode on a Pixel emulator: the Log,
+  Day, Reports and Calendar tabs in light, three of them again in dark, and the widgets on a home screen.
 
 ## Content rating
 
