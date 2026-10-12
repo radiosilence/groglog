@@ -7,10 +7,10 @@ import androidx.lifecycle.viewModelScope
 import cc.blit.groglog.data.AppDatabase
 import cc.blit.groglog.data.Logbook
 import cc.blit.groglog.data.Prefs
-import cc.blit.groglog.data.Settings
 import cc.blit.groglog.export.Exporter
 import cc.blit.groglog.export.ImportException
 import cc.blit.groglog.model.Ledger
+import cc.blit.groglog.ui.LedgerState
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
@@ -44,12 +44,9 @@ class SetupViewModel(
     private val background: CoroutineScope,
     private val exports: File,
 ) : ViewModel() {
-    val settings: StateFlow<Settings?> = prefs.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-
-    val ledger: StateFlow<Ledger?> = combine(database.queries().days(), prefs.settings) { days, settings -> Ledger(days, settings.clock) }
+    /** Null until the first read lands. */
+    val state: StateFlow<LedgerState?> = combine(prefs.settings, database.queries().days()) { settings, days -> LedgerState(settings, Ledger(days, settings.clock)) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-
-    val dynamicColor: StateFlow<Boolean> = prefs.dynamicColor.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     private val _notice = MutableStateFlow<Notice?>(null)
     val notice: StateFlow<Notice?> = _notice.asStateFlow()
@@ -69,8 +66,8 @@ class SetupViewModel(
         viewModelScope.launch { prefs.setCurrency(code) }
     }
 
-    fun setDynamicColor(on: Boolean) {
-        viewModelScope.launch { prefs.setDynamicColor(on) }
+    fun setDynamicColour(on: Boolean) {
+        viewModelScope.launch { prefs.setDynamicColour(on) }
     }
 
     fun resetPrices(): Job = viewModelScope.launch {

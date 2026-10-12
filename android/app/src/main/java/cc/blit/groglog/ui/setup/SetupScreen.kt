@@ -4,9 +4,11 @@ import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -68,13 +70,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.core.content.pm.PackageInfoCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.EntryProviderScope
+import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
-import androidx.navigation3.runtime.entryProvider
-import androidx.navigation3.runtime.rememberNavBackStack
-import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
-import androidx.navigation3.ui.NavDisplay
 import cc.blit.groglog.container
 import cc.blit.groglog.data.Settings
 import cc.blit.groglog.export.Exporter
@@ -84,77 +82,63 @@ import cc.blit.groglog.model.Ledger
 import cc.blit.groglog.model.Rates
 import cc.blit.groglog.model.Taper
 import cc.blit.groglog.ui.theme.GrogColors
+import cc.blit.groglog.ui.SetupRoute
+import cc.blit.groglog.ui.containerViewModel
 import cc.blit.groglog.ui.theme.GrogLogTheme
-import cc.blit.groglog.ui.theme.supportsDynamicColor
 import java.io.File
 import java.util.Currency
 import java.util.UUID
 import kotlinx.coroutines.launch
-import kotlinx.serialization.Serializable
 
-@Serializable private data object Home : NavKey
-@Serializable private data object DrinksRoute : NavKey
-@Serializable private data class EditDrink(val id: String?) : NavKey
-@Serializable private data object GoalRoute : NavKey
-@Serializable private data object Guidance : NavKey
-
-@Composable
-fun SetupScreen(modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val container = context.container
-    val backStack = rememberNavBackStack(Home)
-    // Pops only the page asking, so a double tap on Close cannot also close the page beneath.
+/** Setup's pushed pages, for MainActivity's back stack. A page closes only itself, so a double tap cannot close two. */
+fun EntryProviderScope<NavKey>.setupEntries(modifier: Modifier, backStack: NavBackStack<NavKey>) {
     val close = { key: NavKey -> if (backStack.lastOrNull() == key) backStack.removeAt(backStack.lastIndex) }
-    NavDisplay(
-        backStack = backStack,
-        modifier = modifier,
-        onBack = { backStack.removeLastOrNull() },
-        entryDecorators = listOf(rememberSaveableStateHolderNavEntryDecorator(), rememberViewModelStoreNavEntryDecorator()),
-        entryProvider = entryProvider {
-            entry<Home> {
-                val model = viewModel {
-                    SetupViewModel(container.database, container.prefs, container.scope, File(context.cacheDir, "exports"))
-                }
-                SetupRoute(
-                    model,
-                    isDemo = container.isDemo,
-                    onDemo = container::setDemo,
-                    onGoal = { backStack.add(GoalRoute) },
-                    onDrinks = { backStack.add(DrinksRoute) },
-                )
-            }
-            entry<DrinksRoute> { key ->
-                val model = viewModel { DrinksViewModel(container.database, container.prefs) }
-                val groups by model.drinks.collectAsStateWithLifecycle()
-                DrinksPage(
-                    groups,
-                    onBack = { close(key) },
-                    onNew = { backStack.add(EditDrink(null)) },
-                    onEdit = { backStack.add(EditDrink(it.id.toString())) },
-                    onHide = model::setHidden,
-                )
-            }
-            entry<EditDrink> { key ->
-                val model = viewModel { DrinkEditorViewModel(container.database, container.prefs, key.id?.let(UUID::fromString)) }
-                val timesLogged by model.timesLogged.collectAsStateWithLifecycle()
-                DrinkEditorPage(model, timesLogged, onClose = { close(key) })
-            }
-            entry<GoalRoute> { key ->
-                val model = viewModel { GoalViewModel(container.database, container.prefs) }
-                GoalPage(model, onClose = { close(key) }, onGuidance = { backStack.add(Guidance) })
-            }
-            entry<Guidance> { key -> GuidancePage(onClose = { close(key) }) }
-        },
-    )
+    entry<SetupRoute.Drinks> { key ->
+        val model = containerViewModel { DrinksViewModel(it.database, it.prefs) }
+        val groups by model.drinks.collectAsStateWithLifecycle()
+        Box(modifier) {
+            DrinksPage(
+                groups,
+                onBack = { close(key) },
+                onNew = { backStack.add(SetupRoute.EditDrink(null)) },
+                onEdit = { backStack.add(SetupRoute.EditDrink(it.id.toString())) },
+                onHide = model::setHidden,
+            )
+        }
+    }
+    entry<SetupRoute.EditDrink> { key ->
+        val model = containerViewModel { DrinkEditorViewModel(it.database, it.prefs, key.id?.let(UUID::fromString)) }
+        val timesLogged by model.timesLogged.collectAsStateWithLifecycle()
+        Box(modifier) { DrinkEditorPage(model, timesLogged, onClose = { close(key) }) }
+    }
+    entry<SetupRoute.Goal> { key ->
+        val model = containerViewModel { GoalViewModel(it.database, it.prefs) }
+        Box(modifier) { GoalPage(model, onClose = { close(key) }, onGuidance = { backStack.add(SetupRoute.Guidance) }) }
+    }
+    entry<SetupRoute.Guidance> { key -> Box(modifier) { GuidancePage(onClose = { close(key) }) } }
 }
 
 @Composable
-private fun SetupRoute(model: SetupViewModel, isDemo: Boolean, onDemo: (Boolean) -> Unit, onGoal: () -> Unit, onDrinks: () -> Unit) {
+fun SetupScreen(modifier: Modifier = Modifier, onOpen: (NavKey) -> Unit) {
+    val context = LocalContext.current
+    val model = containerViewModel { SetupViewModel(it.database, it.prefs, it.scope, File(context.cacheDir, "exports")) }
+    val container = context.container
+    Box(modifier) {
+        SetupContent(
+            model,
+            isDemo = container.isDemo,
+            onDemo = container::setDemo,
+            onGoal = { onOpen(SetupRoute.Goal) },
+            onDrinks = { onOpen(SetupRoute.Drinks) },
+        )
+    }
+}
+
+@Composable
+private fun SetupContent(model: SetupViewModel, isDemo: Boolean, onDemo: (Boolean) -> Unit, onGoal: () -> Unit, onDrinks: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val settings by model.settings.collectAsStateWithLifecycle()
-    val ledger by model.ledger.collectAsStateWithLifecycle()
-    val dynamicColor by model.dynamicColor.collectAsStateWithLifecycle()
+    val state by model.state.collectAsStateWithLifecycle()
     val notice by model.notice.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
 
@@ -179,10 +163,10 @@ private fun SetupRoute(model: SetupViewModel, isDemo: Boolean, onDemo: (Boolean)
         null -> Unit
     }
 
+    val current = state ?: return
     SetupHome(
-        settings = settings ?: return,
-        ledger = ledger ?: return,
-        dynamicColor = dynamicColor,
+        settings = current.settings,
+        ledger = current.ledger,
         version = remember { versionText(context) },
         developer = remember { context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0 },
         isDemo = isDemo,
@@ -192,7 +176,7 @@ private fun SetupRoute(model: SetupViewModel, isDemo: Boolean, onDemo: (Boolean)
         onResetPrices = { model.resetPrices() },
         onRolloverHour = { model.setRolloverHour(it) },
         onCurrency = model::setCurrency,
-        onDynamicColor = model::setDynamicColor,
+        onDynamicColour = model::setDynamicColour,
         onExportMarkdown = { scope.launch { share(context, model.exportFile(Exporter.Kind.MARKDOWN)) } },
         onExportBackup = { scope.launch { saver.launch(model.fileName(Exporter.Kind.JSON)) } },
         // Files from cloud drives often arrive without a JSON type, so anything textual is offered.
@@ -226,7 +210,6 @@ private fun versionText(context: Context): String {
 internal fun SetupHome(
     settings: Settings,
     ledger: Ledger,
-    dynamicColor: Boolean,
     version: String,
     developer: Boolean,
     isDemo: Boolean,
@@ -236,7 +219,7 @@ internal fun SetupHome(
     onResetPrices: () -> Unit = {},
     onRolloverHour: (Int) -> Unit = {},
     onCurrency: (String) -> Unit = {},
-    onDynamicColor: (Boolean) -> Unit = {},
+    onDynamicColour: (Boolean) -> Unit = {},
     onExportMarkdown: () -> Unit = {},
     onExportBackup: () -> Unit = {},
     onImport: () -> Unit = {},
@@ -268,13 +251,13 @@ internal fun SetupHome(
             }
         }
         item(key = "health") { HealthSettings(Modifier) }
-        if (supportsDynamicColor) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             item(key = "appearance") {
                 SettingsSection(title = "Appearance") {
                     SwitchRow(
                         "Wallpaper colours",
-                        checked = dynamicColor,
-                        onChange = onDynamicColor,
+                        checked = settings.dynamicColour,
+                        onChange = onDynamicColour,
                         supporting = "Buttons and controls take their colours from your wallpaper. Charts and the calendar keep GrogLog's own, since their colours carry meaning.",
                     )
                 }
@@ -497,7 +480,6 @@ private fun SetupPreview() {
             SetupHome(
                 settings = Settings(currency = "GBP", goal = Goal(isEnabled = true, taper = Taper.DYNAMIC, baselineWeekly = 210.0)),
                 ledger = Ledger(emptyList(), DayClock(5)),
-                dynamicColor = false,
                 version = "GrogLog 1.0 (1)",
                 developer = true,
                 isDemo = false,

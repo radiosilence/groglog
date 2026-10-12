@@ -78,10 +78,10 @@ class SetupScreenshots {
         val (_, prefs, ledger) = sample()
         val settings = runBlocking { prefs.current() }
         shoot("setup") {
-            SetupHome(settings, ledger, dynamicColor = false, version = "GrogLog 1.0 (1)", developer = true, isDemo = true)
+            SetupHome(settings, ledger, version = "GrogLog 1.0 (1)", developer = true, isDemo = true)
         }
         shoot("setup-goal-off") {
-            SetupHome(Settings(), ledger, dynamicColor = false, version = "GrogLog 1.0 (1)", developer = false, isDemo = false)
+            SetupHome(Settings(), ledger, version = "GrogLog 1.0 (1)", developer = false, isDemo = false)
         }
     }
 
