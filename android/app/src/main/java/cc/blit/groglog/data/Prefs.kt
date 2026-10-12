@@ -17,11 +17,13 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
-/** The settings that belong to the log: when a day ends, the currency prices are in, and the taper. */
+/** The settings that belong to the log (when a day ends, the currency prices are in, the taper) and how it looks. */
 data class Settings(
     val rolloverHour: Int = 5,
     val currency: String = Catalog.defaultCurrency(),
     val goal: Goal = Goal(),
+    /** Material You's wallpaper colours in place of GrogLog's palette. This device's choice; backups leave it out. */
+    val dynamicColour: Boolean = false,
 ) {
     val clock: DayClock get() = DayClock(rolloverHour)
 }
@@ -52,6 +54,7 @@ class Prefs(private val store: DataStore<Preferences>) {
             rolloverHour = values[ROLLOVER_HOUR] ?: 5,
             currency = values[CURRENCY] ?: Catalog.defaultCurrency(),
             goal = values[GOAL]?.let { runCatching { GoalSerializer.decode(it) }.getOrNull() } ?: Goal(),
+            dynamicColour = values[DYNAMIC_COLOUR] ?: false,
         )
     }.distinctUntilChanged()
 
@@ -82,6 +85,10 @@ class Prefs(private val store: DataStore<Preferences>) {
         store.edit { it[GOAL] = GoalSerializer.encode(goal).toString() }
     }
 
+    suspend fun setDynamicColour(on: Boolean) {
+        store.edit { it[DYNAMIC_COLOUR] = on }
+    }
+
     private companion object {
         val ROLLOVER_HOUR = intPreferencesKey("rolloverHour")
         val CURRENCY = stringPreferencesKey("currency")
@@ -89,5 +96,6 @@ class Prefs(private val store: DataStore<Preferences>) {
         val COPIES_TO_HEALTH = booleanPreferencesKey("mirrorsToHealth")
         val READS_HEART = booleanPreferencesKey("readsHeart")
         val READS_SLEEP = booleanPreferencesKey("readsSleep")
+        val DYNAMIC_COLOUR = booleanPreferencesKey("dynamicColour")
     }
 }

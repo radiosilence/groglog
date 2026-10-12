@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import cc.blit.groglog.model.Nights
+import cc.blit.groglog.ui.calendar.differentiateWithoutColour
 import cc.blit.groglog.model.Units
 import cc.blit.groglog.model.WeekStat
 import cc.blit.groglog.model.unitsText
@@ -27,7 +28,7 @@ val weekRanges = listOf(8 to "8 weeks", 12 to "12 weeks", 26 to "6 months", 52 t
 fun WeeksCard(stats: List<WeekStat>, nights: Nights, weeks: Int, onWeeks: (Int) -> Unit, shownHeart: HeartReading, onShowHeart: (HeartReading) -> Unit) {
     val thisWeek = stats.last().start
     val window = rememberChartWindow(span = weeks * 7.0, left = (thisWeek - 7 * (weeks - 1)).number.toDouble())
-    val differentiate = differentiatesWithoutColour()
+    val differentiate = differentiateWithoutColour()
     val centre = { stat: WeekStat -> stat.start.number + 3.5 }
     val hearts = listOf(HeartReading.RESTING, HeartReading.HRV).flatMap { reading ->
         HeartPoint.line(reading, stats.map { it.start }, at = { it.number + 3.5 }) { nights.mean(reading.value, it..(it + 6)) }

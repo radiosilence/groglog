@@ -21,6 +21,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import cc.blit.groglog.model.DayKey
+import cc.blit.groglog.ui.calendar.differentiateWithoutColour
 import cc.blit.groglog.model.DayStatus
 import cc.blit.groglog.model.Goal
 import cc.blit.groglog.model.Ledger
@@ -160,7 +161,7 @@ fun ProgressCard(
     val today = progress.today
     val window = rememberChartWindow(span = days, left = (today - (days.roundToInt() - 4)).number.toDouble(), minSpan = 4.0, maxSpan = history.toDouble())
     var selected by remember { mutableStateOf<Double?>(null) }
-    val differentiate = differentiatesWithoutColour()
+    val differentiate = differentiateWithoutColour()
 
     ReportCard(title) {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {

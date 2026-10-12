@@ -20,12 +20,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
-import cc.blit.groglog.container
+import cc.blit.groglog.ui.containerViewModel
 import androidx.compose.ui.tooling.preview.Preview
 import cc.blit.groglog.model.Day
 import cc.blit.groglog.model.DayClock
@@ -44,9 +42,7 @@ import java.time.temporal.ChronoUnit
  * `onSetGoal` takes the reader to where the goal is set.
  */
 @Composable
-fun ReportsScreen(modifier: Modifier = Modifier, onSetGoal: () -> Unit = {}) {
-    val context = LocalContext.current
-    val model = viewModel { ReportsViewModel(context.container) }
+fun ReportsScreen(modifier: Modifier = Modifier, onSetGoal: () -> Unit = {}, model: ReportsViewModel = containerViewModel(::ReportsViewModel)) {
     val state by model.state.collectAsStateWithLifecycle()
     val weeks by model.weeks.collectAsStateWithLifecycle()
     val shownHeart by model.shownHeart.collectAsStateWithLifecycle()

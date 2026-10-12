@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12 and later. The log (Room's database with its write-ahead log) and the settings in DataStore go to the
+     user's Google account and to a new phone, so a restore brings the log back. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="database" path="." />
+        <include domain="file" path="datastore/" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="database" path="." />
+        <include domain="file" path="datastore/" />
+    </device-transfer>
+</data-extraction-rules>

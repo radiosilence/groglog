@@ -1,12 +1,16 @@
 package cc.blit.groglog.ui.theme
 
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalContext
 import cc.blit.groglog.model.Units
 import kotlin.math.min
 
@@ -80,7 +84,18 @@ private val dark = darkColorScheme(
     error = GrogColors.over,
 )
 
+/**
+ * GrogLog's palette, or with `dynamicColour` the wallpaper's on Android 12 and later. The budget colours in
+ * `GrogColors` carry meaning, so they stay the same under either.
+ */
 @Composable
-fun GrogLogTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = if (darkTheme) dark else light, content = content)
+fun GrogLogTheme(dynamicColour: Boolean = false, darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
+    val context = LocalContext.current
+    val scheme = when {
+        dynamicColour && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        darkTheme -> dark
+        else -> light
+    }
+    MaterialTheme(colorScheme = scheme, content = content)
 }

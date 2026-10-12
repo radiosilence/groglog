@@ -1,6 +1,5 @@
 package cc.blit.groglog.ui.reports
 
-import android.provider.Settings
 import android.text.format.DateFormat
 import androidx.compose.animation.core.AnimationState
 import androidx.compose.animation.core.animateDecay
@@ -44,7 +43,6 @@ import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.heading
@@ -271,18 +269,6 @@ object DateText {
         cache.getOrPut(skeleton + Locale.getDefault()) {
             DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(Locale.getDefault(), skeleton))
         }.format(day.localDate)
-}
-
-/**
- * Whether marks should carry what colour does, as iOS does with Differentiate Without Colour. Android has no such
- * setting; colour correction is the nearest sign that colour is not enough on its own.
- */
-@Composable
-fun differentiatesWithoutColour(): Boolean {
-    val resolver = LocalContext.current.contentResolver
-    return remember(resolver) {
-        runCatching { Settings.Secure.getInt(resolver, "accessibility_display_daltonizer_enabled", 0) == 1 }.getOrDefault(false)
-    }
 }
 
 /** A polyline through `points`, solid or dashed. */

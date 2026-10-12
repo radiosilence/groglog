@@ -8,6 +8,7 @@ import cc.blit.groglog.model.Entry
 import cc.blit.groglog.model.Goal
 import cc.blit.groglog.model.Ledger
 import cc.blit.groglog.model.Nights
+import cc.blit.groglog.ui.ledgerState
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -41,9 +42,9 @@ class ReportsViewModel(container: AppContainer) : ViewModel() {
     /** Bumped each time the screen comes back, which moves `today` on and fetches last night once the watch has synced. */
     private val resumed = MutableStateFlow(0)
 
-    private val ledger = combine(container.queries.days(), container.prefs.settings, resumed) { days, settings, _ ->
-        Ledger(days, settings.clock)
-    }.distinctUntilChanged()
+    /** Collected afresh on each return, so a ledger built yesterday does not go on calling yesterday today. */
+    private val ledgerState = resumed.flatMapLatest { container.ledgerState() }.distinctUntilChanged()
+    private val ledger = ledgerState.map { it.ledger }.distinctUntilChanged()
 
     private val nights = combine(container.prefs.settings.map { it.clock }, container.prefs.health, resumed) { clock, switches, _ ->
         Triple(clock, switches.heart, switches.sleep)
@@ -52,8 +53,8 @@ class ReportsViewModel(container: AppContainer) : ViewModel() {
 
     private val entries = ledger.map(::runningRange).distinctUntilChanged().flatMapLatest { container.queries.entries(it) }
 
-    val state: StateFlow<ReportsState?> = combine(ledger, container.prefs.settings, nights, entries) { ledger, settings, nights, entries ->
-        ReportsState(ledger, settings.goal, settings.currency, nights, entries)
+    val state: StateFlow<ReportsState?> = combine(ledgerState, nights, entries) { ledgerState, nights, entries ->
+        ReportsState(ledgerState.ledger, ledgerState.settings.goal, ledgerState.settings.currency, nights, entries)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _weeks = MutableStateFlow(12)
