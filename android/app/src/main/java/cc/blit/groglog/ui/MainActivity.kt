@@ -2,6 +2,8 @@ package cc.blit.groglog.ui
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.PaddingValues
@@ -21,13 +23,17 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
-import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
@@ -73,36 +79,54 @@ private val tabs: List<Triple<Tab, String, ImageVector>> = listOf(
 )
 
 /**
- * One back stack, rooted at the open tab. Choosing a tab replaces the stack, so back leaves the app from any tab's
- * root, as the system's predictive back gesture shows; choosing the open tab again tells it so, through `reselected`.
- * Pages another tab opens, such as a drink's editor from the Log, are pushed onto the same stack, as iOS presents them
- * as sheets over the tab.
+ * A back stack per tab, as iOS's TabView keeps a navigation stack per tab: switching tabs leaves each where it was,
+ * scrolled and paged as it was left, and pages pushed within it are there on return. Choosing the open tab again goes
+ * back to its root, or, at the root, tells it so through `reselected`. Pages another tab opens, such as a drink's editor
+ * from the Log, are pushed onto the open tab's stack, as iOS presents them as sheets over the tab.
+ *
+ * NavDisplay is given the other tabs' roots beneath the open tab's stack, so their saved state and ViewModels are kept
+ * while they are out of sight. Back at a tab's root leaves the app, as on any Android app with a tab bar.
  *
  * Every page draws its own top bar, which takes the status bar's inset; the tab bar's is taken here.
  */
 @Composable
 private fun Root() {
-    val backStack = rememberNavBackStack(Tab.Log)
-    val current = backStack.filterIsInstance<Tab>().lastOrNull() ?: Tab.Log
+    val stacks = tabs.associate { (tab) -> tab to rememberNavBackStack(tab) }
+    var currentIndex by rememberSaveable { mutableIntStateOf(0) }
+    val current = tabs[currentIndex].first
+    val backStack = stacks.getValue(current)
     val reselected = remember { MutableSharedFlow<Tab>(extraBufferCapacity = 1) }
     val createDrink: (String) -> Unit = { backStack.add(SetupRoute.EditDrink(name = it)) }
     val editDrink: (Drink) -> Unit = { backStack.add(SetupRoute.EditDrink(it.id.toString())) }
     val setGoal: () -> Unit = { backStack.add(SetupRoute.Goal) }
+    fun select(tab: Tab) {
+        if (tab == current) {
+            val stack = stacks.getValue(tab)
+            if (stack.size > 1) stack.subList(1, stack.size).clear() else reselected.tryEmit(tab)
+        } else {
+            currentIndex = tabs.indexOfFirst { it.first == tab }
+        }
+    }
     val destination by Destinations.pending.collectAsStateWithLifecycle()
     LaunchedEffect(destination) {
         if (destination == null) return@LaunchedEffect
-        backStack.select(Tab.Log)
+        currentIndex = 0
+        stacks.getValue(Tab.Log).let { if (it.size > 1) it.subList(1, it.size).clear() }
         Destinations.pending.compareAndSet(Destination.LOG, null)
     }
+    // At large text sizes the labels would break mid-word, so only the open tab's is shown, as Material allows.
+    val compactLabels = LocalDensity.current.fontScale >= 1.5f
     Scaffold(
         bottomBar = {
             NavigationBar {
                 for ((tab, label, icon) in tabs) {
+                    val selected = current == tab
                     NavigationBarItem(
-                        selected = current == tab,
-                        onClick = { if (backStack.lastOrNull() == tab) reselected.tryEmit(tab) else backStack.select(tab) },
-                        icon = { Icon(icon, contentDescription = null) },
-                        label = { Text(label) },
+                        selected = selected,
+                        onClick = { select(tab) },
+                        icon = { Icon(icon, contentDescription = if (compactLabels && !selected) label else null) },
+                        label = { Text(label, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
+                        alwaysShowLabel = !compactLabels,
                     )
                 }
             }
@@ -110,8 +134,10 @@ private fun Root() {
     ) { padding ->
         val bottom = PaddingValues(bottom = padding.calculateBottomPadding())
         val modifier = Modifier.padding(bottom).consumeWindowInsets(bottom)
+        val shown = tabs.map { it.first }.filter { it != current } + backStack
+        val activity = LocalActivity.current
         NavDisplay(
-            backStack = backStack,
+            backStack = shown,
             onBack = { backStack.removeLastOrNull() },
             entryDecorators = listOf(rememberSaveableStateHolderNavEntryDecorator(), rememberViewModelStoreNavEntryDecorator()),
             entryProvider = entryProvider {
@@ -144,13 +170,10 @@ private fun Root() {
                 setupEntries(modifier, backStack)
             },
         )
+        // Composed after NavDisplay so it takes back first: at a tab's root the app closes rather than showing the tab
+        // kept beneath.
+        BackHandler(enabled = backStack.size == 1) { activity?.finish() }
     }
-}
-
-private fun NavBackStack<NavKey>.select(tab: Tab) {
-    if (lastOrNull() == tab) return
-    clear()
-    add(tab)
 }
 
 /** Reselections of one tab. */
