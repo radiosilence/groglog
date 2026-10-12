@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="splash">#FF1E140C</color>
+    <!-- The launch screen follows light and dark as iOS's generated one does: the app's background, with the icon's
+         glass on the icon's brown. -->
+    <color name="splash">#FFF2F2F7</color>
+    <color name="splash_icon">#FF1E140C</color>
 
     <!-- GrogLog's colours, as in ui/theme/Theme.kt. -->
     <color name="grog">#FFF7A333</color>

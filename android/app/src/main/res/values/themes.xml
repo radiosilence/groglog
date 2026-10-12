@@ -1,10 +1,14 @@
 <resources>
-    <style name="Theme.GrogLog" parent="android:Theme.Material.NoActionBar" />
+    <!-- The window behind Compose's first frame, light or dark with the system so nothing flashes. -->
+    <style name="Theme.GrogLog" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/splash</item>
+    </style>
 
-    <!-- The launch screen: the icon's pint on the icon's brown, then the app's own theme. -->
+    <!-- The launch screen: the icon's pint on its brown badge, over the app's light or dark background. -->
     <style name="Theme.GrogLog.Starting" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/splash</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/splash_icon</item>
         <item name="postSplashScreenTheme">@style/Theme.GrogLog</item>
     </style>
 </resources>
