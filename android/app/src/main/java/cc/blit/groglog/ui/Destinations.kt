@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 enum class Destination { LOG, UNITS }
 
 /**
- * The destination waiting to be shown. `MainActivity` switches to the Log tab and clears `LOG`; the Log tab opens its
+ * The destination waiting to be shown. `MainActivity` puts the Log tab on the back stack and clears `LOG`; the Log tab opens its
  * units sheet for `UNITS` and clears it.
  */
 object Destinations {
