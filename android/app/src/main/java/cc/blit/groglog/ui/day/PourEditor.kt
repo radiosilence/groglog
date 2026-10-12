@@ -41,7 +41,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import cc.blit.groglog.container
+import cc.blit.groglog.data.Logbook
 import cc.blit.groglog.model.DayClock
+import cc.blit.groglog.model.Drink
 import cc.blit.groglog.model.DayKey
 import cc.blit.groglog.model.DrinkCategory
 import cc.blit.groglog.model.Entry
@@ -55,22 +59,23 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.Date
+import kotlinx.coroutines.launch
 
 /**
- * One logged drink: when, how much, what it cost. Name and strength belong to the drink. Works on a draft saved on
- * Done.
+ * Stand-in for ui/log's PourEditor, with its signature. One logged drink: when, how much, what it cost. Works on a
+ * draft saved on Done, written in the app's scope so closing the sheet cannot cancel it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun PourEditor(
-    entry: Entry,
-    day: DayKey,
-    clock: DayClock,
-    currency: String,
-    onDone: (time: Instant, vessel: Vessel, volumeMl: Double, price: Double, abvOverride: Double?) -> Unit,
-    onDelete: () -> Unit,
-    onDismiss: () -> Unit,
-) {
+internal fun PourEditor(entry: Entry, day: DayKey, onDismiss: () -> Unit, onEditDrink: ((Drink) -> Unit)? = null) {
+    val container = LocalContext.current.container
+    val settings = container.prefs.settings.collectAsStateWithLifecycle(null).value ?: return
+    val clock = settings.clock
+    val currency = settings.currency
+    fun write(body: suspend Logbook.() -> Unit) {
+        container.scope.launch { container.logbook().body() }
+        onDismiss()
+    }
     val isUnits = entry.category == DrinkCategory.UNITS
     var time by rememberSaveable { mutableLongStateOf(entry.timestamp.toEpochMilli()) }
     var vessel by rememberSaveable { mutableStateOf(entry.vessel) }
@@ -99,6 +104,9 @@ internal fun PourEditor(
                     )
                 }
             }
+            if (onEditDrink != null && !isUnits) {
+                TextButton(onClick = { onEditDrink(entry.drink) }) { Text("Edit ${entry.name}") }
+            }
             ListItem(
                 headlineContent = { Text("Time") },
                 trailingContent = {
@@ -115,20 +123,20 @@ internal fun PourEditor(
                     vessel = it.vessel
                     volume = it.ml
                     sizePicks += 1
-                }, { it.label })
+                }) { it.label }
                 // Started afresh when a chip is picked, so it shows that size rather than what was typed before.
                 key(sizePicks) { NumberRow("Size", volume, { volume = it }, "ml") }
                 NumberRow("Strength", abv, { abv = it }, "% ABV")
             }
             MoneyField("Price", price, { price = it }, currency)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onDelete) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                TextButton(onClick = { write { delete(entry.pour) } }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
                 Spacer(Modifier.weight(1f))
                 OutlinedButton(onClick = onDismiss) { Text("Cancel") }
                 Button(
                     onClick = {
                         val override = if (isUnits || abv == entry.drink.abv) null else abv
-                        onDone(Instant.ofEpochMilli(time), vessel, volume, price, override)
+                        write { update(entry.pour, Instant.ofEpochMilli(time), vessel, volume, price, override) }
                     },
                     enabled = valid,
                 ) { Text("Done") }

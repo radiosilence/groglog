@@ -18,6 +18,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import cc.blit.groglog.ui.theme.GrogColors
+import cc.blit.groglog.model.Drink
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
@@ -30,31 +37,43 @@ import java.util.Currency
 import kotlin.math.pow
 import kotlin.math.roundToLong
 
-// Stand-ins for components the Log tab owns (ui/shared controls and the drink picker). Each has the shape its owner
-// is expected to provide, so swapping one is a change of import.
+// Stand-ins for what the Log tab provides on origin/android-log: ui/shared's ChipRow, NumberRow and MoneyField, and
+// ui/log's AddDrinkSheet and PourEditor. Each has its real signature, so at merge this file and PourEditor.kt's
+// PourEditor go and the imports change.
 
-/** Stand-in for the Log tab's picker, opened for backfilling a day. */
+/** Stand-in for ui/log's AddDrinkSheet: the picker for backfilling a day. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun AddDrinksSheet(day: DayKey, onDismiss: () -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("The drink picker for $day")
-        TextButton(onClick = onDismiss) { Text("Done") }
+internal fun AddDrinkSheet(day: DayKey, onDismiss: () -> Unit, onCreateDrink: ((String) -> Unit)? = null, onEditDrink: ((Drink) -> Unit)? = null) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("The drink picker for $day")
+            TextButton(onClick = onDismiss) { Text("Done") }
+        }
     }
 }
 
 /** Stand-in for ui/shared's ChipRow: a row of pills for picking one of a few values. */
 @Composable
-internal fun <T> ChipRow(options: List<T>, selection: T, onSelect: (T) -> Unit, label: (T) -> String, modifier: Modifier = Modifier) {
+internal fun <T> ChipRow(
+    options: List<T>,
+    selected: T,
+    onSelect: (T) -> Unit,
+    modifier: Modifier = Modifier,
+    isEnabled: (T) -> Boolean = { true },
+    tint: (T) -> Color = { GrogColors.grog },
+    label: (T) -> String,
+) {
     Row(modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         for (option in options) {
-            FilterChip(selected = option == selection, onClick = { onSelect(option) }, label = { Text(label(option)) })
+            FilterChip(selected = option == selected, onClick = { onSelect(option) }, label = { Text(label(option)) }, enabled = isEnabled(option), colors = FilterChipDefaults.filterChipColors(selectedContainerColor = tint(option).copy(alpha = 0.3f)))
         }
     }
 }
 
 /** Stand-in for ui/shared's NumberRow: a labelled decimal field with a unit suffix. */
 @Composable
-internal fun NumberRow(label: String, value: Double, onValueChange: (Double) -> Unit, suffix: String, modifier: Modifier = Modifier) {
+internal fun NumberRow(label: String, value: Double, onValueChange: (Double) -> Unit, suffix: String, modifier: Modifier = Modifier, onEditingEnded: () -> Unit = {}) {
     var text by rememberSaveable { mutableStateOf(decimal(value)) }
     OutlinedTextField(
         value = text,

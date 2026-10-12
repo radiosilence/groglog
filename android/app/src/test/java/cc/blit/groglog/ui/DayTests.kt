@@ -201,7 +201,7 @@ class DayViewModelTests {
         model.show(day)
         val entry = model.until { it.day == day && it.drinks.size == 1 }.drinks.single()
 
-        model.update(entry.pour, time.plusSeconds(1800), Vessel.HALF, 284.0, 3.0, 5.5)
+        logbook().update(entry.pour, time.plusSeconds(1800), Vessel.HALF, 284.0, 3.0, 5.5)
         // Entries and day totals are separate observations; the edit has landed once both show it.
         val edited = model.until { it.drinks.singleOrNull()?.volumeMl == 284.0 && it.totals.cost == 3.0 }
         assertEquals(5.5, edited.drinks.single().abv, 0.0)

@@ -41,7 +41,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -49,7 +48,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -96,7 +94,6 @@ import cc.blit.groglog.ui.containerViewModel
 import cc.blit.groglog.ui.shared.DrinkGlyph
 import cc.blit.groglog.ui.theme.GrogColors
 import cc.blit.groglog.ui.theme.GrogLogTheme
-import java.time.Instant
 import java.util.Date
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -107,10 +104,11 @@ fun DayScreen(
     modifier: Modifier = Modifier,
     reselected: Flow<Unit> = emptyFlow(),
     onSetGoal: () -> Unit = {},
+    onEditDrink: ((Drink) -> Unit)? = null,
     viewModel: DayViewModel = containerViewModel { DayViewModel(it) },
 ) {
     LaunchedEffect(reselected) { reselected.collect { viewModel.show(null) } }
-    DayPager(viewModel, onSetGoal, modifier)
+    DayPager(viewModel, onSetGoal, modifier, onEditDrink = onEditDrink)
 }
 
 /** A day opened from the calendar, with previous and next and a way back. */
@@ -120,14 +118,21 @@ fun CalendarDayScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     onSetGoal: () -> Unit = {},
+    onEditDrink: ((Drink) -> Unit)? = null,
     viewModel: DayViewModel = containerViewModel { DayViewModel(it, day) },
 ) {
-    DayPager(viewModel, onSetGoal, modifier, onBack)
+    DayPager(viewModel, onSetGoal, modifier, onBack, onEditDrink)
 }
 
 /** A day with previous and next, for the Day tab and for a day opened from the calendar, which passes `onBack`. */
 @Composable
-fun DayPager(model: DayViewModel, onSetGoal: () -> Unit, modifier: Modifier = Modifier, onBack: (() -> Unit)? = null) {
+fun DayPager(
+    model: DayViewModel,
+    onSetGoal: () -> Unit,
+    modifier: Modifier = Modifier,
+    onBack: (() -> Unit)? = null,
+    onEditDrink: ((Drink) -> Unit)? = null,
+) {
     val state = model.state.collectAsStateWithLifecycle().value
     if (state == null) {
         Box(modifier.fillMaxSize())
@@ -147,7 +152,7 @@ fun DayPager(model: DayViewModel, onSetGoal: () -> Unit, modifier: Modifier = Mo
         },
         onSpend = { model.setSpend(it, state.day) },
         onDelete = model::delete,
-        onUpdate = model::update,
+        onEditDrink = onEditDrink,
     )
 }
 
@@ -163,7 +168,7 @@ internal fun DayPage(
     onAlcoholFree: (Boolean) -> Unit = {},
     onSpend: (Double?) -> Unit = {},
     onDelete: (Pour) -> Unit = {},
-    onUpdate: (Pour, Instant, Vessel, Double, Double, Double?) -> Unit = { _, _, _, _, _, _ -> },
+    onEditDrink: ((Drink) -> Unit)? = null,
 ) {
     var adding by rememberSaveable { mutableStateOf(false) }
     var settingSpend by rememberSaveable { mutableStateOf(false) }
@@ -214,11 +219,7 @@ internal fun DayPage(
         }
     }
 
-    if (adding) {
-        ModalBottomSheet(onDismissRequest = { adding = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-            AddDrinksSheet(state.day, onDismiss = { adding = false })
-        }
-    }
+    if (adding) AddDrinkSheet(state.day, onDismiss = { adding = false }, onEditDrink = onEditDrink)
     if (settingSpend) {
         SpendSheet(
             derived = state.ledger.derivedSpend(state.day),
@@ -232,21 +233,7 @@ internal fun DayPage(
         )
     }
     state.drinks.firstOrNull { it.id.toString() == editing }?.let { entry ->
-        PourEditor(
-            entry = entry,
-            day = state.day,
-            clock = state.ledger.clock,
-            currency = currency,
-            onDone = { time, vessel, volume, price, abv ->
-                onUpdate(entry.pour, time, vessel, volume, price, abv)
-                editing = null
-            },
-            onDelete = {
-                onDelete(entry.pour)
-                editing = null
-            },
-            onDismiss = { editing = null },
-        )
+        PourEditor(entry, state.day, onDismiss = { editing = null }, onEditDrink = onEditDrink)
     }
 }
 

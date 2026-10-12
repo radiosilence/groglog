@@ -13,7 +13,6 @@ import cc.blit.groglog.model.DayStatus
 import cc.blit.groglog.model.Entry
 import cc.blit.groglog.model.Ledger
 import cc.blit.groglog.model.Pour
-import cc.blit.groglog.model.Vessel
 import cc.blit.groglog.ui.LedgerState
 import cc.blit.groglog.ui.ledgerState
 import java.time.Instant
@@ -112,9 +111,6 @@ class DayViewModel(
     fun setSpend(amount: Double?, day: DayKey) = write { setSpend(amount, day) }
 
     fun delete(pour: Pour) = write { delete(pour) }
-
-    fun update(pour: Pour, time: Instant, vessel: Vessel, volumeMl: Double, price: Double, abvOverride: Double?) =
-        write { update(pour, time, vessel, volumeMl, price, abvOverride) }
 
     private fun write(body: suspend Logbook.() -> Unit) {
         viewModelScope.launch { logbook().body() }
