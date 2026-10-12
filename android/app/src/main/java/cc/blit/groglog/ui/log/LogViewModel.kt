@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cc.blit.groglog.AppContainer
 import cc.blit.groglog.data.Logbook
 import cc.blit.groglog.data.Prefs
 import cc.blit.groglog.data.Queries
@@ -76,6 +77,8 @@ class LogViewModel(
     private val logbook: suspend () -> Logbook,
     fixedDay: DayKey? = null,
 ) : ViewModel() {
+    constructor(container: AppContainer, fixedDay: DayKey? = null) : this(container.queries, container.prefs, container::logbook, fixedDay)
+
     var search by mutableStateOf("")
 
     private val appeared = MutableStateFlow(0)

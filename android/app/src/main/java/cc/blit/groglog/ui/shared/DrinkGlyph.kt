@@ -117,7 +117,7 @@ private fun Path.transformed(matrix: Matrix) = Path().also {
     it.transform(matrix)
 }
 
-private class Art(val vessel: Vessel, volumeMl: Double) {
+internal class Art(val vessel: Vessel, volumeMl: Double) {
     /** Outline of the vessel; tinted as glass and stroked. */
     var glass: Path
 
