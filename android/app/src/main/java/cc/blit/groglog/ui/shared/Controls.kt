@@ -10,10 +10,11 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -21,7 +22,7 @@ import androidx.compose.foundation.text.input.InputTransformation
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.byValue
-import androidx.compose.foundation.text.input.maxLength
+import androidx.compose.foundation.text.input.placeCursorAtEnd
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -41,9 +42,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -131,7 +134,7 @@ fun NumberRow(
             BasicTextField(
                 state = state,
                 modifier = Modifier
-                    .widthIn(min = 56.dp, max = 120.dp)
+                    .width(FieldWidth)
                     .semantics {
                         contentDescription = label
                         if (error != null) error(error)
@@ -146,9 +149,13 @@ fun NumberRow(
                 cursorBrush = SolidColor(GrogColors.grog),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
                 onKeyboardAction = { focus.clearFocus() },
-                decorator = { FieldFrame(isError = error != null, field = it) },
+                decorator = { field ->
+                    FieldFrame(isError = error != null) {
+                        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) { field() }
+                        Text(suffix, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp))
+                    }
+                },
             )
-            Text(suffix, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp))
         }
         if (error != null) {
             Text(
@@ -161,18 +168,21 @@ fun NumberRow(
     }
 }
 
-/** Digits and one decimal separator, either the reader's or a full stop. */
+/** Digits and one decimal mark, whichever of a full stop, a comma or the reader's own was typed. */
 private val DecimalInput = InputTransformation.byValue { current, proposed ->
-    val separator = DecimalFormatSymbols.getInstance().decimalSeparator
-    val valid = proposed.all { it.isDigit() || it == '.' || it == separator } &&
-        proposed.count { it == '.' || it == separator } <= 1 && proposed.length <= 8
+    val valid = proposed.all { it.isDigit() || it.isDecimalMark() } && proposed.count { it.isDecimalMark() } <= 1 && proposed.length <= 8
     if (valid) proposed else current
 }
 
-/** Reads a typed decimal in the reader's notation or with a full stop, or null if it is not a number. */
+private fun Char.isDecimalMark() = this == '.' || this == ',' || this == DecimalFormatSymbols.getInstance().decimalSeparator
+
+/**
+ * Reads a typed decimal with a full stop, a comma or the reader's own mark, or null if it is not a number. Grouping is
+ * never typed into these fields, so a comma is always the decimal mark: "5,2" is five point two.
+ */
 fun parseDecimal(text: CharSequence): Double? {
-    val separator = DecimalFormatSymbols.getInstance().decimalSeparator
-    return text.toString().trim().replace(separator, '.').takeIf { it.isNotEmpty() && it != "." }?.toDoubleOrNull()
+    val normal = text.toString().trim().map { if (it.isDecimalMark()) '.' else it }.joinToString("")
+    return normal.takeIf { it.isNotEmpty() && it != "." }?.toDoubleOrNull()
 }
 
 /** A figure as a field starts out showing it: no trailing zeros, no grouping, in the reader's notation. */
@@ -194,35 +204,65 @@ fun moneyValue(digits: CharSequence, currency: String): Double = (digits.toStrin
 
 /**
  * Money entered as banking apps take it: digits only, filling from the pence up, so typing 1, 5, 0 reads £0.01, £0.15,
- * £1.50. The state holds the digits (`moneyDigits`, `moneyValue`); the field shows them as money.
+ * £1.50. The state holds the digits (`moneyDigits`, `moneyValue`); the field shows them as money. Wherever the cursor
+ * is, a digit typed or pasted shifts in at the end and a backspace takes the last one off, as on a card terminal.
  */
 @Composable
 fun MoneyField(label: String, state: TextFieldState, currency: String, modifier: Modifier = Modifier) {
     val focus = LocalFocusManager.current
+    var focused by remember { mutableStateOf(false) }
     val shown = moneyValue(state.text, currency).money(currency)
     FormRow(label, modifier) {
         BasicTextField(
             state = state,
-            modifier = Modifier.widthIn(min = 56.dp, max = 160.dp).semantics { contentDescription = "$label, $shown" },
-            inputTransformation = InputTransformation.byValue { current, proposed ->
-                if (proposed.all { it.isDigit() }) proposed else current
-            }.maxLength(9),
-            outputTransformation = { replace(0, length, moneyValue(asCharSequence(), currency).money(currency)) },
-            textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.End),
+            modifier = Modifier
+                .width(FieldWidth)
+                .semantics { contentDescription = "$label, $shown" }
+                .onFocusChanged { focused = it.isFocused },
+            inputTransformation = MoneyInput,
             lineLimits = TextFieldLineLimits.SingleLine,
-            cursorBrush = SolidColor(GrogColors.grog),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
             onKeyboardAction = { focus.clearFocus() },
-            decorator = { FieldFrame(field = it) },
+            decorator = { field ->
+                // The digits field takes the keystrokes unseen; what shows is the amount they make.
+                FieldFrame {
+                    Text(shown, style = MaterialTheme.typography.bodyLarge, color = if (focused) GrogColors.grog else MaterialTheme.colorScheme.onSurface)
+                    Box(Modifier.alpha(0f).width(0.dp)) { field() }
+                }
+            },
         )
     }
+}
+
+/** Applies an edit to a money field's digits as a terminal would: what was typed goes on the end, what was deleted comes off it. */
+private val MoneyInput = InputTransformation {
+    val edited = moneyEdit(originalText.toString(), asCharSequence().toString())
+    replace(0, length, edited)
+    placeCursorAtEnd()
+}
+
+/**
+ * The digits after an edit that turned `before` into `after`, wherever in the field it happened: inserted digits are
+ * appended, each deleted character removes the last digit, and anything that is not a digit is dropped. At most nine
+ * digits, without leading zeros.
+ */
+internal fun moneyEdit(before: String, after: String): String {
+    var prefix = 0
+    while (prefix < before.length && prefix < after.length && before[prefix] == after[prefix]) prefix++
+    var suffix = 0
+    while (suffix < before.length - prefix && suffix < after.length - prefix &&
+        before[before.length - 1 - suffix] == after[after.length - 1 - suffix]
+    ) suffix++
+    val deleted = before.length - prefix - suffix
+    val inserted = after.substring(prefix, after.length - suffix).filter(Char::isDigit)
+    return (before.dropLast(deleted) + inserted).trimStart('0').take(9)
 }
 
 /** A clock time within a drinking day: 01:30 lands after midnight rather than before the day began. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TimeRow(label: String, time: Instant, onTimeChange: (Instant) -> Unit, clock: DayClock, day: DayKey, modifier: Modifier = Modifier) {
-    var picking by remember { mutableStateOf(false) }
+    var picking by rememberSaveable { mutableStateOf(false) }
     val local = time.atZone(clock.zone).toLocalTime()
     val shown = local.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
     FormRow(label, modifier) {
@@ -277,14 +317,20 @@ fun FormRow(label: String, modifier: Modifier = Modifier, onClick: (() -> Unit)?
     }
 }
 
+/** Every field's width, so the right edges of a sheet's figures line up. */
+private val FieldWidth = 140.dp
+
 @Composable
-private fun FieldFrame(isError: Boolean = false, field: @Composable () -> Unit) {
-    Box(
+private fun FieldFrame(isError: Boolean = false, content: @Composable RowScope.() -> Unit) {
+    Row(
         Modifier
+            .fillMaxWidth()
             .border(1.dp, if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
             .padding(horizontal = 12.dp, vertical = 8.dp),
-        contentAlignment = Alignment.CenterEnd,
-    ) { field() }
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically,
+        content = content,
+    )
 }
 
 @Preview(showBackground = true)

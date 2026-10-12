@@ -124,7 +124,9 @@ class GoalViewModel(private val database: AppDatabase, private val prefs: Prefs)
     )
 
     val canSave: Boolean
-        get() = _draft.value != null && fromDaily != null && targetDaily != null
+        // The typed figures first: they are snapshot state, so a composable reading this follows them even before the
+        // draft has loaded.
+        get() = fromDaily != null && targetDaily != null && _draft.value != null
 
     /** The typed figures, if they are ones a goal can have. */
     val fromDaily: Double? get() = parseDecimal(from.text)?.takeIf { it > 0 }
@@ -207,7 +209,7 @@ internal fun GoalPage(model: GoalViewModel, onClose: () -> Unit, onGuidance: () 
         title = "Goal",
         navigation = PageNavigation.Close(onClose),
         actions = {
-            TextButton(onClick = { scope.launch { model.save(); onClose() } }, enabled = model.canSave) {
+            TextButton(onClick = { scope.launch { model.save(); onClose() } }, enabled = draft != null && model.canSave) {
                 Text("Done", fontWeight = FontWeight.SemiBold)
             }
         },

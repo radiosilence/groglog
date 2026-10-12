@@ -51,6 +51,7 @@ import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -310,9 +311,12 @@ private fun LazyListScope.dayContent(
         DayStatus.DRANK -> item {
             Section(title = "Drinks") {
                 state.drinks.forEachIndexed { index, entry ->
-                    if (index > 0) HorizontalDivider(Modifier.padding(start = 72.dp))
-                    SwipeToDelete(onDelete = { onDelete(entry.pour) }) {
-                        PourRow(entry, currency, Modifier.clickable(onClickLabel = "Edit") { onEdit(entry) })
+                    // Keyed by the pour, so a row's swipe state leaves with it rather than staying with its place.
+                    key(entry.id) {
+                        if (index > 0) HorizontalDivider(Modifier.padding(start = 72.dp))
+                        SwipeToDelete(onDelete = { onDelete(entry.pour) }) {
+                            PourRow(entry, currency, Modifier.clickable(onClickLabel = "Edit") { onEdit(entry) })
+                        }
                     }
                 }
             }

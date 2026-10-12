@@ -30,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -199,8 +200,10 @@ internal fun LazyListScope.drinksList(groups: DrinkGroups, onEdit: (Drink) -> Un
         item(key = title) {
             Section(title = title, footer = footer) {
                 drinks.forEachIndexed { index, drink ->
-                    if (index > 0) HorizontalDivider(Modifier.padding(start = 72.dp), color = MaterialTheme.colorScheme.surface)
-                    DrinkRow(drink, onClick = { onEdit(drink) }, onHide = { onHide(drink, it) })
+                    key(drink.id) {
+                        if (index > 0) HorizontalDivider(Modifier.padding(start = 72.dp), color = MaterialTheme.colorScheme.surface)
+                        DrinkRow(drink, onClick = { onEdit(drink) }, onHide = { onHide(drink, it) })
+                    }
                 }
             }
         }
