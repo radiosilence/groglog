@@ -1,8 +1,8 @@
 package cc.blit.groglog.widget
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.toArgb
@@ -29,6 +29,7 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
+import androidx.core.net.toUri
 import cc.blit.groglog.model.unitsText
 import cc.blit.groglog.ui.MainActivity
 import cc.blit.groglog.ui.theme.GrogColors
@@ -41,7 +42,8 @@ internal fun WidgetTheme(content: @Composable () -> Unit) {
     GlanceTheme(colors = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) GlanceTheme.colors else ColorProviders(light, dark), content = content)
 }
 
-/** The widget's own surface, with the launcher's corner radius where it has one. */
+/** The widget's own surface, with the launcher's corner radius where it has one. Glance applies it from Android 12. */
+@SuppressLint("InlinedApi")
 @Composable
 internal fun GlanceModifier.widgetSurface() =
     fillMaxSize().appWidgetBackground().background(GlanceTheme.colors.widgetBackground).cornerRadius(android.R.dimen.system_app_widget_background_radius)
@@ -49,7 +51,7 @@ internal fun GlanceModifier.widgetSurface() =
 /** Opens the app on the Log tab, as tapping the iOS widgets does. */
 internal fun openLog(context: Context): Action =
     actionStartActivity(
-        Intent(Intent.ACTION_VIEW, Uri.parse("groglog://log"), context, MainActivity::class.java)
+        Intent(Intent.ACTION_VIEW, "groglog://log".toUri(), context, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
     )
 

@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- The sample day's budget draining, as Today.sample: 4.5 units, 1.2 drunk by 6pm and 3.5 by 8pm. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="VectorRaster"
     android:width="240dp"
     android:height="100dp"
     android:viewportWidth="240"

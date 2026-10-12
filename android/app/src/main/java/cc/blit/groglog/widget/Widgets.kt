@@ -66,7 +66,7 @@ object Widgets {
         val intent = PendingIntent.getBroadcast(
             context,
             0,
-            Intent(context, DayEndReceiver::class.java),
+            Intent(context, DayEndReceiver::class.java).setAction(DayEndReceiver.DAY_END),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         context.getSystemService(AlarmManager::class.java).set(AlarmManager.RTC, clock.end(clock.today).toEpochMilli(), intent)
@@ -92,6 +92,7 @@ object Widgets {
 /** Redraws the widgets when the day ends, and when the clock or time zone changes under them. */
 class DayEndReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action !in listOf(DAY_END, Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED)) return
         val pending = goAsync()
         val app = context.applicationContext
         val container = app.container
@@ -102,5 +103,10 @@ class DayEndReceiver : BroadcastReceiver() {
                 pending.finish()
             }
         }
+    }
+
+    companion object {
+        /** The alarm set for the end of the day. */
+        const val DAY_END = "cc.blit.groglog.widget.DAY_END"
     }
 }
