@@ -88,7 +88,7 @@ class SetupTests {
     @Test fun anOversizedFileIsRefusedBeforeItIsAllRead() {
         val stream = object : java.io.InputStream() {
             var served = 0
-            override fun read() = if (served++ < 1_000) 0 else -1
+            override fun read() = if (served++ < 1_000_000) 0 else -1
         }
         try {
             SetupViewModel.readBackup(stream, limit = 100)
@@ -96,7 +96,7 @@ class SetupTests {
         } catch (error: ImportException) {
             assertEquals(ImportException.tooLarge().message, error.message)
         }
-        assertTrue(stream.served < 1_000)
+        assertTrue(stream.served < 1_000_000)
         assertEquals(5, SetupViewModel.readBackup(ByteArrayInputStream(ByteArray(5)), limit = 5).size)
     }
 
@@ -255,6 +255,13 @@ class SetupTests {
 
     private suspend fun goalEditor(prefs: Prefs) = GoalViewModel(database(), prefs).also { it.draft.first { goal -> goal != null } }
 
+    @Test fun aGoalOpensOnAPaceItsStartingFigureAllows() = runBlocking {
+        val prefs = prefs()
+        // A day apart is not offered above 15 units a day.
+        prefs.setGoal(Goal(isEnabled = true, taper = Taper.PROPORTIONAL, baselineWeekly = 140.0, periodDays = 1))
+        assertEquals(3, goalEditor(prefs).goal!!.periodDays)
+    }
+
     @Test fun aGoalThatWasOffOpensSwitchedOnAndStartingNow() = runBlocking {
         val prefs = prefs()
         prefs.setGoal(Goal(isEnabled = false, start = Instant.parse("2020-01-01T12:00:00Z")))
@@ -280,10 +287,12 @@ class SetupTests {
 
     @Test fun aLinearCutTooLargeForTheStartingFigureIsNotKept() = runBlocking {
         val prefs = prefs()
-        prefs.setGoal(Goal(isEnabled = true, taper = Taper.LINEAR, baselineWeekly = 140.0, reductionUnits = 2.0, periodDays = 1))
+        prefs.setGoal(Goal(isEnabled = true, taper = Taper.LINEAR, baselineWeekly = 70.0, reductionUnits = 1.0, periodDays = 1))
         val model = goalEditor(prefs)
+        assertEquals(1.0, model.goal!!.reductionUnits, 0.0)
         model.from.setTextAndPlaceCursorAtEnd("6")
         model.settle()
+        assertEquals(1, model.goal!!.periodDays)
         assertEquals(0.5, model.goal!!.reductionUnits, 0.0)
     }
 

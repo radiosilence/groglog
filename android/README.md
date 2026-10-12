@@ -11,6 +11,8 @@ just android-test     # JVM unit tests under Robolectric
 just android-install  # onto the connected device or emulator
 ```
 
+Screens render headlessly under Robolectric with Roborazzi, for looking at in review: `./gradlew :app:testDebugUnitTest --tests '*Screenshots*' -Proborazzi.test.record=true` writes PNGs, light and dark, to `app/build/outputs/roborazzi`.
+
 `ANDROID_HOME` defaults to Homebrew's `android-commandlinetools`; set it to use another SDK. compileSdk is 36, so AndroidX libraries are held at the last releases that build against it (`gradle/libs.versions.toml`).
 
 ## Layout
@@ -38,3 +40,6 @@ Entries for a range are read with a Room `@Relation`, which fetches the drinks i
 - **No Health.** Neither mirroring drinks out nor reading heart and sleep in. `Nights` is ported so Reports can use a Health Connect source later without new maths.
 - **No widgets or shortcuts yet.** `Serves` is the lookup they will use: a tile carries a `Serve.key` and logs through `Logbook`, as the iOS intents do.
 - **The catalogue is generated.** `scripts/catalog.py` writes `CatalogEntries.kt` from `GrogLog/Model/Catalog.swift`, comments included, so the Swift table stays the one place prices and strengths are researched and edited.
+- **A backup is saved, a log is shared.** Setup's JSON backup goes through the system's file picker, since Android's share sheet has no "save to Files" and a backup is a file to keep; the Markdown log goes to the share sheet as a text file, since it is meant for pasting into a chat.
+- **Demo mode restarts the app.** Every screen holds the database it was given, so Setup › Developer › Demo mode (debug builds only) records the choice and relaunches onto an in-memory log of `Seed.sample`, rather than swapping the database under open screens.
+- **Wallpaper colours are a choice.** On Android 12 and later Setup offers Material You's dynamic colour for controls; it is off by default, and charts and the calendar keep GrogLog's colours either way because their colours carry meaning.

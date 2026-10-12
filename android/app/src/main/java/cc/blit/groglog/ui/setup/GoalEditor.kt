@@ -105,19 +105,17 @@ class GoalViewModel(private val database: AppDatabase, private val prefs: Prefs)
             goal = goal.copy(isEnabled = true)
             from.setTextAndPlaceCursorAtEnd(decimalText(goal.baselineWeekly / 7, 1))
             target.setTextAndPlaceCursorAtEnd(decimalText(goal.targetWeekly / 7, 1))
-            _draft.value = goal
-            settle()
+            _draft.value = settled(goal)
         }
     }
 
     /** The draft with the typed figures in it, as Done would save it. A figure that does not parse keeps the last good one. */
-    val goal: Goal?
-        get() = _draft.value?.let { draft ->
-            draft.copy(
-                baselineWeekly = parseDecimal(from.text)?.takeIf { it > 0 }?.times(7) ?: draft.baselineWeekly,
-                targetWeekly = parseDecimal(target.text)?.takeIf { it >= 0 }?.times(7) ?: draft.targetWeekly,
-            )
-        }
+    val goal: Goal? get() = _draft.value?.let(::typed)
+
+    private fun typed(draft: Goal) = draft.copy(
+        baselineWeekly = parseDecimal(from.text)?.takeIf { it > 0 }?.times(7) ?: draft.baselineWeekly,
+        targetWeekly = parseDecimal(target.text)?.takeIf { it >= 0 }?.times(7) ?: draft.targetWeekly,
+    )
 
     val canSave: Boolean
         get() = _draft.value != null && (parseDecimal(from.text) ?: 0.0) > 0 && (parseDecimal(target.text) ?: -1.0) >= 0
@@ -128,12 +126,13 @@ class GoalViewModel(private val database: AppDatabase, private val prefs: Prefs)
      * own pace, so there is nothing to settle.
      */
     fun settle() {
-        _draft.update {
-            val goal = goal ?: return@update it
-            if (goal.taper == Taper.DYNAMIC) return@update goal
-            val period = Goal.nearestOffered(goal.periodDays, goal.baselineWeekly)
-            goal.copy(periodDays = period, reductionUnits = Goal.nearestOffered(goal.reductionUnits, goal.baselineWeekly, period))
-        }
+        _draft.update { draft -> draft?.let { settled(typed(it)) } }
+    }
+
+    private fun settled(goal: Goal): Goal {
+        if (goal.taper == Taper.DYNAMIC) return goal
+        val period = Goal.nearestOffered(goal.periodDays, goal.baselineWeekly)
+        return goal.copy(periodDays = period, reductionUnits = Goal.nearestOffered(goal.reductionUnits, goal.baselineWeekly, period))
     }
 
     fun setEnabled(on: Boolean) = _draft.update { it?.copy(isEnabled = on) }
