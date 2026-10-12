@@ -20,7 +20,10 @@ data class LedgerState(val settings: Settings, val ledger: Ledger)
 fun AppContainer.ledgerState(): Flow<LedgerState> =
     combine(prefs.settings, queries.days()) { settings, days -> LedgerState(settings, Ledger(days, settings.clock)) }
 
-/** A screen's ViewModel, made with the app's container and scoped to its navigation entry. */
+/**
+ * A screen's ViewModel, made with the app's container and scoped to its navigation entry. `key` tells apart several of
+ * one type in the same entry, such as a sheet's beside its screen's.
+ */
 @Composable
-inline fun <reified VM : ViewModel> containerViewModel(crossinline create: (AppContainer) -> VM): VM =
-    viewModel(factory = viewModelFactory { initializer { create(this[APPLICATION_KEY]!!.container) } })
+inline fun <reified VM : ViewModel> containerViewModel(key: String? = null, crossinline create: (AppContainer) -> VM): VM =
+    viewModel(key = key, factory = viewModelFactory { initializer { create(this[APPLICATION_KEY]!!.container) } })
