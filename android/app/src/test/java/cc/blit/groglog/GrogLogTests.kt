@@ -665,7 +665,7 @@ class ReferenceTests {
         assertEquals(2.0, logged[0].price, 0.0)
         // The can was priced by hand at £2 and keeps it. The pint was never priced by hand, so it took the catalogue's
         // pint price rather than £2 stretched to a pint's worth of volume.
-        assertTrue(near(logged[1].price, Catalog.price("Staropramen", DrinkCategory.BEER, Vessel.PINT, 568.0, "GBP")!!))
+        assertTrue(near(logged[1].price, Catalog.price("Staropramen", DrinkCategory.BEER, Vessel.PINT, 568.0)!!))
     }
 }
 

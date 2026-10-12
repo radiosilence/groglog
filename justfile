@@ -20,3 +20,14 @@ store command="status" *args:
 # The Google Play listing and releases, from the terminal. See scripts/play.py.
 play command="status" *args:
     scripts/play.py {{command}} {{args}}
+
+# The Android app, built with Gradle from android/. JAVA_HOME comes from mise; ANDROID_HOME defaults to Homebrew's SDK.
+android-gradle *tasks:
+    cd android && JAVA_HOME="$(mise where java)" ANDROID_HOME="${ANDROID_HOME:-/opt/homebrew/share/android-commandlinetools}" ./gradlew {{tasks}}
+
+android-build: (android-gradle ":app:assembleDebug")
+
+android-test: (android-gradle ":app:testDebugUnitTest")
+
+# Installs on the connected device or running emulator. Installing over the app keeps its data.
+android-install: (android-gradle ":app:installDebug")

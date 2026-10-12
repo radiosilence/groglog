@@ -3,6 +3,7 @@ package cc.blit.groglog.model
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.chrono.IsoChronology
 import java.time.format.DateTimeFormatter
@@ -23,13 +24,13 @@ data class DayClock(
 ) {
     val today: DayKey get() = day(Instant.now())
 
-    /** Decided on the wall clock, so it agrees with `start(of:)` on the nights the clocks change. */
+    /** Decided on the wall clock, so it agrees with `start` on the nights the clocks change. */
     fun day(instant: Instant): DayKey {
         val hour = instant.atZone(zone).hour
         return DayKey.of(instant, zone) - if (hour < rolloverHour) 1 else 0
     }
 
-    fun start(day: DayKey): Instant = LocalDateTime.of(day.localDate, java.time.LocalTime.of(rolloverHour, 0)).atZone(zone).toInstant()
+    fun start(day: DayKey): Instant = LocalDateTime.of(day.localDate, LocalTime.of(rolloverHour, 0)).atZone(zone).toInstant()
 
     fun end(day: DayKey): Instant = start(day + 1)
 
@@ -41,14 +42,14 @@ data class DayClock(
     fun resolve(time: Instant, day: DayKey): Instant {
         val parts = time.atZone(zone)
         val date = (if (parts.hour < rolloverHour) day + 1 else day).localDate
-        return LocalDateTime.of(date, java.time.LocalTime.of(parts.hour, parts.minute)).atZone(zone).toInstant()
+        return LocalDateTime.of(date, LocalTime.of(parts.hour, parts.minute)).atZone(zone).toInstant()
     }
 
     /** The current time for today; otherwise just after the last drink, or 8pm for an empty day. */
     fun suggestedTime(day: DayKey, after: Instant?): Instant {
         if (day == today) return Instant.now()
         if (after != null) return minOf(after.plusSeconds(20 * 60), end(day).minusSeconds(60))
-        return LocalDateTime.of(day.localDate, java.time.LocalTime.of(20, 0)).atZone(zone).toInstant()
+        return LocalDateTime.of(day.localDate, LocalTime.of(20, 0)).atZone(zone).toInstant()
     }
 
     fun hourLabel(hours: Double, locale: Locale = Locale.getDefault()): String {
@@ -65,7 +66,7 @@ data class DayClock(
 }
 
 /**
- * `hours(_:into:)` over a screen's worth of drinks. A day's start is a calendar calculation, so this caches it per day
+ * `DayClock.hours` over a screen's worth of drinks. A day's start is a calendar calculation, so this caches it per day
  * rather than computing it per drink.
  */
 class HourCounter(private val clock: DayClock) {

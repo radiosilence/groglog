@@ -79,10 +79,9 @@ class ScaleTests {
         val rebuild = measureTime { logbook.rebuild() }
 
         println("scale: bulk $bulk, taps $taps, screens $screens, rebuild $rebuild")
-        // The limits are iOS's, with room for Robolectric's SQLite on a laptop. A shared CI runner is several times
-        // slower and less consistent, so it gets four times the room, which is still far below the orders of magnitude
-        // a real regression costs.
-        val room = (if (System.getenv("CI") == null) 1.0 else 4.0) * 2
+        // The limits are for a laptop. A shared CI runner is several times slower and less consistent, so it gets four
+        // times the room, which is still far below the orders of magnitude a real regression costs.
+        val room = if (System.getenv("CI") == null) 1.0 else 4.0
         assertTrue("bulk $bulk", bulk < 3.seconds * room)
         assertTrue("taps $taps", taps.all { it < 30.milliseconds * room })
         assertTrue("screens $screens", screens < 250.milliseconds * room)
