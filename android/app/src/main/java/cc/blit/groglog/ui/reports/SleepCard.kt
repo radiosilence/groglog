@@ -22,6 +22,7 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import cc.blit.groglog.ui.shared.LegendKey
 import cc.blit.groglog.ui.shared.LegendRow
+import cc.blit.groglog.model.DayStatus
 
 enum class SleepStageBar(val label: String, val color: Color, val seconds: (Sleep) -> Double) {
     DEEP("Deep", GrogColors.deepSleep, { it.deep }),
@@ -105,7 +106,12 @@ fun SleepCard(ledger: Ledger, nights: Nights) {
                 val parts = listOfNotNull(
                     "Night of ${DateText.format(day, "EEEEdMMMM")}",
                     sleep?.let { s -> SleepStageBar.entries.joinToString(", ") { "${it.label} ${duration(it.seconds(s))}" } } ?: "no sleep recorded",
-                    if (ledger.isLogged(day)) "drank ${ledger.totals(day).units.unitsText} units" else null,
+                    when (ledger.status(day)) {
+                        DayStatus.ALCOHOL_FREE -> "alcohol-free"
+                        DayStatus.DRANK -> "drank ${ledger.totals(day).units.unitsText} units"
+                        DayStatus.UNLOGGED, DayStatus.UNTRACKED -> "not logged"
+                        DayStatus.TODAY, DayStatus.FUTURE -> null
+                    },
                 )
                 PlotSlot(day.number.toDouble(), day.number + 1.0, parts.joinToString(", "))
             },
