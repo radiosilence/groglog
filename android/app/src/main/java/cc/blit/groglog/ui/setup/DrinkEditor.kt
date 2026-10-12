@@ -46,6 +46,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -59,6 +60,7 @@ import cc.blit.groglog.model.ServeSize
 import cc.blit.groglog.model.Units
 import cc.blit.groglog.model.Vessel
 import cc.blit.groglog.ui.shared.ChipRow
+import cc.blit.groglog.ui.textField
 import cc.blit.groglog.ui.shared.MoneyField
 import cc.blit.groglog.ui.shared.NumberRow
 import cc.blit.groglog.ui.shared.decimalText
@@ -114,10 +116,14 @@ class DrinkEditorViewModel(
     private val prefs: Prefs,
     private val id: UUID?,
     private val startingName: String = "",
+    private val saved: SavedStateHandle? = null,
 ) : ViewModel() {
-    val name = TextFieldState()
-    val strength = TextFieldState(decimalText(DrinkCategory.BEER.defaultABV))
-    val price = TextFieldState()
+    /** Whether this is a draft brought back after the page left the screen or the process stopped. */
+    private val restored = saved?.contains(CATEGORY) == true
+
+    val name = saved.textField("name", viewModelScope)
+    val strength = saved.textField("strength", viewModelScope, decimalText(DrinkCategory.BEER.defaultABV))
+    val price = saved.textField("price", viewModelScope)
 
     /** The parts of the draft that are not typed. Null until the drink has loaded. */
     private val _draft = MutableStateFlow<Drink?>(null)
@@ -138,10 +144,28 @@ class DrinkEditorViewModel(
             val drink = id?.let { database.rows().drink(it) }
             original = drink
             val start = drink ?: Drink(name = startingName, category = DrinkCategory.BEER, abv = DrinkCategory.BEER.defaultABV, vessel = Vessel.PINT, volumeMl = 568.0)
-            name.setTextAndPlaceCursorAtEnd(start.name)
-            strength.setTextAndPlaceCursorAtEnd(decimalText(start.abv))
-            price.setTextAndPlaceCursorAtEnd(moneyDigits(start.price, currency))
-            _draft.value = start
+            if (restored) {
+                _draft.value = start.copy(
+                    category = DrinkCategory.valueOf(saved!![CATEGORY]!!),
+                    vessel = Vessel.valueOf(saved[VESSEL]!!),
+                    volumeMl = saved[VOLUME]!!,
+                    isHidden = saved[HIDDEN]!!,
+                )
+            } else {
+                name.setTextAndPlaceCursorAtEnd(start.name)
+                strength.setTextAndPlaceCursorAtEnd(decimalText(start.abv))
+                price.setTextAndPlaceCursorAtEnd(moneyDigits(start.price, currency))
+                _draft.value = start
+            }
+            // The untyped parts of the draft, kept as they change.
+            val saved = saved ?: return@launch
+            _draft.collect { draft ->
+                draft ?: return@collect
+                saved[CATEGORY] = draft.category.name
+                saved[VESSEL] = draft.vessel.name
+                saved[VOLUME] = draft.volumeMl
+                saved[HIDDEN] = draft.isHidden
+            }
         }
     }
 
@@ -191,6 +215,13 @@ class DrinkEditorViewModel(
 
     suspend fun delete() {
         original?.let { Logbook(database, prefs.current().clock).delete(it) }
+    }
+
+    private companion object {
+        const val CATEGORY = "category"
+        const val VESSEL = "vessel"
+        const val VOLUME = "volumeMl"
+        const val HIDDEN = "isHidden"
     }
 }
 

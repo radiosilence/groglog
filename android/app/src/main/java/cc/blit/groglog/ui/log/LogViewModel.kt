@@ -43,6 +43,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import androidx.lifecycle.SavedStateHandle
+import cc.blit.groglog.data.Serves
 
 /** What the picker draws for one day. Everything past the inputs is derived. */
 data class LogState(
@@ -79,10 +81,20 @@ class LogViewModel(
     prefs: Prefs,
     private val logbook: suspend () -> Logbook,
     fixedDay: DayKey? = null,
+    private val saved: SavedStateHandle? = null,
 ) : ViewModel() {
-    constructor(container: AppContainer, fixedDay: DayKey? = null) : this(container.queries, container.prefs, container::logbook, fixedDay)
+    constructor(container: AppContainer, fixedDay: DayKey? = null, saved: SavedStateHandle? = null) :
+        this(container.queries, container.prefs, container::logbook, fixedDay, saved)
 
-    var search by mutableStateOf("")
+    private var searchText by mutableStateOf(saved?.get<String>(SEARCH) ?: "")
+
+    /** Kept with the entry, so the grid a sheet was opened from is the one it comes back to. */
+    var search: String
+        get() = searchText
+        set(value) {
+            searchText = value
+            saved?.set(SEARCH, value)
+        }
 
     private val appeared = MutableStateFlow(0)
 
@@ -237,7 +249,12 @@ class LogViewModel(
         pulses.update { it + (id to (it[id] ?: 0) + 1) }
     }
 
+    /** A tile by `Serve.id`: from the grid as it stands, or from the database when the grid has yet to load. */
+    suspend fun serve(id: String): Serve? = state.value?.tiles?.firstOrNull { it.id == id } ?: Serves.matching(id, logbook().database)
+
     companion object {
+        private const val SEARCH = "search"
+
         /** The clock's today, and again each time a day ends. */
         internal fun days(clock: DayClock, now: () -> Instant = Instant::now): Flow<DayKey> = flow {
             while (true) {

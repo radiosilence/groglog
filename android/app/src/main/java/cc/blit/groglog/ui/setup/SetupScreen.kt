@@ -86,6 +86,7 @@ import cc.blit.groglog.model.Rates
 import cc.blit.groglog.model.Taper
 import cc.blit.groglog.ui.SetupRoute
 import cc.blit.groglog.ui.containerViewModel
+import cc.blit.groglog.ui.savedViewModel
 import cc.blit.groglog.ui.theme.GrogColors
 import cc.blit.groglog.ui.theme.GrogLogTheme
 import cc.blit.groglog.ui.shared.Section
@@ -120,13 +121,13 @@ fun EntryProviderScope<NavKey>.setupEntries(modifier: Modifier, backStack: NavBa
         }
     }
     entry<SetupRoute.EditDrink> { key ->
-        val model = containerViewModel { DrinkEditorViewModel(it.database, it.prefs, key.id?.let(UUID::fromString), key.name) }
+        val model = savedViewModel { container, saved -> DrinkEditorViewModel(container.database, container.prefs, key.id?.let(UUID::fromString), key.name, saved) }
         val timesLogged by model.timesLogged.collectAsStateWithLifecycle()
         Box(modifier) { DrinkEditorPage(model, timesLogged, onClose = { close(key) }) }
     }
     entry<SetupRoute.Goal> { key ->
-        val model = containerViewModel { GoalViewModel(it.database, it.prefs) }
-        Box(modifier) { GoalPage(model, onClose = { close(key) }, onGuidance = { backStack.add(SetupRoute.Guidance) }) }
+        val model = savedViewModel { container, saved -> GoalViewModel(container.database, container.prefs, saved) }
+        Box(modifier) { GoalPage(model, onClose = { close(key) }, onGuidance = { backStack.add(SetupRoute.Guidance()) }) }
     }
     entry<SetupRoute.Guidance> { key -> Box(modifier) { GuidancePage(onClose = { close(key) }) } }
 }
@@ -141,8 +142,8 @@ fun SetupScreen(modifier: Modifier = Modifier, reselected: Flow<Unit> = emptyFlo
             model,
             isDemo = container.isDemo,
             onDemo = container::setDemo,
-            onGoal = { onOpen(SetupRoute.Goal) },
-            onDrinks = { onOpen(SetupRoute.Drinks) },
+            onGoal = { onOpen(SetupRoute.Goal()) },
+            onDrinks = { onOpen(SetupRoute.Drinks()) },
             reselected = reselected,
         )
     }

@@ -32,7 +32,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -86,8 +85,9 @@ private val tabs: List<Triple<Tab, String, ImageVector>> = listOf(
  * back to its root, or, at the root, tells it so through `reselected`. Pages another tab opens, such as a drink's editor
  * from the Log, are pushed onto the open tab's stack, as iOS presents them as sheets over the tab.
  *
- * NavDisplay is given the other tabs' roots beneath the open tab's stack, so their saved state and ViewModels are kept
- * while they are out of sight. Back at a tab's root leaves the app, as on any Android app with a tab bar.
+ * NavDisplay is given the other tabs' stacks beneath the open tab's, so their pages keep their saved state and
+ * ViewModels, drafts included, while they are out of sight. Back at another tab's root goes to the Log, as Material
+ * asks of a tab bar, and back at the Log's root leaves the app.
  *
  * Every page draws its own top bar, which takes the status bar's inset; the tab bar's is taken here.
  */
@@ -100,7 +100,7 @@ private fun Root() {
     val reselected = remember { MutableSharedFlow<Tab>(extraBufferCapacity = 1) }
     val createDrink: (String) -> Unit = { backStack.add(SetupRoute.EditDrink(name = it)) }
     val editDrink: (Drink) -> Unit = { backStack.add(SetupRoute.EditDrink(it.id.toString())) }
-    val setGoal: () -> Unit = { backStack.add(SetupRoute.Goal) }
+    val setGoal: () -> Unit = { backStack.add(SetupRoute.Goal()) }
     fun select(tab: Tab) {
         if (tab == current) {
             val stack = stacks.getValue(tab)
@@ -116,7 +116,7 @@ private fun Root() {
         stacks.getValue(Tab.Log).let { if (it.size > 1) it.subList(1, it.size).clear() }
         Destinations.pending.compareAndSet(Destination.LOG, null)
     }
-    // At large text sizes the labels would break mid-word, so only the open tab's is shown, as Material allows.
+    // At large text sizes the labels would break mid-word, so the bar shows icons alone, each named for TalkBack.
     val compactLabels = LocalDensity.current.fontScale >= 1.5f
     Scaffold(
         bottomBar = {
@@ -126,9 +126,8 @@ private fun Root() {
                     NavigationBarItem(
                         selected = selected,
                         onClick = { select(tab) },
-                        icon = { Icon(icon, contentDescription = if (compactLabels && !selected) label else null) },
-                        label = { Text(label, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
-                        alwaysShowLabel = !compactLabels,
+                        icon = { Icon(icon, contentDescription = if (compactLabels) label else null) },
+                        label = if (compactLabels) null else ({ Text(label, maxLines = 1, softWrap = false) }),
                         // The open tab's label in the ordinary ink, as on iOS: the theme's secondary is the dry teal,
                         // which means an alcohol-free day everywhere else.
                         colors = NavigationBarItemDefaults.colors(selectedTextColor = MaterialTheme.colorScheme.onSurface),
@@ -139,7 +138,7 @@ private fun Root() {
     ) { padding ->
         val bottom = PaddingValues(bottom = padding.calculateBottomPadding())
         val modifier = Modifier.padding(bottom).consumeWindowInsets(bottom)
-        val shown = tabs.map { it.first }.filter { it != current } + backStack
+        val shown = tabs.map { it.first }.filter { it != current }.flatMap { stacks.getValue(it) } + backStack
         val activity = LocalActivity.current
         NavDisplay(
             backStack = shown,
@@ -175,9 +174,8 @@ private fun Root() {
                 setupEntries(modifier, backStack)
             },
         )
-        // Composed after NavDisplay so it takes back first: at a tab's root the app closes rather than showing the tab
-        // kept beneath.
-        BackHandler(enabled = backStack.size == 1) { activity?.finish() }
+        // Composed after NavDisplay so it takes back first at a tab's root, rather than showing the tab kept beneath.
+        BackHandler(enabled = backStack.size == 1) { if (current == Tab.Log) activity?.finish() else currentIndex = 0 }
     }
 }
 

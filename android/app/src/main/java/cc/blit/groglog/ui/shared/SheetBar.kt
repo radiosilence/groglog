@@ -32,19 +32,20 @@ fun SheetBar(
     enabled: Boolean = true,
 ) {
     Row(modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        // Both ends take the same room, so the title stays centred whatever the buttons say.
-        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+        // The buttons take what their words need, and the title the rest: an action such as "Log 3 · 6.8 u" is longer
+        // than a fixed share of the bar.
+        Box(Modifier.widthIn(min = 64.dp), contentAlignment = Alignment.CenterStart) {
             if (onCancel != null) TextButton(onClick = onCancel) { Text("Cancel", maxLines = 1) }
         }
         Text(
             title,
-            Modifier.weight(2f).semantics { heading() },
+            Modifier.weight(1f).padding(horizontal = 4.dp).semantics { heading() },
             style = MaterialTheme.typography.titleMedium,
             textAlign = TextAlign.Center,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
-        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+        Box(Modifier.widthIn(min = 64.dp), contentAlignment = Alignment.CenterEnd) {
             Button(onClick = onAction, enabled = enabled, modifier = Modifier.widthIn(min = 64.dp)) { Text(action, maxLines = 1) }
         }
     }

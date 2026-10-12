@@ -124,7 +124,7 @@ fun LogOptionsSheet(
     // This round's strength and cost, starting from the drink's and the size's, so picking another does not carry
     // over the previous one's figures.
     val abvField = rememberSaveable(selected, saver = TextFieldState.Saver) { TextFieldState(decimalText(choice.abv)) }
-    val unitsField = rememberSaveable(selected, saver = TextFieldState.Saver) { TextFieldState(decimalText(Units.of(size.ml, choice.abv), 1)) }
+    val unitsField = rememberSaveable(selected, saver = TextFieldState.Saver) { TextFieldState(Units.of(size.ml, choice.abv).unitsText) }
     val priceField = rememberSaveable(selected, size, saver = TextFieldState.Saver) { TextFieldState(moneyDigits(usualPrice, state.currency)) }
     val strength = if (base.drink.category == DrinkCategory.UNITS) choice.abv else parseDecimal(abvField.text)?.takeIf(Units::isStrength)
     val each = strength?.let { Units.of(size.ml, it) } ?: 0.0
@@ -135,7 +135,7 @@ fun LogOptionsSheet(
             val abv = parseDecimal(text)?.takeIf(Units::isStrength) ?: return@collect
             val units = Units.of(size.ml, abv)
             if (parseDecimal(unitsField.text)?.let { abs(it - units) < 0.05 } != true) {
-                unitsField.setTextAndPlaceCursorAtEnd(decimalText(units, 1))
+                unitsField.setTextAndPlaceCursorAtEnd(units.unitsText)
             }
         }
     }
@@ -155,7 +155,8 @@ fun LogOptionsSheet(
     ModalBottomSheet(onDismissRequest = onDismiss) {
         SheetBar(
             title = base.drink.name,
-            action = if (count > 1) "Log $count" else "Log",
+            // The round's total on the button, as on iOS: "Log · 2.0 u", "Log 3 · 6.8 u".
+            action = "Log${if (count > 1) " $count" else ""} · ${(each * count).unitsText} u",
             onAction = {
                 if (strength != null) {
                     val name = choice.name

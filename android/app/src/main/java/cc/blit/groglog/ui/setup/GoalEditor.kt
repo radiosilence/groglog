@@ -21,7 +21,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -49,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -57,6 +57,7 @@ import cc.blit.groglog.data.Prefs
 import cc.blit.groglog.model.DayClock
 import cc.blit.groglog.model.DayKey
 import cc.blit.groglog.model.Goal
+import cc.blit.groglog.model.GoalSerializer
 import cc.blit.groglog.model.Ledger
 import cc.blit.groglog.model.Taper
 import cc.blit.groglog.model.Units
@@ -64,6 +65,7 @@ import cc.blit.groglog.model.unitsText
 import cc.blit.groglog.ui.theme.GrogColors
 import cc.blit.groglog.ui.theme.GrogLogTheme
 import cc.blit.groglog.ui.shared.ChipRow
+import cc.blit.groglog.ui.textField
 import cc.blit.groglog.ui.shared.NumberRow
 import cc.blit.groglog.ui.shared.decimalText
 import cc.blit.groglog.ui.shared.parseDecimal
@@ -91,10 +93,14 @@ import kotlinx.coroutines.launch
  * The goal as a draft, saved on Done. Opens switched on, since opening it is a request for a goal. Amounts are stored
  * per week but typed per day, as people think of a day's drinking whatever the taper's pace.
  */
-class GoalViewModel(private val database: AppDatabase, private val prefs: Prefs) : ViewModel() {
-    /** The figures as typed, per day. */
-    val from = TextFieldState()
-    val target = TextFieldState()
+class GoalViewModel(
+    private val database: AppDatabase,
+    private val prefs: Prefs,
+    private val saved: SavedStateHandle? = null,
+) : ViewModel() {
+    /** The figures as typed, per day, kept with the draft so they outlive the page leaving the screen. */
+    val from = saved.textField("from", viewModelScope)
+    val target = saved.textField("target", viewModelScope)
 
     private val _draft = MutableStateFlow<Goal?>(null)
     val draft: StateFlow<Goal?> = _draft.asStateFlow()
@@ -104,14 +110,20 @@ class GoalViewModel(private val database: AppDatabase, private val prefs: Prefs)
 
     init {
         viewModelScope.launch {
-            var goal = prefs.current().goal
-            // A goal that is not running starts now. Its stored date is from whenever it was last on, and a taper counted
-            // from then would open weeks into its cuts.
-            if (!goal.isEnabled) goal = goal.copy(start = Instant.now())
-            goal = goal.copy(isEnabled = true)
-            from.setTextAndPlaceCursorAtEnd(decimalText(goal.baselineWeekly / 7, 1))
-            target.setTextAndPlaceCursorAtEnd(decimalText(goal.targetWeekly / 7, 1))
-            _draft.value = settled(goal)
+            val kept = saved?.get<String>(GOAL)?.let(GoalSerializer::decode)
+            if (kept != null) {
+                _draft.value = kept
+            } else {
+                var goal = prefs.current().goal
+                // A goal that is not running starts now. Its stored date is from whenever it was last on, and a taper
+                // counted from then would open weeks into its cuts.
+                if (!goal.isEnabled) goal = goal.copy(start = Instant.now())
+                goal = goal.copy(isEnabled = true)
+                from.setTextAndPlaceCursorAtEnd(decimalText(goal.baselineWeekly / 7, 1))
+                target.setTextAndPlaceCursorAtEnd(decimalText(goal.targetWeekly / 7, 1))
+                _draft.value = settled(goal)
+            }
+            _draft.collect { draft -> if (draft != null) saved?.set(GOAL, GoalSerializer.encode(draft).toString()) }
         }
     }
 
@@ -177,6 +189,8 @@ class GoalViewModel(private val database: AppDatabase, private val prefs: Prefs)
     }
 
     companion object {
+        private const val GOAL = "goal"
+
         fun roundedDaily(weekly: Double) = (weekly / 7).roundToInt() * 7.0
     }
 }

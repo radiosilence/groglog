@@ -63,6 +63,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -106,6 +107,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cc.blit.groglog.ui.containerViewModel
+import cc.blit.groglog.ui.savedViewModel
 import cc.blit.groglog.model.CatalogItem
 import cc.blit.groglog.model.DayKey
 import cc.blit.groglog.model.DayStatus
@@ -148,7 +150,7 @@ fun LogScreen(
     onEditDrink: ((Drink) -> Unit)? = null,
     unitsRequested: Boolean = false,
     onUnitsShown: () -> Unit = {},
-    viewModel: LogViewModel = containerViewModel { LogViewModel(it) },
+    viewModel: LogViewModel = savedViewModel { container, saved -> LogViewModel(container, saved = saved) },
 ) {
     val grid = rememberLazyGridState()
     LaunchedEffect(reselected) {
@@ -285,8 +287,12 @@ fun DrinkPicker(
         }
     }
 
-    val serve = current?.tiles?.firstOrNull { it.id == optionsFor }
-    if (serve != null) {
+    // Looked up afresh after the process is restored, when the grid it was opened from may not have loaded yet.
+    val resolved by produceState(current?.tiles?.firstOrNull { it.id == optionsFor }, optionsFor) {
+        value = optionsFor?.let { viewModel.serve(it) }
+    }
+    val serve = resolved
+    if (serve != null && current != null) {
         LogOptionsSheet(
             base = serve,
             state = current,
