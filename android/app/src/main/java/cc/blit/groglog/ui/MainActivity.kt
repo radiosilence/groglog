@@ -23,6 +23,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import cc.blit.groglog.container
 import cc.blit.groglog.ui.calendar.CalendarScreen
 import cc.blit.groglog.ui.day.DayScreen
 import cc.blit.groglog.ui.log.LogScreen
@@ -32,9 +35,14 @@ import cc.blit.groglog.ui.theme.GrogLogTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        setContent { GrogLogTheme { Root() } }
+        val dynamicColor = container.prefs.dynamicColor
+        setContent {
+            val dynamic by dynamicColor.collectAsStateWithLifecycle(false)
+            GrogLogTheme(dynamicColor = dynamic) { Root() }
+        }
     }
 }
 

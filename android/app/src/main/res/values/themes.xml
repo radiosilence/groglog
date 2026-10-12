@@ -1,3 +1,10 @@
 <resources>
     <style name="Theme.GrogLog" parent="android:Theme.Material.NoActionBar" />
+
+    <!-- The launch screen: the icon's pint on the icon's brown, then the app's own theme. -->
+    <style name="Theme.GrogLog.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.GrogLog</item>
+    </style>
 </resources>

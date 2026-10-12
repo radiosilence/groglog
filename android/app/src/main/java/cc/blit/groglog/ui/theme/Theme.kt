@@ -1,12 +1,16 @@
 package cc.blit.groglog.ui.theme
 
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalContext
 import cc.blit.groglog.model.Units
 import kotlin.math.min
 
@@ -80,7 +84,20 @@ private val dark = darkColorScheme(
     error = GrogColors.over,
 )
 
+/** Wallpaper colours exist from Android 12. */
+val supportsDynamicColor: Boolean get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+
+/**
+ * `dynamicColor` takes the scheme from the wallpaper where the system offers one. GrogLog's own colours (`GrogColors`)
+ * carry meaning in charts and the calendar, so they stay as they are either way.
+ */
 @Composable
-fun GrogLogTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = if (darkTheme) dark else light, content = content)
+fun GrogLogTheme(darkTheme: Boolean = isSystemInDarkTheme(), dynamicColor: Boolean = false, content: @Composable () -> Unit) {
+    val scheme = when {
+        dynamicColor && supportsDynamicColor ->
+            if (darkTheme) dynamicDarkColorScheme(LocalContext.current) else dynamicLightColorScheme(LocalContext.current)
+        darkTheme -> dark
+        else -> light
+    }
+    MaterialTheme(colorScheme = scheme, content = content)
 }

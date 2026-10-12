@@ -3,6 +3,7 @@ package cc.blit.groglog.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -43,6 +44,13 @@ class Prefs(private val store: DataStore<Preferences>) {
 
     suspend fun current(): Settings = settings.first()
 
+    /** Whether the app takes its colours from the wallpaper. A choice for this device, so not part of `Settings`. */
+    val dynamicColor: Flow<Boolean> = store.data.map { it[DYNAMIC_COLOR] ?: false }.distinctUntilChanged()
+
+    suspend fun setDynamicColor(on: Boolean) {
+        store.edit { it[DYNAMIC_COLOR] = on }
+    }
+
     suspend fun setRolloverHour(hour: Int) {
         require(hour in 0..23) { "Not an hour of the day: $hour" }
         store.edit { it[ROLLOVER_HOUR] = hour }
@@ -60,5 +68,6 @@ class Prefs(private val store: DataStore<Preferences>) {
         val ROLLOVER_HOUR = intPreferencesKey("rolloverHour")
         val CURRENCY = stringPreferencesKey("currency")
         val GOAL = stringPreferencesKey("goal")
+        val DYNAMIC_COLOR = booleanPreferencesKey("dynamicColor")
     }
 }
