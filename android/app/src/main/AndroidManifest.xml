@@ -37,6 +37,7 @@
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.GrogLog.Starting"
             tools:ignore="DiscouragedApi,LockedOrientationActivity">

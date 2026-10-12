@@ -17,7 +17,9 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -127,6 +129,9 @@ private fun Root() {
                         icon = { Icon(icon, contentDescription = if (compactLabels && !selected) label else null) },
                         label = { Text(label, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                         alwaysShowLabel = !compactLabels,
+                        // The open tab's label in the ordinary ink, as on iOS: the theme's secondary is the dry teal,
+                        // which means an alcohol-free day everywhere else.
+                        colors = NavigationBarItemDefaults.colors(selectedTextColor = MaterialTheme.colorScheme.onSurface),
                     )
                 }
             }

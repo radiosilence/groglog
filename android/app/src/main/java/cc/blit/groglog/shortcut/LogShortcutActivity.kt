@@ -32,6 +32,7 @@ import androidx.lifecycle.lifecycleScope
 import cc.blit.groglog.container
 import cc.blit.groglog.ui.theme.GrogLogTheme
 import cc.blit.groglog.widget.QuickLog
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -49,14 +50,14 @@ class LogShortcutActivity : ComponentActivity() {
         val app = applicationContext
         val container = app.container
         // The process-wide scope, so the drink is logged even if this window is closed first.
-        val write = container.scope.launch {
-            val logged = QuickLog.log(key, container.liveDatabase, container.livePrefs.current())
-            if (logged != null) ShortcutManagerCompat.reportShortcutUsed(app, key)
-            message = logged?.let { "Logged ${it.serve.drink.name}" to it.summary } ?: ("Not logged" to "That drink is no longer in GrogLog.")
+        val write = container.scope.async {
+            QuickLog.log(key, container.liveDatabase, container.livePrefs.current())
+                ?.also { ShortcutManagerCompat.reportShortcutUsed(app, key) }
         }
         lifecycleScope.launch {
-            write.join()
-            delay(1_500)
+            val logged = write.await()
+            message = logged?.let { "Logged ${it.serve.drink.name}" to it.summary } ?: ("Not logged" to "That drink is no longer in GrogLog.")
+            delay(2_000)
             finish()
         }
         setContent {
