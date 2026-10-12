@@ -127,6 +127,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.ui.platform.LocalResources
+import cc.blit.groglog.R
+import cc.blit.groglog.model.Pour
 
 /**
  * The Log tab: today's drink picker. `onCreateDrink` opens the drink editor with the search text as the name, and
@@ -214,24 +218,30 @@ fun DrinkPicker(
         onPauseOrDispose {}
     }
     val state by viewModel.state.collectAsStateWithLifecycle()
-    var options by remember { mutableStateOf<Serve?>(null) }
+    // The tile long-pressed, by `Serve.id`, so the sheet survives rotation.
+    var optionsFor by rememberSaveable { mutableStateOf<String?>(null) }
     var countingUnits by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
+    val resources = LocalResources.current
 
-    // Offered after every log; undoing takes back as many as were logged.
-    fun confirm(message: String, count: Int) {
+    // Offered briefly after every log. Undo takes back exactly what it names; a newer log, the bar's own undo or a change
+    // of day puts it away, so it never stands for something else.
+    fun confirm(message: String, pours: List<Pour>) {
         haptics.performHapticFeedback(HapticFeedbackType.Confirm)
         scope.launch {
             snackbar.currentSnackbarData?.dismiss()
-            if (snackbar.showSnackbar("Logged $message", actionLabel = "Undo") == SnackbarResult.ActionPerformed) {
-                viewModel.undo(count)
-            }
+            val result = snackbar.showSnackbar(message, actionLabel = "Undo", duration = SnackbarDuration.Short)
+            if (result == SnackbarResult.ActionPerformed) viewModel.undo(pours)
         }
     }
 
+    fun confirm(name: String, count: Int, units: Double, pours: List<Pour>) =
+        confirm(resources.getQuantityString(R.plurals.logged_drinks, count, count, name, units.unitsText), pours)
+
     val current = state
+    LaunchedEffect(current?.day) { snackbar.currentSnackbarData?.dismiss() }
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             SearchField(
@@ -247,14 +257,12 @@ fun DrinkPicker(
                         if (serve.drink.category == DrinkCategory.UNITS) {
                             countingUnits = true
                         } else {
-                            viewModel.log(serve)
-                            confirm("${serve.drink.name} · ${serve.units.unitsText} u", 1)
+                            viewModel.log(serve) { confirm(serve.drink.name, 1, serve.units, it) }
                         }
                     },
-                    onOptions = { serve -> if (serve.drink.category == DrinkCategory.UNITS) countingUnits = true else options = serve },
+                    onOptions = { serve -> if (serve.drink.category == DrinkCategory.UNITS) countingUnits = true else optionsFor = serve.id },
                     onAdopt = { item ->
-                        viewModel.adopt(item, current.currency)
-                        confirm("${item.name} · ${item.units.unitsText} u", 1)
+                        viewModel.adopt(item, current.currency) { confirm(item.name, 1, item.units, it) }
                     },
                     onCreateDrink = onCreateDrink,
                     grid = grid,
@@ -267,20 +275,23 @@ fun DrinkPicker(
                 DaySummaryBar(
                     totals = current.ledger.totals(current.day),
                     status = current.ledger.status(current.day),
-                    onUndo = { viewModel.undo() },
+                    onUndo = {
+                        snackbar.currentSnackbarData?.dismiss()
+                        viewModel.undo()
+                    },
                     onAlcoholFree = viewModel::setAlcoholFree,
                 )
             }
         }
     }
 
-    val serve = options
-    if (serve != null && current != null) {
+    val serve = current?.tiles?.firstOrNull { it.id == optionsFor }
+    if (serve != null) {
         LogOptionsSheet(
             base = serve,
             state = current,
             viewModel = viewModel,
-            onDismiss = { options = null },
+            onDismiss = { optionsFor = null },
             onEditDrink = onEditDrink,
             onLogged = ::confirm,
         )
@@ -295,8 +306,7 @@ fun DrinkPicker(
                 onUnitsShown()
             },
             onLog = { units, time ->
-                viewModel.logUnits(units, time)
-                confirm("${units.unitsText} u", 1)
+                viewModel.logUnits(units, time) { confirm(resources.getString(R.string.logged_units, units.unitsText), it) }
             },
         )
     }

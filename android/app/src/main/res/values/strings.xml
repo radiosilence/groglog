@@ -10,4 +10,11 @@
 
     <string name="shortcut_units_short">Log units</string>
     <string name="shortcut_units_long">Log a number of units</string>
+
+    <!-- After logging on the Log tab: the drink, how many, and the units they came to. -->
+    <plurals name="logged_drinks">
+        <item quantity="one">Logged %2$s · %3$s u</item>
+        <item quantity="other">Logged %1$d × %2$s · %3$s u</item>
+    </plurals>
+    <string name="logged_units">Logged %1$s u</string>
 </resources>

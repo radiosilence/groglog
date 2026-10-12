@@ -31,30 +31,40 @@ class Logbook(val database: AppDatabase, val clock: DayClock) {
 
     // Entries
 
-    /** `abv` logs these at a strength of their own, leaving the drink as it is. */
-    suspend fun log(serve: Serve, times: List<Instant>, abv: Double? = null) {
+    /** `abv` logs these at a strength of their own, leaving the drink as it is. Returns what was logged, for undoing it. */
+    suspend fun log(serve: Serve, times: List<Instant>, abv: Double? = null): List<Pour> {
         val abvOverride = if (abv == serve.drink.abv) null else abv
+        val pours = times.map {
+            Pour(drinkId = serve.drink.id, timestamp = it, day = clock.day(it).number, vessel = serve.vessel, volumeMl = serve.volumeMl, price = serve.price, abvOverride = abvOverride)
+        }
         writeChanging(times.map(clock::day).toSet()) {
-            for (time in times) {
-                rows.insert(Pour(drinkId = serve.drink.id, timestamp = time, day = clock.day(time).number, vessel = serve.vessel, volumeMl = serve.volumeMl, price = serve.price, abvOverride = abvOverride))
-            }
+            for (pour in pours) rows.insert(pour)
             times.maxOrNull()?.let { rows.markUsed(serve.drink.id, serve.vessel.raw, serve.volumeMl, it) }
             retotal(times.map(clock::day).toSet())
         }
+        return pours
     }
 
-    suspend fun logUnits(units: Double, time: Instant) {
+    /** Returns what was logged, for undoing it. */
+    suspend fun logUnits(units: Double, time: Instant): List<Pour> {
+        var pour: Pour? = null
         writeChanging(setOf(clock.day(time))) {
             val drink = unitsDrink()
-            rows.insert(Pour(drinkId = drink.id, timestamp = time, day = clock.day(time).number, vessel = Vessel.SHOT, volumeMl = units * 10, price = 0.0))
+            pour = Pour(drinkId = drink.id, timestamp = time, day = clock.day(time).number, vessel = Vessel.SHOT, volumeMl = units * 10, price = 0.0)
+                .also { rows.insert(it) }
             retotal(setOf(clock.day(time)))
         }
+        return listOfNotNull(pour)
     }
 
-    suspend fun delete(pour: Pour) {
-        writeChanging(setOf(pour.dayKey)) {
-            rows.delete(pour)
-            retotal(setOf(pour.dayKey))
+    suspend fun delete(pour: Pour) = delete(listOf(pour))
+
+    /** Removes these entries, in one transaction. One already gone is passed over. */
+    suspend fun delete(pours: Collection<Pour>) {
+        val days = pours.mapTo(HashSet()) { it.dayKey }
+        writeChanging(days) {
+            for (pour in pours) rows.delete(pour)
+            retotal(days)
         }
     }
 

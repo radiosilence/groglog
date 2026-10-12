@@ -20,6 +20,7 @@ import cc.blit.groglog.model.Entry
 import cc.blit.groglog.model.Favourite
 import cc.blit.groglog.model.FavouriteItem
 import cc.blit.groglog.model.Ledger
+import cc.blit.groglog.model.Pour
 import cc.blit.groglog.model.Serve
 import cc.blit.groglog.model.ServeSize
 import cc.blit.groglog.model.searchFolded
@@ -133,23 +134,26 @@ class LogViewModel(
         content.value?.let { recency.value = Picker.recency(it.favourites, it.pours) }
     }
 
-    /** Logs one now, or just after the day's last drink on a past day. */
-    fun log(serve: Serve) {
+    /**
+     * Logs one now, or just after the day's last drink on a past day. Each way of logging hands `onLogged` the entries it
+     * wrote, so an undo offered for them takes back those and nothing else.
+     */
+    fun log(serve: Serve, onLogged: (List<Pour>) -> Unit = {}) {
         val state = state.value ?: return
         pulse(serve.id)
         val time = state.suggestedTime
-        viewModelScope.launch { logbook().log(serve, listOf(time)) }
+        viewModelScope.launch { onLogged(logbook().log(serve, listOf(time))) }
     }
 
     /** A round from the options sheet: several at chosen times, at a strength of its own, brought to the front. */
-    fun log(serve: Serve, times: List<Instant>, abv: Double?) {
+    fun log(serve: Serve, times: List<Instant>, abv: Double?, onLogged: (List<Pour>) -> Unit = {}) {
         bringForward(serve.id)
         pulse(serve.id)
-        viewModelScope.launch { logbook().log(serve, times, abv) }
+        viewModelScope.launch { onLogged(logbook().log(serve, times, abv)) }
     }
 
     /** A catalogue pick becomes one of the user's drinks, logged at this size and brought to the front. */
-    fun adopt(item: CatalogItem, currency: String) {
+    fun adopt(item: CatalogItem, currency: String, onLogged: (List<Pour>) -> Unit = {}) {
         search = ""
         viewModelScope.launch {
             val logbook = logbook()
@@ -159,21 +163,23 @@ class LogViewModel(
             val time = state.value?.suggestedTime ?: Instant.now()
             bringForward(serve.id)
             pulse(serve.id)
-            logbook.log(serve, listOf(time))
+            onLogged(logbook.log(serve, listOf(time)))
         }
     }
 
-    fun logUnits(units: Double, time: Instant) {
-        viewModelScope.launch { logbook().logUnits(units, time) }
+    fun logUnits(units: Double, time: Instant, onLogged: (List<Pour>) -> Unit = {}) {
+        viewModelScope.launch { onLogged(logbook().logUnits(units, time)) }
     }
 
-    /** Takes back the last `count` drinks logged on the day, latest first. */
-    fun undo(count: Int = 1) {
+    /** Takes back the drink last logged on the day. */
+    fun undo() {
         val day = state.value?.day ?: return
-        viewModelScope.launch {
-            val logbook = logbook()
-            repeat(count) { logbook.undo(day) }
-        }
+        viewModelScope.launch { logbook().undo(day) }
+    }
+
+    /** Takes back exactly these entries, as logged together. */
+    fun undo(pours: List<Pour>) {
+        viewModelScope.launch { logbook().delete(pours) }
     }
 
     fun setAlcoholFree(dry: Boolean) {
@@ -203,10 +209,10 @@ class LogViewModel(
     }
 
     /** Logs a round of a choice, adopting a catalogue brand first. */
-    fun log(choice: Choice, size: ServeSize, price: Double, times: List<Instant>, abv: Double, currency: String) {
+    fun log(choice: Choice, size: ServeSize, price: Double, times: List<Instant>, abv: Double, currency: String, onLogged: (List<Pour>) -> Unit = {}) {
         viewModelScope.launch {
             val drink = resolve(logbook(), choice, size, currency) ?: return@launch
-            log(Serve(drink, size.vessel, size.ml, price), times, abv)
+            log(Serve(drink, size.vessel, size.ml, price), times, abv, onLogged)
         }
     }
 

@@ -71,6 +71,9 @@ import cc.blit.groglog.ui.shared.moneyDigits
 import cc.blit.groglog.ui.shared.moneyValue
 import cc.blit.groglog.ui.shared.parseDecimal
 import kotlin.math.abs
+import androidx.compose.runtime.saveable.listSaver
+import cc.blit.groglog.model.Pour
+import cc.blit.groglog.model.Vessel
 
 /** One of the user's drinks or a catalogue brand, presented the same way. */
 data class Choice(
@@ -101,12 +104,12 @@ fun LogOptionsSheet(
     viewModel: LogViewModel,
     onDismiss: () -> Unit,
     onEditDrink: ((Drink) -> Unit)?,
-    onLogged: (message: String, count: Int) -> Unit,
+    onLogged: (name: String, count: Int, units: Double, pours: List<Pour>) -> Unit,
 ) {
     var selected by rememberSaveable { mutableStateOf(Choice(base.drink).key) }
-    var size by remember { mutableStateOf(ServeSize(base.vessel, base.volumeMl)) }
+    var size by rememberSaveable(stateSaver = ServeSizeSaver) { mutableStateOf(ServeSize(base.vessel, base.volumeMl)) }
     var count by rememberSaveable { mutableIntStateOf(1) }
-    var time by remember { mutableStateOf(state.suggestedTime) }
+    var time by rememberSaveable { mutableStateOf(state.suggestedTime) }
     var search by rememberSaveable { mutableStateOf("") }
 
     val choices = remember(search, state.drinks) { Picker.choices(base.drink, search, state.drinks) }
@@ -162,8 +165,11 @@ fun LogOptionsSheet(
             Button(
                 onClick = {
                     if (strength == null) return@Button
-                    viewModel.log(choice, size, moneyValue(priceField.text, state.currency), times, strength, state.currency)
-                    onLogged("${if (count > 1) "$count " else ""}${choice.name} · ${(each * count).unitsText} u", count)
+                    val name = choice.name
+                    val units = each * count
+                    viewModel.log(choice, size, moneyValue(priceField.text, state.currency), times, strength, state.currency) {
+                        onLogged(name, count, units, it)
+                    }
                     onDismiss()
                 },
                 enabled = strength != null,
@@ -308,3 +314,8 @@ private fun ChoiceRowPreview() {
         }
     }
 }
+
+private val ServeSizeSaver = listSaver<ServeSize, Any>(
+    save = { listOf(it.vessel, it.ml) },
+    restore = { ServeSize(it[0] as Vessel, it[1] as Double) },
+)

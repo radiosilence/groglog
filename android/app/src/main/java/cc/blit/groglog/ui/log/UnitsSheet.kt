@@ -58,7 +58,7 @@ fun UnitsSheet(day: DayKey, clock: DayClock, initialTime: Instant, onDismiss: ()
 @Composable
 private fun UnitsForm(day: DayKey, clock: DayClock, initialTime: Instant, onDismiss: () -> Unit, onLog: (Double, Instant) -> Unit) {
     var text by rememberSaveable { mutableStateOf("") }
-    var time by remember { mutableStateOf(initialTime) }
+    var time by rememberSaveable { mutableStateOf(initialTime) }
     val units = text.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }
     val focus = remember { FocusRequester() }
     LaunchedEffect(focus) { focus.requestFocus() }

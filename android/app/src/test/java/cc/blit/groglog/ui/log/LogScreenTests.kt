@@ -92,6 +92,27 @@ class LogScreenTests {
         waitForPours(0)
     }
 
+    @Test fun theSnackbarUndoesOnlyTheRoundItNamed() {
+        compose.onNodeWithContentDescription("Staropramen").performClick()
+        waitForPours(1)
+        compose.waitUntilAtLeastOneExists(hasText("Undo"))
+        // Logged elsewhere, as a widget would, after the snackbar appeared.
+        runBlocking { logbook.log(Serve(rioja), listOf(java.time.Instant.now())) }
+        waitForPours(2)
+        compose.onNodeWithText("Undo").performClick()
+        waitForPours(1)
+        assertEquals(rioja.id, pours().single().drinkId)
+    }
+
+    @Test fun theBarsUndoPutsTheSnackbarAway() {
+        compose.onNodeWithContentDescription("Staropramen").performClick()
+        waitForPours(1)
+        compose.waitUntilAtLeastOneExists(hasText("Undo"))
+        compose.onNodeWithContentDescription("Undo last drink").performClick()
+        waitForPours(0)
+        compose.waitUntilDoesNotExist(hasText("Undo"))
+    }
+
     @Test fun theBarUndoesTheLastDrink() {
         compose.onNodeWithContentDescription("Rioja").performClick()
         compose.onNodeWithContentDescription("Staropramen").performClick()
