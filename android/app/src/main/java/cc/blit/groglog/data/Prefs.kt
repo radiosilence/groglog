@@ -26,6 +26,19 @@ data class Settings(
     val clock: DayClock get() = DayClock(rolloverHour)
 }
 
+/**
+ * The Health Connect switches. They belong to the device rather than the log, since each device grants its own
+ * permissions, so they are kept apart from `Settings`.
+ */
+data class HealthSwitches(
+    /** Each drink's calories are written to Health Connect as it is logged. */
+    val copies: Boolean = false,
+    /** Overnight HRV, resting heart rate and heart rate while asleep are read for Reports. */
+    val heart: Boolean = false,
+    /** Sleep by stage is read for Reports. */
+    val sleep: Boolean = false,
+)
+
 val Context.settingsStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
 /**
@@ -47,8 +60,19 @@ class Prefs(private val store: DataStore<Preferences>) {
      * this device, as its wallpaper does, so backups leave it out.
      */
     val dynamicColour: Flow<Boolean> = store.data.map { it[DYNAMIC_COLOUR] ?: false }.distinctUntilChanged()
+    val health: Flow<HealthSwitches> = store.data.map { values ->
+        HealthSwitches(values[COPIES_TO_HEALTH] ?: false, values[READS_HEART] ?: false, values[READS_SLEEP] ?: false)
+    }.distinctUntilChanged()
 
     suspend fun current(): Settings = settings.first()
+
+    suspend fun setHealth(switches: HealthSwitches) {
+        store.edit {
+            it[COPIES_TO_HEALTH] = switches.copies
+            it[READS_HEART] = switches.heart
+            it[READS_SLEEP] = switches.sleep
+        }
+    }
 
     suspend fun setRolloverHour(hour: Int) {
         require(hour in 0..23) { "Not an hour of the day: $hour" }
@@ -71,6 +95,9 @@ class Prefs(private val store: DataStore<Preferences>) {
         val ROLLOVER_HOUR = intPreferencesKey("rolloverHour")
         val CURRENCY = stringPreferencesKey("currency")
         val GOAL = stringPreferencesKey("goal")
+        val COPIES_TO_HEALTH = booleanPreferencesKey("mirrorsToHealth")
+        val READS_HEART = booleanPreferencesKey("readsHeart")
+        val READS_SLEEP = booleanPreferencesKey("readsSleep")
         val DYNAMIC_COLOUR = booleanPreferencesKey("dynamicColour")
     }
 }

@@ -15,6 +15,8 @@ import cc.blit.groglog.model.Serve
 import cc.blit.groglog.model.Vessel
 import java.time.Instant
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 
 /**
  * Every change to the log goes through here, each as one transaction. After a change only the affected days' totals
@@ -32,7 +34,7 @@ class Logbook(val database: AppDatabase, val clock: DayClock) {
     /** `abv` logs these at a strength of their own, leaving the drink as it is. */
     suspend fun log(serve: Serve, times: List<Instant>, abv: Double? = null) {
         val abvOverride = if (abv == serve.drink.abv) null else abv
-        write {
+        writeChanging(times.map(clock::day).toSet()) {
             for (time in times) {
                 rows.insert(Pour(drinkId = serve.drink.id, timestamp = time, day = clock.day(time).number, vessel = serve.vessel, volumeMl = serve.volumeMl, price = serve.price, abvOverride = abvOverride))
             }
@@ -42,7 +44,7 @@ class Logbook(val database: AppDatabase, val clock: DayClock) {
     }
 
     suspend fun logUnits(units: Double, time: Instant) {
-        write {
+        writeChanging(setOf(clock.day(time))) {
             val drink = unitsDrink()
             rows.insert(Pour(drinkId = drink.id, timestamp = time, day = clock.day(time).number, vessel = Vessel.SHOT, volumeMl = units * 10, price = 0.0))
             retotal(setOf(clock.day(time)))
@@ -50,7 +52,7 @@ class Logbook(val database: AppDatabase, val clock: DayClock) {
     }
 
     suspend fun delete(pour: Pour) {
-        write {
+        writeChanging(setOf(pour.dayKey)) {
             rows.delete(pour)
             retotal(setOf(pour.dayKey))
         }
@@ -62,15 +64,15 @@ class Logbook(val database: AppDatabase, val clock: DayClock) {
      * drunk.
      */
     suspend fun undo(day: DayKey) {
-        write {
-            val last = rows.lastLogged(day.number) ?: return@write
+        writeChanging(setOf(day)) {
+            val last = rows.lastLogged(day.number) ?: return@writeChanging
             rows.delete(last)
             retotal(setOf(day))
         }
     }
 
     suspend fun update(pour: Pour, time: Instant, vessel: Vessel, volumeMl: Double, price: Double, abvOverride: Double? = null) {
-        write {
+        writeChanging(setOf(pour.dayKey, clock.day(time))) {
             val updated = pour.copy(abvOverride = abvOverride, timestamp = time, day = clock.day(time).number, vessel = vessel, volumeMl = volumeMl, price = price)
             rows.update(updated)
             retotal(setOf(pour.dayKey, updated.dayKey))
@@ -90,13 +92,16 @@ class Logbook(val database: AppDatabase, val clock: DayClock) {
 
     /** Saves a drink. If its strength or type changed, every day it was logged on is retotalled. */
     suspend fun save(drink: Drink) {
-        write {
+        val retotalled = write {
             val before = rows.drink(drink.id)
             rows.save(drink)
             if (before != null && (before.abv != drink.abv || before.category != drink.category)) {
-                retotal(rows.days(drink.id).map(::DayKey).toSet())
+                rows.days(drink.id).map(::DayKey).toSet().also { retotal(it) }
+            } else {
+                emptySet()
             }
         }
+        if (!retotalled.isNullOrEmpty()) changes.tryEmit(retotalled)
     }
 
     /** Adds a new drink, pinned to the Log grid at its usual size. */
@@ -154,7 +159,7 @@ class Logbook(val database: AppDatabase, val clock: DayClock) {
      * between days).
      */
     suspend fun rebuild(reassigningDays: Boolean = false) {
-        write {
+        writeChanging(null) {
             if (reassigningDays) {
                 for (pour in rows.pours()) {
                     val day = clock.day(pour.timestamp).number
@@ -180,9 +185,19 @@ class Logbook(val database: AppDatabase, val clock: DayClock) {
 
     /** Runs a batch of writes, such as an import, as one transaction, retotalling the touched days at the end. */
     internal suspend fun bulk(body: suspend (Rows) -> Set<DayKey>) {
-        database.withTransaction {
-            retotal(body(rows))
-        }
+        val touched = database.withTransaction { body(rows).also { retotal(it) } }
+        changes.tryEmit(touched)
+    }
+
+    companion object {
+        private val changes = MutableSharedFlow<Set<DayKey>?>(extraBufferCapacity = 1024)
+
+        /**
+         * The days each committed write changed the entries of, from every logbook in the process, or null for a
+         * rebuild, which may have changed any. The Health Connect mirror follows this, so no write path can skip it.
+         * Nothing is buffered without a collector.
+         */
+        val changed: SharedFlow<Set<DayKey>?> = changes
     }
 
     // Internals
@@ -217,6 +232,11 @@ class Logbook(val database: AppDatabase, val clock: DayClock) {
         } else {
             rows.save(row)
         }
+    }
+
+    /** Runs a write and, once it has committed, announces the days it touched. */
+    private suspend fun writeChanging(days: Set<DayKey>?, body: suspend () -> Unit) {
+        if (write(body) != null) changes.tryEmit(days)
     }
 
     private suspend fun <T> write(body: suspend () -> T): T? =

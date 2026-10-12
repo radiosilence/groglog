@@ -45,6 +45,8 @@ import cc.blit.groglog.model.Ledger
 import cc.blit.groglog.model.unitsText
 import cc.blit.groglog.ui.theme.GrogColors
 import cc.blit.groglog.ui.theme.GrogLogTheme
+import cc.blit.groglog.ui.shared.LegendKey
+import cc.blit.groglog.ui.shared.LegendRow
 import java.time.Instant
 import java.time.format.TextStyle as DateTextStyle
 import java.util.Date
@@ -152,25 +154,11 @@ internal fun DayChart(model: DayChartModel, now: Instant, modifier: Modifier = M
             }
         }
         DayPlot(model, Modifier.fillMaxWidth().height(200.dp))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        LegendRow {
             for (s in model.series) {
                 if (s.points.isNotEmpty()) LegendKey(s.name, s.color, s.dashed)
             }
         }
-    }
-}
-
-@Composable
-internal fun LegendKey(label: String, color: Color, dashed: Boolean = false) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Canvas(Modifier.width(18.dp).height(3.dp)) {
-            drawLine(
-                color, Offset(0f, size.height / 2), Offset(size.width, size.height / 2), size.height,
-                StrokeCap.Round, if (dashed) PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 4.dp.toPx())) else null,
-            )
-        }
-        Spacer(Modifier.width(6.dp))
-        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

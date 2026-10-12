@@ -70,6 +70,7 @@ import cc.blit.groglog.model.unitsText
 import cc.blit.groglog.ui.shared.DrinkGlyph
 import cc.blit.groglog.ui.theme.GrogColors
 import cc.blit.groglog.ui.theme.GrogLogTheme
+import cc.blit.groglog.ui.shared.Section
 import java.util.UUID
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -196,7 +197,7 @@ internal fun LazyListScope.drinksList(groups: DrinkGroups, onEdit: (Drink) -> Un
     fun section(title: String, drinks: List<Drink>, footer: String? = null) {
         if (drinks.isEmpty()) return
         item(key = title) {
-            SettingsSection(title = title, footer = footer) {
+            Section(title = title, footer = footer) {
                 drinks.forEachIndexed { index, drink ->
                     if (index > 0) HorizontalDivider(Modifier.padding(start = 72.dp), color = MaterialTheme.colorScheme.surface)
                     DrinkRow(drink, onClick = { onEdit(drink) }, onHide = { onHide(drink, it) })
@@ -279,7 +280,7 @@ internal fun DrinkEditorPage(
     ) {
         item { DrinkHeader(draft, model.abv) }
         item {
-            SettingsSection {
+            Section {
                 OutlinedTextField(
                     state = model.name,
                     label = { Text("Name") },
@@ -309,7 +310,7 @@ internal fun DrinkEditorPage(
         }
         if (draft.category != DrinkCategory.UNITS) {
             item {
-                SettingsSection(title = "Usual size", footer = "The size it is offered in first. Long-press a tile to log it in another size.") {
+                Section(title = "Usual size", footer = "The size it is offered in first. Long-press a tile to log it in another size.") {
                     ChipRow(
                         options = draft.sizes(ServeSize(draft.vessel, draft.volumeMl)),
                         selected = ServeSize(draft.vessel, draft.volumeMl),
@@ -323,7 +324,7 @@ internal fun DrinkEditorPage(
         }
         if (original != null && !original.isGeneric) {
             item {
-                SettingsSection(
+                Section(
                     footer = "Saving updates everything logged as this drink. If the drink itself changed, save it as a new one and the old entries stay as they were.",
                 ) {
                     SettingsRow(

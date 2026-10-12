@@ -8,6 +8,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -92,6 +93,7 @@ import cc.blit.groglog.ui.SetupRoute
 import cc.blit.groglog.ui.containerViewModel
 import cc.blit.groglog.ui.theme.GrogColors
 import cc.blit.groglog.ui.theme.GrogLogTheme
+import cc.blit.groglog.ui.shared.Section
 import java.io.File
 import java.util.Currency
 import java.util.UUID
@@ -257,14 +259,14 @@ internal fun SetupHome(
         item(key = "goal") {
             // The guidance the pace limits come from assumes a clinician judged the person suitable and reviews them as
             // they go. GrogLog does neither, and the copy must not suggest otherwise.
-            SettingsSection(
+            Section(
                 footer = "Choose a rate of reduction to set a daily and weekly budget.\n\nGrogLog does not provide medical advice. It is intended to help you follow a plan agreed with your GP or alcohol service. If you are dependent on alcohol, do not stop suddenly without medical support.",
             ) {
                 SettingsRow("Goal", value = goalSummary(settings.goal, ledger), valueColor = GrogColors.grog, onClick = onGoal)
             }
         }
         item(key = "log") {
-            SettingsSection(footer = "Drinks after midnight count towards the evening before.") {
+            Section(footer = "Drinks after midnight count towards the evening before.") {
                 SettingsRow("Drinks", chevron = true, onClick = onDrinks)
                 RowDivider()
                 SettingsRow("Reset prices to the catalogue", onClick = { dialog = "prices" })
@@ -277,7 +279,7 @@ internal fun SetupHome(
         item(key = "health") { HealthSettings(Modifier) }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             item(key = "appearance") {
-                SettingsSection(title = "Appearance") {
+                Section(title = "Appearance") {
                     SwitchRow(
                         "Wallpaper colours",
                         checked = dynamicColour,
@@ -288,7 +290,7 @@ internal fun SetupHome(
             }
         }
         item(key = "data") {
-            SettingsSection(
+            Section(
                 title = "Data",
                 footer = "Your log stays on this phone, and in your Google account's device backup if that is on. Importing a backup adds to your log and never overwrites it.",
             ) {
@@ -300,7 +302,7 @@ internal fun SetupHome(
             }
         }
         item(key = "about") {
-            SettingsSection(footer = version) {
+            Section(footer = version) {
                 LinkRow("Privacy policy", "https://groglog.io/privacy.html")
                 RowDivider()
                 LinkRow("Support", "https://groglog.io/support.html")
@@ -308,7 +310,7 @@ internal fun SetupHome(
         }
         if (developer) {
             item(key = "developer") {
-                SettingsSection(
+                Section(
                     title = "Developer",
                     footer = "Replaces your log with four months of sample data, held in memory. Your own log returns when this is turned off. Changing it restarts the app.",
                 ) {
@@ -435,7 +437,8 @@ internal fun SetupPage(
             // The keyboard rises over the tab bar, so only the part of it above the system bar needs room.
             Modifier.fillMaxSize().padding(padding).consumeWindowInsets(WindowInsets.navigationBars).imePadding(),
             state = list,
-            contentPadding = PaddingValues(bottom = 24.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
             content = content,
         )
     }
@@ -496,42 +499,6 @@ internal fun LinkRow(title: String, url: String) {
 @Composable
 internal fun RowDivider() {
     HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.surface)
-}
-
-/** A titled group of rows on a rounded surface, with an optional note beneath, as Android's own settings lay them out. */
-@Composable
-internal fun SettingsSection(
-    modifier: Modifier = Modifier,
-    title: String? = null,
-    footer: String? = null,
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    Column(modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-        if (title != null) {
-            Text(
-                title,
-                // Not the primary colour: GrogLog's amber is too light to read as small text on a light background.
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 16.dp, bottom = 8.dp).semantics { heading() },
-            )
-        }
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Column(content = content)
-        }
-        if (footer != null) {
-            Text(
-                footer,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp),
-            )
-        }
-    }
 }
 
 @Preview(name = "Setup")

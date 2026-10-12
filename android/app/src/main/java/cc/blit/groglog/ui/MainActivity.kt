@@ -121,7 +121,7 @@ private fun Root() {
                     )
                 }
                 entry<Tab.Day> { DayScreen(modifier, reselected.of(Tab.Day), setGoal, createDrink, editDrink) }
-                entry<Tab.Reports> { ReportsScreen(modifier) }
+                entry<Tab.Reports> { ReportsScreen(modifier, reselected.of(Tab.Reports), setGoal) }
                 entry<Tab.Setup> { SetupScreen(modifier, reselected.of(Tab.Setup), onOpen = backStack::add) }
                 setupEntries(modifier, backStack)
             },

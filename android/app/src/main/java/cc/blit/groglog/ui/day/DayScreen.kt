@@ -97,6 +97,7 @@ import cc.blit.groglog.ui.shared.DrinkGlyph
 import cc.blit.groglog.ui.shared.GrogIcons
 import cc.blit.groglog.ui.theme.GrogColors
 import cc.blit.groglog.ui.theme.GrogLogTheme
+import cc.blit.groglog.ui.shared.Section
 import java.util.Date
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -259,7 +260,7 @@ private fun LazyListScope.dayContent(
     val currency = state.settings.currency
     item { TotalsHeader(state.totals, state.budget, currency) }
     item {
-        Group {
+        Section {
             val locale = LocalLocale.current.platformLocale
             val chart = remember(state, locale) { dayChart(state.day, state.ledger, state.budget, state.entries, state.now, locale) }
             DayChart(chart, state.now, Modifier.padding(16.dp))
@@ -346,25 +347,6 @@ private fun LazyListScope.dayContent(
         }
         DayStatus.FUTURE -> Unit
     }
-}
-
-/** A grouped section, as on a settings page: an optional heading, a rounded surface, an optional note beneath. */
-@Composable
-internal fun Section(title: String? = null, footer: String? = null, content: @Composable () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (title != null) {
-            Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp))
-        }
-        Group(content)
-        if (footer != null) {
-            Text(footer, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp))
-        }
-    }
-}
-
-@Composable
-private fun Group(content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surfaceContainer)) { content() }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

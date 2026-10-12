@@ -64,6 +64,7 @@ import cc.blit.groglog.ui.theme.GrogColors
 import cc.blit.groglog.ui.theme.GrogLogTheme
 import cc.blit.groglog.ui.shared.ChipRow
 import cc.blit.groglog.ui.shared.NumberRow
+import cc.blit.groglog.ui.shared.Section
 import java.text.NumberFormat
 import java.time.Instant
 import java.time.LocalDate
@@ -217,7 +218,7 @@ internal fun LazyListScope.goalEditor(goal: Goal, ledger: Ledger, model: GoalVie
     // them. This screen only records the decision; it cannot say whether a taper is the right approach, and must not
     // read as if it does.
     item(key = "before") {
-        SettingsSection(title = "Before you start") {
+        Section(title = "Before you start") {
             Text(
                 "A taper is suitable only when gradual reduction is already the right approach for you. Your GP or an alcohol service can advise on whether it is, and at what pace. GrogLog helps you follow the plan you agree with them.",
                 style = MaterialTheme.typography.bodyMedium,
@@ -229,7 +230,7 @@ internal fun LazyListScope.goalEditor(goal: Goal, ledger: Ledger, model: GoalVie
     // DHSC's UK clinical guidelines for alcohol treatment, chapter 8, step 3. These are the signs the guidance says to
     // stop and get help for, not to taper more slowly through.
     item(key = "emergency") {
-        SettingsSection(
+        Section(
             title = "Call 999 if you get any of these",
             footer = "These are signs that withdrawal has become serious. They need emergency care, not a slower reduction.",
         ) {
@@ -264,9 +265,9 @@ private fun GoalSection(goal: Goal, ledger: Ledger, model: GoalViewModel, onGuid
     }
     var pickingDate by rememberSaveable { mutableStateOf(false) }
 
-    SettingsSection(title = "Goal", footer = footer) {
+    Section(title = "Goal", footer = footer) {
         SwitchRow("Cut down", checked = goal.isEnabled, onChange = model::setEnabled)
-        if (!goal.isEnabled) return@SettingsSection
+        if (!goal.isEnabled) return@Section
 
         FieldLabel("Taper")
         ChipRow(Taper.entries, goal.taper, model::setTaper, label = { it.label })
@@ -498,26 +499,26 @@ private fun BurndownChart(points: List<BudgetPoint>, steps: List<PaceStep>, star
 internal fun GuidancePage(onClose: () -> Unit) {
     SetupPage(title = "Where this comes from", navigation = PageNavigation.Back(onClose)) {
         item {
-            SettingsSection(title = "The pace") {
+            Section(title = "The pace") {
                 Paragraph("No more than 10% a day. This limit comes from the DHSC's UK clinical guidelines for alcohol treatment, published in November 2025, the first national guideline to set a figure for reducing without medication.")
                 Paragraph("The guideline describes this figure as clinical consensus rather than trial evidence, and assumes a clinician has judged the person suitable and reviews their progress.", secondary = true)
                 LinkRow("Read chapter 8, harm reduction", "https://www.gov.uk/guidance/clinical-guidelines-for-alcohol-treatment/8-harm-reduction")
             }
         }
         item {
-            SettingsSection(title = "Why it starts slower") {
+            Section(title = "Why it starts slower") {
                 Paragraph("Over 25 units a day, the same guidance recommends no more than 10% every four days. It says the same for people over 65 or in poor health.")
                 Paragraph("The step to every three days between 15 and 25 units is GrogLog's own, not the guideline's. NICE recommends considering assisted withdrawal above 15 units a day, and the 10% limit was not written for unsupervised reduction at that level.", secondary = true)
             }
         }
         item {
-            SettingsSection(title = "When to ask for help") {
+            Section(title = "When to ask for help") {
                 Paragraph("Over 15 units a day, NICE recommends considering medically assisted withdrawal. Over 30, it recommends inpatient or residential care rather than reducing alone.")
                 LinkRow("NICE CG115", "https://www.nice.org.uk/guidance/cg115")
             }
         }
         item {
-            SettingsSection {
+            Section {
                 Paragraph("GrogLog does not provide medical advice. It is intended to help you follow a plan agreed with your GP or alcohol service.")
             }
         }
