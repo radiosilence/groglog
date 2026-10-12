@@ -100,14 +100,14 @@ fun EntryProviderScope<NavKey>.setupEntries(modifier: Modifier, backStack: NavBa
             DrinksPage(
                 groups,
                 onBack = { close(key) },
-                onNew = { backStack.add(SetupRoute.EditDrink(null)) },
+                onNew = { backStack.add(SetupRoute.EditDrink()) },
                 onEdit = { backStack.add(SetupRoute.EditDrink(it.id.toString())) },
                 onHide = model::setHidden,
             )
         }
     }
     entry<SetupRoute.EditDrink> { key ->
-        val model = containerViewModel { DrinkEditorViewModel(it.database, it.prefs, key.id?.let(UUID::fromString)) }
+        val model = containerViewModel { DrinkEditorViewModel(it.database, it.prefs, key.id?.let(UUID::fromString), key.name) }
         val timesLogged by model.timesLogged.collectAsStateWithLifecycle()
         Box(modifier) { DrinkEditorPage(model, timesLogged, onClose = { close(key) }) }
     }

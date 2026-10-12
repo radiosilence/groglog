@@ -102,7 +102,12 @@ class DrinksViewModel(private val database: AppDatabase, private val prefs: Pref
  * carries to everything logged as the drink.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-class DrinkEditorViewModel(private val database: AppDatabase, private val prefs: Prefs, private val id: UUID?) : ViewModel() {
+class DrinkEditorViewModel(
+    private val database: AppDatabase,
+    private val prefs: Prefs,
+    private val id: UUID?,
+    private val startingName: String = "",
+) : ViewModel() {
     val name = TextFieldState()
     val strength = TextFieldState(decimalText(DrinkCategory.BEER.defaultABV))
     val price = TextFieldState()
@@ -125,7 +130,7 @@ class DrinkEditorViewModel(private val database: AppDatabase, private val prefs:
             currency = prefs.current().currency
             val drink = id?.let { database.rows().drink(it) }
             original = drink
-            val start = drink ?: Drink(name = "", category = DrinkCategory.BEER, abv = DrinkCategory.BEER.defaultABV, vessel = Vessel.PINT, volumeMl = 568.0)
+            val start = drink ?: Drink(name = startingName, category = DrinkCategory.BEER, abv = DrinkCategory.BEER.defaultABV, vessel = Vessel.PINT, volumeMl = 568.0)
             name.setTextAndPlaceCursorAtEnd(start.name)
             strength.setTextAndPlaceCursorAtEnd(decimalText(start.abv))
             price.setTextAndPlaceCursorAtEnd(moneyDigits(start.price, currency))

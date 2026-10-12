@@ -163,8 +163,8 @@ class SetupTests {
 
     // The drink editor
 
-    private suspend fun editor(database: AppDatabase, prefs: Prefs, id: java.util.UUID? = null) =
-        DrinkEditorViewModel(database, prefs, id).also { it.draft.first { draft -> draft != null } }
+    private suspend fun editor(database: AppDatabase, prefs: Prefs, id: java.util.UUID? = null, name: String = "") =
+        DrinkEditorViewModel(database, prefs, id, name).also { it.draft.first { draft -> draft != null } }
 
     @Test fun impossibleStrengthsAreRefused() = runBlocking {
         val model = editor(database(), prefs())
@@ -178,6 +178,12 @@ class SetupTests {
             model.strength.setTextAndPlaceCursorAtEnd(figure)
             assertTrue("Refused $figure", model.canSave)
         }
+    }
+
+    @Test fun aNewDrinkStartsFromTheNameSearchedFor() = runBlocking {
+        val model = editor(database(), prefs(), name = "Hepcat")
+        assertEquals("Hepcat", model.name.text.toString())
+        assertTrue(model.canSave)
     }
 
     @Test fun aDrinkNeedsAName() = runBlocking {

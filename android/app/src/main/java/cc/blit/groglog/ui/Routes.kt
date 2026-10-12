@@ -21,8 +21,8 @@ sealed interface Tab : NavKey {
 sealed interface SetupRoute : NavKey {
     @Serializable data object Drinks : SetupRoute
 
-    /** A drink's editor, by `Drink.id`; null creates a drink. */
-    @Serializable data class EditDrink(val id: String?) : SetupRoute
+    /** A drink's editor, by `Drink.id`; without one it creates a drink, starting from `name`. */
+    @Serializable data class EditDrink(val id: String? = null, val name: String = "") : SetupRoute
 
     @Serializable data object Goal : SetupRoute
 
