@@ -1,7 +1,6 @@
 package cc.blit.groglog.widget
 
 import android.content.Context
-import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -54,17 +53,16 @@ import cc.blit.groglog.model.Serve
 import cc.blit.groglog.model.unitsText
 import cc.blit.groglog.ui.theme.GrogColors
 import kotlin.time.Duration.Companion.seconds
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.withContext
 
 /**
  * The Log grid's first tiles as buttons that log without opening the app, beside what the day has left. Each tile logs
  * through `QuickLog`, the same `Logbook` transaction as a tap on the grid.
  */
 class TilesWidget : GlanceAppWidget() {
-    override val sizeMode = SizeMode.Responsive(setOf(NARROW, WIDE))
+    // Exact, so the chart is drawn at the widget's own size rather than a bucket's.
+    override val sizeMode = SizeMode.Exact
     override val previewSizeMode = SizeMode.Responsive(setOf(NARROW, WIDE))
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
@@ -99,12 +97,10 @@ class LogTileAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val key = parameters[serve] ?: return
         val container = context.container
-        if (QuickLog.log(key, container.liveDatabase, container.livePrefs.current()) == null) {
-            withContext(Dispatchers.Main) { Toast.makeText(context, "That drink is no longer in GrogLog.", Toast.LENGTH_SHORT).show() }
-            return
-        }
-        // A second tap during the tick restarts it rather than being cleared by the first.
-        val mark = "$key#${System.nanoTime()}"
+        val logged = QuickLog.log(key, container.liveDatabase, container.livePrefs.current())
+        // A second tap during the tick restarts it rather than being cleared by the first. A drink deleted since the
+        // widget was drawn says so in the widget itself: Android 13 and later hide a toast from the background.
+        val mark = "${if (logged == null) GONE else key}#${System.nanoTime()}"
         updateAppWidgetState(context, glanceId) { it[flash] = mark }
         TilesWidget().update(context, glanceId)
         delay(2.seconds)
@@ -115,6 +111,7 @@ class LogTileAction : ActionCallback {
     companion object {
         val serve = ActionParameters.Key<String>("serve")
         internal val flash = stringPreferencesKey("logged")
+        internal const val GONE = "gone"
     }
 }
 
@@ -122,10 +119,11 @@ class LogTileAction : ActionCallback {
 private fun TilesContent(today: Today, flash: String?) {
     val size = LocalSize.current
     val logged = flash?.substringBefore('#')
+    val notice = if (logged == LogTileAction.GONE) "That drink is no longer in GrogLog" else null
     val modifier = GlanceModifier.widgetSurface().clickable(openLog(LocalContext.current))
     if (size.width >= TilesWidget.WIDE.width) {
         Row(modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Summary(today, width = size.width - 24.dp - 12.dp - 184.dp, height = size.height - 24.dp, modifier = GlanceModifier.defaultWeight().fillMaxHeight())
+            Summary(today, notice, width = size.width - 24.dp - 12.dp - 184.dp, height = size.height - 24.dp, modifier = GlanceModifier.defaultWeight().fillMaxHeight())
             if (today.tiles.isNotEmpty()) {
                 Spacer(GlanceModifier.width(12.dp))
                 TileGrid(today.tiles, logged, GlanceModifier.width(184.dp).fillMaxHeight())
@@ -133,7 +131,7 @@ private fun TilesContent(today: Today, flash: String?) {
         }
     } else if (today.tiles.isEmpty()) {
         Column(modifier.padding(12.dp)) {
-            Summary(today, width = size.width - 24.dp, height = size.height - 24.dp, modifier = GlanceModifier.fillMaxSize())
+            Summary(today, notice, width = size.width - 24.dp, height = size.height - 24.dp, modifier = GlanceModifier.fillMaxSize())
         }
     } else {
         Column(modifier.padding(8.dp)) {
@@ -145,7 +143,7 @@ private fun TilesContent(today: Today, flash: String?) {
                 )
                 Spacer(GlanceModifier.width(6.dp))
                 Text(
-                    if (today.isDry || today.budget != null) today.detail else "units today",
+                    notice ?: today.detail ?: "units today",
                     style = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Medium, color = today.detailColor()),
                     maxLines = 1,
                 )
@@ -158,20 +156,29 @@ private fun TilesContent(today: Today, flash: String?) {
 
 /** The Day screen's total, large and coloured by how the day is going, over the budget draining through the day. */
 @Composable
-private fun Summary(today: Today, width: Dp, height: Dp, modifier: GlanceModifier) {
-    Column(modifier.semantics { contentDescription = today.spoken }) {
+private fun Summary(today: Today, notice: String?, width: Dp, height: Dp, modifier: GlanceModifier) {
+    Column(modifier.semantics { contentDescription = notice ?: today.spoken }) {
         Total(today, 36)
         Text(
             if (today.budget == null) "units today" else "units",
             style = TextStyle(fontSize = 13.sp, color = GlanceTheme.colors.onSurfaceVariant),
         )
-        Burndown(
-            today,
-            width = width,
-            height = maxOf(16.dp, height - 76.dp),
-            modifier = GlanceModifier.defaultWeight().fillMaxWidth().padding(vertical = 4.dp),
-        )
-        Detail(today)
+        // With no budget there is nothing to burn down, and a climbing line says no more than the total.
+        if (today.budget != null && !today.isDry) {
+            Burndown(
+                today,
+                width = width,
+                height = maxOf(16.dp, height - 90.dp),
+                modifier = GlanceModifier.defaultWeight().fillMaxWidth().padding(vertical = 4.dp),
+            )
+        } else {
+            Spacer(GlanceModifier.defaultWeight())
+        }
+        if (notice != null) {
+            Text(notice, style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Medium, color = GlanceTheme.colors.error), maxLines = 2)
+        } else if (today.detail != null) {
+            Detail(today)
+        }
     }
 }
 

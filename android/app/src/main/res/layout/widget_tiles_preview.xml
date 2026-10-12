@@ -2,7 +2,7 @@
 <!-- The widget picker's preview on Android 12 to 14; later versions draw TilesWidget's own. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    tools:ignore="HardcodedText,SmallSp,NestedWeights"
+    tools:ignore="HardcodedText,SmallSp,NestedWeights,UselessLeaf,DisableBaselineAlignment"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_preview_background"
@@ -47,7 +47,7 @@
             android:textSize="12sp" />
     </LinearLayout>
 
-    <Space
+    <FrameLayout
         android:layout_width="12dp"
         android:layout_height="match_parent" />
 
@@ -103,7 +103,7 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <Space
+            <FrameLayout
                 android:layout_width="6dp"
                 android:layout_height="match_parent" />
 
@@ -149,7 +149,7 @@
             </LinearLayout>
         </LinearLayout>
 
-        <Space
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="6dp" />
 
@@ -200,7 +200,7 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <Space
+            <FrameLayout
                 android:layout_width="6dp"
                 android:layout_height="match_parent" />
 

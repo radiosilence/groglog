@@ -44,7 +44,8 @@ import kotlinx.coroutines.flow.first
  * Home Screen widget's summary with the burndown chart.
  */
 class TodayWidget : GlanceAppWidget() {
-    override val sizeMode = SizeMode.Responsive(setOf(RING, LINE, CHART))
+    // Exact, so LocalSize is the widget's own size rather than a bucket's, and the chart is drawn at the size it shows.
+    override val sizeMode = SizeMode.Exact
     override val previewSizeMode = SizeMode.Responsive(setOf(LINE, CHART))
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
@@ -96,13 +97,18 @@ private fun TodayContent(today: Today) {
                 if (today.budget == null) "units today" else "units",
                 style = TextStyle(fontSize = 13.sp, color = GlanceTheme.colors.onSurfaceVariant),
             )
-            Burndown(
-                today,
-                width = size.width - 28.dp,
-                height = maxOf(16.dp, size.height - 28.dp - 76.dp),
-                modifier = GlanceModifier.defaultWeight().fillMaxWidth().padding(vertical = 4.dp),
-            )
-            Detail(today)
+            // With no budget there is nothing to burn down, and a climbing line says no more than the total.
+            if (today.budget != null && !today.isDry) {
+                Burndown(
+                    today,
+                    width = size.width - 28.dp,
+                    height = maxOf(16.dp, size.height - 28.dp - 90.dp),
+                    modifier = GlanceModifier.defaultWeight().fillMaxWidth().padding(vertical = 4.dp),
+                )
+            } else {
+                Spacer(GlanceModifier.defaultWeight())
+            }
+            today.detail?.let { Detail(today) }
         }
     }
 }

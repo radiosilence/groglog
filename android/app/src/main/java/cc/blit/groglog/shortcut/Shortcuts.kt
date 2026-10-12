@@ -18,11 +18,17 @@ object Shortcuts {
     private const val DRINKS = 3
 
     /**
-     * Publishes the current tiles, or nothing when they have not changed: updates from the background are rate-limited,
-     * and logging a drink commits far more often than it reorders the tiles.
+     * Publishes the most recent tiles, or nothing when they have not changed: updates from the background are
+     * rate-limited, and logging a drink commits far more often than it changes which drinks are recent.
+     *
+     * The menu keeps its order while its drinks stay the same. The grid reorders on every log, and following it would
+     * move the shortcut just used out from under the finger; a drink new to the menu goes after those already in it.
      */
     suspend fun publish(context: Context, database: AppDatabase) {
-        val shortcuts = Serves.grid(database).take(DRINKS).mapIndexed { rank, serve ->
+        val recent = Serves.grid(database).take(DRINKS)
+        val published = ShortcutManagerCompat.getDynamicShortcuts(context).sortedBy { it.rank }.map { it.id }
+        val ordered = recent.sortedBy { serve -> published.indexOf(serve.id).takeIf { it >= 0 } ?: (DRINKS + recent.indexOf(serve)) }
+        val shortcuts = ordered.mapIndexed { rank, serve ->
             val size = serve.vessel.label(serve.volumeMl)
             ShortcutInfoCompat.Builder(context, serve.id)
                 .setShortLabel(serve.drink.name)

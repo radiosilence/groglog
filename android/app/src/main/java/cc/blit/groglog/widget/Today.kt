@@ -32,9 +32,9 @@ data class Today(
     /** Tiles to log from, most recently drunk first. */
     val tiles: List<Serve> = emptyList(),
 ) {
-    /** The line under the total: what remains of the budget, or that the day was dry. */
-    val detail: String
-        get() = if (isDry) "Alcohol-free" else budget?.let { units.leftText(it) } ?: "today"
+    /** The line under the total: what remains of the budget, or that the day was dry. Nothing to add with no budget. */
+    val detail: String?
+        get() = if (isDry) "Alcohol-free" else budget?.let { units.leftText(it) }
 
     /** Teal inside the budget, amber just over, red well past it. */
     val heat: Color get() = GrogColors.heat(units, budget)

@@ -77,7 +77,7 @@ internal fun Total(today: Today, size: Int) {
 @Composable
 internal fun Detail(today: Today) {
     Text(
-        today.detail,
+        today.detail ?: "units today",
         style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Medium, color = today.detailColor()),
         maxLines = 1,
     )
@@ -95,10 +95,13 @@ internal fun DrainBar(today: Today) {
     )
 }
 
-/** The burndown chart, drawn at the size it will be shown so its line keeps its weight. */
+/**
+ * The burndown chart, drawn at the size it will be shown, in the screen's pixels, so its line keeps its weight. Fitted
+ * rather than stretched, so a slightly different slot leaves a margin instead of blurring the line.
+ */
 @Composable
 internal fun Burndown(today: Today, width: Dp, height: Dp, modifier: GlanceModifier = GlanceModifier) {
     val density = LocalContext.current.resources.displayMetrics.density
     val bitmap = Drawings.burndown(today.burndown, today.heat.toArgb(), (width.value * density).toInt(), (height.value * density).toInt(), density)
-    Image(ImageProvider(bitmap), contentDescription = null, modifier = modifier, contentScale = ContentScale.FillBounds)
+    Image(ImageProvider(bitmap), contentDescription = null, modifier = modifier, contentScale = ContentScale.Fit)
 }

@@ -29,7 +29,7 @@ internal object Drawings {
     fun burndown(points: List<CurvePoint>, color: Int, width: Int, height: Int, density: Float): Bitmap {
         val bitmap = createBitmap(width.coerceAtLeast(1), height.coerceAtLeast(1))
         if (points.isEmpty()) return bitmap
-        val stroke = 2.5f * density
+        val stroke = 1.5f * density
         val top = stroke / 2
         val bottom = height - stroke / 2
         val peak = points.maxOf { it.units }.takeIf { it > 0 } ?: 1.0

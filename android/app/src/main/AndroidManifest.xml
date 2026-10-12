@@ -102,7 +102,7 @@
             android:exported="false"
             android:noHistory="true"
             android:taskAffinity=""
-            android:theme="@android:style/Theme.NoDisplay" />
+            android:theme="@style/Theme.GrogLog.Confirmation" />
 
         <receiver
             android:name=".widget.TodayWidgetReceiver"

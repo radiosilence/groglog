@@ -16,7 +16,8 @@ import kotlinx.coroutines.withContext
 /**
  * "Log a drink" in Quick Settings, the nearest Android has to the iPhone's Action Button: a tap logs the first tile on
  * the Log grid, the drink most recently drunk. A long press opens the app (the `QS_TILE_PREFERENCES` alias in the
- * manifest). The tile lights up once the drink is logged and says where the day stands.
+ * manifest). The tile stays as it is, an action rather than a switch, and its subtitle says where the day stands once
+ * the drink is logged.
  */
 class LogDrinkTileService : TileService() {
     override fun onStartListening() {
@@ -39,11 +40,7 @@ class LogDrinkTileService : TileService() {
 
     private fun show(serve: Serve?, logged: Logged?) {
         val tile = qsTile ?: return
-        tile.state = when {
-            serve == null -> Tile.STATE_UNAVAILABLE
-            logged != null -> Tile.STATE_ACTIVE
-            else -> Tile.STATE_INACTIVE
-        }
+        tile.state = if (serve == null) Tile.STATE_UNAVAILABLE else Tile.STATE_INACTIVE
         val detail = when {
             logged != null -> "Logged · ${logged.units.unitsText} today"
             serve != null -> "${serve.drink.name}, ${serve.vessel.shortLabel(serve.volumeMl).lowercase()}"
