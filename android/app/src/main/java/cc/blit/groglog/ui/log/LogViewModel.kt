@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import cc.blit.groglog.AppContainer
 import cc.blit.groglog.container
 import cc.blit.groglog.data.Logbook
 import cc.blit.groglog.data.Prefs
@@ -80,6 +81,8 @@ class LogViewModel(
     private val logbook: suspend () -> Logbook,
     fixedDay: DayKey? = null,
 ) : ViewModel() {
+    constructor(container: AppContainer, fixedDay: DayKey? = null) : this(container.queries, container.prefs, container::logbook, fixedDay)
+
     var search by mutableStateOf("")
 
     private val appeared = MutableStateFlow(0)
@@ -226,11 +229,9 @@ class LogViewModel(
     }
 
     companion object {
-        fun factory(fixedDay: DayKey? = null) = viewModelFactory {
-            initializer {
-                val container = this[APPLICATION_KEY]!!.container
-                LogViewModel(container.queries, container.prefs, container::logbook, fixedDay)
-            }
+        /** The picker for a past day, beside the Log tab's own. */
+        fun factory(fixedDay: DayKey) = viewModelFactory {
+            initializer { LogViewModel(this[APPLICATION_KEY]!!.container, fixedDay) }
         }
     }
 }

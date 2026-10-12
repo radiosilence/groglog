@@ -104,6 +104,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import cc.blit.groglog.ui.containerViewModel
 import cc.blit.groglog.model.CatalogItem
 import cc.blit.groglog.model.DayKey
 import cc.blit.groglog.model.DayStatus
@@ -126,7 +127,8 @@ import kotlinx.coroutines.launch
 
 /**
  * The Log tab: today's drink picker. `onCreateDrink` opens the drink editor with the search text as the name, and
- * `onEditDrink` opens it on a drink; where they are null, the controls that lead there are left out.
+ * `onEditDrink` opens it on a drink; where they are null, the controls that lead there are left out. `unitsRequested`
+ * opens the units sheet, for a link from outside the app, and `onUnitsShown` is told once the sheet has closed.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -134,7 +136,9 @@ fun LogScreen(
     modifier: Modifier = Modifier,
     onCreateDrink: ((String) -> Unit)? = null,
     onEditDrink: ((Drink) -> Unit)? = null,
-    viewModel: LogViewModel = viewModel(factory = LogViewModel.factory()),
+    unitsRequested: Boolean = false,
+    onUnitsShown: () -> Unit = {},
+    viewModel: LogViewModel = containerViewModel { LogViewModel(it) },
 ) {
     Scaffold(
         modifier,
@@ -153,7 +157,7 @@ fun LogScreen(
         },
         contentWindowInsets = WindowInsets(0),
     ) { padding ->
-        DrinkPicker(viewModel, Modifier.padding(padding), onCreateDrink, onEditDrink)
+        DrinkPicker(viewModel, Modifier.padding(padding), onCreateDrink, onEditDrink, unitsRequested, onUnitsShown)
     }
 }
 
@@ -190,6 +194,8 @@ fun DrinkPicker(
     modifier: Modifier = Modifier,
     onCreateDrink: ((String) -> Unit)? = null,
     onEditDrink: ((Drink) -> Unit)? = null,
+    unitsRequested: Boolean = false,
+    onUnitsShown: () -> Unit = {},
 ) {
     LifecycleResumeEffect(viewModel) {
         viewModel.appeared()
@@ -266,12 +272,15 @@ fun DrinkPicker(
             onLogged = ::confirm,
         )
     }
-    if (countingUnits && current != null) {
+    if ((countingUnits || unitsRequested) && current != null) {
         UnitsSheet(
             day = current.day,
             clock = current.clock,
             initialTime = current.suggestedTime,
-            onDismiss = { countingUnits = false },
+            onDismiss = {
+                countingUnits = false
+                onUnitsShown()
+            },
             onLog = { units, time ->
                 viewModel.logUnits(units, time)
                 confirm("${units.unitsText} u", 1)
