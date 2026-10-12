@@ -17,6 +17,8 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -34,6 +36,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) Destinations.open(intent)
+        addOnNewIntentListener(Destinations::open)
         setContent { GrogLogTheme { Root() } }
     }
 }
@@ -49,6 +53,12 @@ private enum class Tab(val label: String, val icon: ImageVector) {
 @Composable
 private fun Root() {
     var tab by rememberSaveable { mutableStateOf(Tab.LOG) }
+    val destination by Destinations.pending.collectAsState()
+    LaunchedEffect(destination) {
+        if (destination == null) return@LaunchedEffect
+        tab = Tab.LOG
+        Destinations.pending.compareAndSet(Destination.LOG, null)
+    }
     Scaffold(
         bottomBar = {
             NavigationBar {

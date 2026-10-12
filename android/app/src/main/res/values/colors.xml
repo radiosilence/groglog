@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- GrogLog's colours, as in ui/theme/Theme.kt. -->
+    <color name="grog">#FFF7A333</color>
+    <color name="dry">#FF33BD99</color>
+
+    <!-- The widget picker's preview layouts, before Android 12's wallpaper colours. -->
+    <color name="widget_background">#FFFFFBFF</color>
+    <color name="widget_container">#FFF3E7DA</color>
+    <color name="widget_text">#FF1F1B16</color>
+    <color name="widget_text_secondary">#FF6B6157</color>
+    <color name="widget_track">#FFE8DFD6</color>
+
+    <color name="shortcut_background">#FF1E140B</color>
+</resources>

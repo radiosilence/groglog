@@ -64,7 +64,7 @@ enum class HeatBand {
     }
 }
 
-private val light = lightColorScheme(
+internal val light = lightColorScheme(
     primary = GrogColors.grog,
     onPrimary = Color.Black,
     secondary = GrogColors.dry,
@@ -72,7 +72,7 @@ private val light = lightColorScheme(
     error = GrogColors.over,
 )
 
-private val dark = darkColorScheme(
+internal val dark = darkColorScheme(
     primary = GrogColors.grog,
     onPrimary = Color.Black,
     secondary = GrogColors.dry,

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The sample day's budget draining, as Today.sample: 4.5 units, 1.2 drunk by 6pm and 3.5 by 8pm. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="240dp"
+    android:height="100dp"
+    android:viewportWidth="240"
+    android:viewportHeight="100">
+    <path
+        android:fillAlpha="0.22"
+        android:fillColor="@color/dry"
+        android:pathData="M0,2H130V27.6H150V76.7H160V100H0Z" />
+    <path
+        android:pathData="M0,2H130V27.6H150V76.7H160"
+        android:strokeColor="@color/dry"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeWidth="3" />
+</vector>
