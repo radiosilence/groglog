@@ -1,0 +1,1 @@
+- **Google Play listing and releases.** The listing, the Play Console declarations and the path to production are in `docs/play-store.md`; CI releases each Android build on `main` to the internal track through `scripts/play.py`.

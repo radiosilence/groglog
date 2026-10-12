@@ -1,0 +1,47 @@
+# The Google Play store listing, sent by `scripts/play.py listing`. What it means and why is in docs/play-store.md.
+# The limits in the comments are Play's.
+
+language = "en-GB"
+
+[details]
+contact_email = "support@groglog.io"
+contact_website = "https://groglog.io"
+
+[graphics]
+# Rendered by scripts/render-play-graphics.sh. Each phone screenshot in the folder is uploaded in name order, when
+# there are any; Play needs at least two before the listing can be published.
+icon = "icon.png"
+feature_graphic = "feature-graphic.png"
+phone_screenshots = "screenshots/phone"
+
+[listing]
+# 30 characters.
+title = "GrogLog Drink Tracker"
+
+# 80 characters.
+short_description = "A drink diary for cutting down: log in one tap and follow a plan to drink less."
+
+# 4000 characters. Blank lines separate paragraphs; a line in capitals is a heading.
+full_description = """
+GrogLog is a drink diary for people who want to drink less. It keeps an honest count and puts it where you can see it.
+
+LOG IN ONE TAP
+Your usual drinks sit on one screen, and a tap logs one. Long-press for another size, a drink you had earlier, or several at once. Over eleven hundred drinks are in the catalogue at their label strengths, from cask ale and craft beer to wine, spirits and Polish vodka, so a new one is a search away.
+
+SEE WHERE THE DAY STANDS
+Today is a running total against yesterday and your usual day, with what it has cost and how much of today's budget is left. A drink after midnight counts towards the evening it belonged to.
+
+CUT DOWN AT A PACE YOU SET
+Set a gradual reduction and GrogLog gives you a daily and weekly budget that comes down over time, within the limits in UK clinical guidance for reducing without medication.
+
+AN HONEST RECORD
+A forgotten day stays a gap rather than counting as a dry one, so your averages and streaks describe what happened. Reports chart each week and month against the ones before.
+
+YOUR BODY, THE MORNING AFTER
+If you allow it, GrogLog reads your heart rate, heart rate variability and sleep from Health Connect and shows them against what you drank the evening before. It can also record the calories in your drinks in Health Connect.
+
+PRIVATE
+There is no account, no server, no analytics and no advertising. Your log is stored on your phone and included in your phone's own backup, so it comes back on a new one; nobody else can read it. You can export all of it, as a backup or as a readable log, whenever you want. GrogLog costs nothing, with nothing held back for a paid tier.
+
+GrogLog does not provide medical advice. It is intended to help you follow a plan agreed with your GP or an alcohol service. If you are dependent on alcohol, stopping suddenly can be dangerous: please speak to a doctor before you begin.
+"""

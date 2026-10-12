@@ -16,3 +16,7 @@ changelog *args:
 # The App Store listing, builds and review, from the terminal. See scripts/app-store.py.
 store command="status" *args:
     scripts/app-store.py {{command}} {{args}}
+
+# The Google Play listing and releases, from the terminal. See scripts/play.py.
+play command="status" *args:
+    scripts/play.py {{command}} {{args}}

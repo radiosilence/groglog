@@ -12,6 +12,9 @@ on:
     paths-ignore:
       - "site/**"
       - ".github/workflows/site.yml"
+      - "android/**"
+      - ".github/workflows/android.yml"
+      - "scripts/play.py"
       - "docs/**"
       - "**.md"
   pull_request:
