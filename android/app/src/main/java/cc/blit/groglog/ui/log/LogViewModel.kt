@@ -27,6 +27,7 @@ import cc.blit.groglog.model.searchFolded
 import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -37,6 +38,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -93,8 +95,13 @@ class LogViewModel(
 
     private val settings = prefs.settings
 
+    /** Today moves on at the day's end even while the screen stays open and nothing is logged. */
     private val day: Flow<DayKey> =
-        if (fixedDay != null) flowOf(fixedDay) else combine(settings, appeared) { it, _ -> it.clock.today }.distinctUntilChanged()
+        if (fixedDay != null) {
+            flowOf(fixedDay)
+        } else {
+            combine(settings, appeared) { it, _ -> it.clock }.flatMapLatest { days(it) }.distinctUntilChanged()
+        }
 
     private val content: StateFlow<Content?> =
         combine(queries.favourites(), queries.drinks(), day.flatMapLatest { day -> queries.entries(day..day).map { day to it } }) { favourites, drinks, (day, pours) ->
@@ -136,9 +143,9 @@ class LogViewModel(
 
     /**
      * Logs one now, or just after the day's last drink on a past day. Each way of logging hands `onLogged` the entries it
-     * wrote, so an undo offered for them takes back those and nothing else.
+     * wrote, so an undo offered for them takes back those and nothing else, or null when the write failed.
      */
-    fun log(serve: Serve, onLogged: (List<Pour>) -> Unit = {}) {
+    fun log(serve: Serve, onLogged: (List<Pour>?) -> Unit = {}) {
         val state = state.value ?: return
         pulse(serve.id)
         val time = state.suggestedTime
@@ -146,14 +153,14 @@ class LogViewModel(
     }
 
     /** A round from the options sheet: several at chosen times, at a strength of its own, brought to the front. */
-    fun log(serve: Serve, times: List<Instant>, abv: Double?, onLogged: (List<Pour>) -> Unit = {}) {
+    fun log(serve: Serve, times: List<Instant>, abv: Double?, onLogged: (List<Pour>?) -> Unit = {}) {
         bringForward(serve.id)
         pulse(serve.id)
         viewModelScope.launch { onLogged(logbook().log(serve, times, abv)) }
     }
 
     /** A catalogue pick becomes one of the user's drinks, logged at this size and brought to the front. */
-    fun adopt(item: CatalogItem, currency: String, onLogged: (List<Pour>) -> Unit = {}) {
+    fun adopt(item: CatalogItem, currency: String, onLogged: (List<Pour>?) -> Unit = {}) {
         search = ""
         viewModelScope.launch {
             val logbook = logbook()
@@ -167,7 +174,7 @@ class LogViewModel(
         }
     }
 
-    fun logUnits(units: Double, time: Instant, onLogged: (List<Pour>) -> Unit = {}) {
+    fun logUnits(units: Double, time: Instant, onLogged: (List<Pour>?) -> Unit = {}) {
         viewModelScope.launch { onLogged(logbook().logUnits(units, time)) }
     }
 
@@ -209,7 +216,7 @@ class LogViewModel(
     }
 
     /** Logs a round of a choice, adopting a catalogue brand first. */
-    fun log(choice: Choice, size: ServeSize, price: Double, times: List<Instant>, abv: Double, currency: String, onLogged: (List<Pour>) -> Unit = {}) {
+    fun log(choice: Choice, size: ServeSize, price: Double, times: List<Instant>, abv: Double, currency: String, onLogged: (List<Pour>?) -> Unit = {}) {
         viewModelScope.launch {
             val drink = resolve(logbook(), choice, size, currency) ?: return@launch
             log(Serve(drink, size.vessel, size.ml, price), times, abv, onLogged)
@@ -228,6 +235,17 @@ class LogViewModel(
 
     private fun pulse(id: String) {
         pulses.update { it + (id to (it[id] ?: 0) + 1) }
+    }
+
+    companion object {
+        /** The clock's today, and again each time a day ends. */
+        internal fun days(clock: DayClock, now: () -> Instant = Instant::now): Flow<DayKey> = flow {
+            while (true) {
+                val today = clock.day(now())
+                emit(today)
+                delay(Duration.between(now(), clock.end(today)).toMillis().coerceAtLeast(0) + 1)
+            }
+        }
     }
 
 }

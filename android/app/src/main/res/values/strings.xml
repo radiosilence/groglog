@@ -17,4 +17,5 @@
         <item quantity="other">Logged %1$d × %2$s · %3$s u</item>
     </plurals>
     <string name="logged_units">Logged %1$s u</string>
+    <string name="log_failed">Couldn\'t log that. Nothing was saved.</string>
 </resources>

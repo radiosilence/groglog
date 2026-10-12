@@ -31,10 +31,19 @@ import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.lifecycle.lifecycleScope
 import cc.blit.groglog.container
 import cc.blit.groglog.ui.theme.GrogLogTheme
+import cc.blit.groglog.widget.Failed
+import cc.blit.groglog.widget.Gone
+import cc.blit.groglog.widget.Logged
 import cc.blit.groglog.widget.QuickLog
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.activity.viewModels
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import kotlinx.coroutines.Deferred
+import cc.blit.groglog.widget.Outcome
 
 /**
  * A launcher shortcut's target: logs the drink it carries and says so in a small card over whatever was on screen, then
@@ -47,16 +56,15 @@ class LogShortcutActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val key = intent.getStringExtra(EXTRA_SERVE) ?: return finish()
-        val app = applicationContext
-        val container = app.container
-        // The process-wide scope, so the drink is logged even if this window is closed first.
-        val write = container.scope.async {
-            QuickLog.log(key, container.liveDatabase, container.livePrefs.current())
-                ?.also { ShortcutManagerCompat.reportShortcutUsed(app, key) }
-        }
+        // Held by a ViewModel, so a rotation or theme change while the card shows reads the same result rather than
+        // logging the drink again.
+        val write by viewModels<Write> { viewModelFactory { initializer { Write(applicationContext, key) } } }
         lifecycleScope.launch {
-            val logged = write.await()
-            message = logged?.let { "Logged ${it.serve.drink.name}" to it.summary } ?: ("Not logged" to "That drink is no longer in GrogLog.")
+            message = when (val outcome = write.outcome.await()) {
+                is Logged -> "Logged ${outcome.serve.drink.name}" to outcome.summary
+                Gone -> "Not logged" to "That drink is no longer in GrogLog."
+                Failed -> "Couldn't log" to "Nothing was logged. Try again, or log it in GrogLog."
+            }
             delay(2_000)
             finish()
         }
@@ -85,6 +93,16 @@ class LogShortcutActivity : ComponentActivity() {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    /** The one write a shortcut tap makes, in the process-wide scope so it finishes even if this window closes first. */
+    class Write(context: Context, key: String) : ViewModel() {
+        val outcome: Deferred<Outcome> = context.container.let { container ->
+            container.scope.async {
+                QuickLog.log(key, container.liveDatabase, container.livePrefs.current())
+                    .also { if (it is Logged) ShortcutManagerCompat.reportShortcutUsed(context, key) }
             }
         }
     }

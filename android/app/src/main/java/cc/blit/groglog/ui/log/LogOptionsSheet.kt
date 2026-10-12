@@ -107,7 +107,7 @@ fun LogOptionsSheet(
     viewModel: LogViewModel,
     onDismiss: () -> Unit,
     onEditDrink: ((Drink) -> Unit)?,
-    onLogged: (name: String, count: Int, units: Double, pours: List<Pour>) -> Unit,
+    onLogged: (name: String, count: Int, units: Double, pours: List<Pour>?) -> Unit,
 ) {
     var selected by rememberSaveable { mutableStateOf(Choice(base.drink).key) }
     var size by rememberSaveable(stateSaver = ServeSizeSaver) { mutableStateOf(ServeSize(base.vessel, base.volumeMl)) }

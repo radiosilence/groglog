@@ -223,16 +223,21 @@ fun DrinkPicker(
 
     // Offered briefly after every log. Undo takes back exactly what it names; a newer log, the bar's own undo or a change
     // of day puts it away, so it never stands for something else.
-    fun confirm(message: String, pours: List<Pour>) {
-        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+    // A failed write says so and offers nothing to undo.
+    fun confirm(message: String, pours: List<Pour>?) {
+        if (pours != null) haptics.performHapticFeedback(HapticFeedbackType.Confirm)
         scope.launch {
             snackbar.currentSnackbarData?.dismiss()
+            if (pours == null) {
+                snackbar.showSnackbar(resources.getString(R.string.log_failed), duration = SnackbarDuration.Short)
+                return@launch
+            }
             val result = snackbar.showSnackbar(message, actionLabel = "Undo", duration = SnackbarDuration.Short)
             if (result == SnackbarResult.ActionPerformed) viewModel.undo(pours)
         }
     }
 
-    fun confirm(name: String, count: Int, units: Double, pours: List<Pour>) =
+    fun confirm(name: String, count: Int, units: Double, pours: List<Pour>?) =
         confirm(resources.getQuantityString(R.plurals.logged_drinks, count, count, name, units.unitsText), pours)
 
     val current = state

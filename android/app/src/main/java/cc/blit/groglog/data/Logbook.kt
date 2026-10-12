@@ -31,30 +31,33 @@ class Logbook(val database: AppDatabase, val clock: DayClock) {
 
     // Entries
 
-    /** `abv` logs these at a strength of their own, leaving the drink as it is. Returns what was logged, for undoing it. */
-    suspend fun log(serve: Serve, times: List<Instant>, abv: Double? = null): List<Pour> {
+    /**
+     * `abv` logs these at a strength of their own, leaving the drink as it is. Returns what was logged, for undoing it,
+     * or null when the write failed and nothing was.
+     */
+    suspend fun log(serve: Serve, times: List<Instant>, abv: Double? = null): List<Pour>? {
         val abvOverride = if (abv == serve.drink.abv) null else abv
         val pours = times.map {
             Pour(drinkId = serve.drink.id, timestamp = it, day = clock.day(it).number, vessel = serve.vessel, volumeMl = serve.volumeMl, price = serve.price, abvOverride = abvOverride)
         }
-        writeChanging(times.map(clock::day).toSet()) {
+        val committed = writeChanging(times.map(clock::day).toSet()) {
             for (pour in pours) rows.insert(pour)
             times.maxOrNull()?.let { rows.markUsed(serve.drink.id, serve.vessel.raw, serve.volumeMl, it) }
             retotal(times.map(clock::day).toSet())
         }
-        return pours
+        return pours.takeIf { committed }
     }
 
-    /** Returns what was logged, for undoing it. */
-    suspend fun logUnits(units: Double, time: Instant): List<Pour> {
+    /** Returns what was logged, for undoing it, or null when the write failed. */
+    suspend fun logUnits(units: Double, time: Instant): List<Pour>? {
         var pour: Pour? = null
-        writeChanging(setOf(clock.day(time))) {
+        val committed = writeChanging(setOf(clock.day(time))) {
             val drink = unitsDrink()
             pour = Pour(drinkId = drink.id, timestamp = time, day = clock.day(time).number, vessel = Vessel.SHOT, volumeMl = units * 10, price = 0.0)
                 .also { rows.insert(it) }
             retotal(setOf(clock.day(time)))
         }
-        return listOfNotNull(pour)
+        return listOfNotNull(pour).takeIf { committed }
     }
 
     suspend fun delete(pour: Pour) = delete(listOf(pour))
@@ -168,7 +171,7 @@ class Logbook(val database: AppDatabase, val clock: DayClock) {
      * Recomputes every day in one transaction, after an import or when the day-end hour changes (which moves entries
      * between days).
      */
-    suspend fun rebuild(reassigningDays: Boolean = false) {
+    suspend fun rebuild(reassigningDays: Boolean = false): Boolean =
         writeChanging(null) {
             if (reassigningDays) {
                 for (pour in rows.pours()) {
@@ -191,7 +194,6 @@ class Logbook(val database: AppDatabase, val clock: DayClock) {
                 if (rows.day(number) == null) rows.save(Day(number).with(dayTotals))
             }
         }
-    }
 
     /** Runs a batch of writes, such as an import, as one transaction, retotalling the touched days at the end. */
     internal suspend fun bulk(body: suspend (Rows) -> Set<DayKey>) {
@@ -244,9 +246,11 @@ class Logbook(val database: AppDatabase, val clock: DayClock) {
         }
     }
 
-    /** Runs a write and, once it has committed, announces the days it touched. */
-    private suspend fun writeChanging(days: Set<DayKey>?, body: suspend () -> Unit) {
-        if (write(body) != null) changes.tryEmit(days)
+    /** Runs a write and, once it has committed, announces the days it touched. False when it failed and was rolled back. */
+    private suspend fun writeChanging(days: Set<DayKey>?, body: suspend () -> Unit): Boolean {
+        val committed = write(body) != null
+        if (committed) changes.tryEmit(days)
+        return committed
     }
 
     private suspend fun <T> write(body: suspend () -> T): T? =

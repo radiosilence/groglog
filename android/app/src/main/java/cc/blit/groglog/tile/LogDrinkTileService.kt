@@ -7,7 +7,9 @@ import cc.blit.groglog.container
 import cc.blit.groglog.data.Serves
 import cc.blit.groglog.model.Serve
 import cc.blit.groglog.model.unitsText
+import cc.blit.groglog.widget.Failed
 import cc.blit.groglog.widget.Logged
+import cc.blit.groglog.widget.Outcome
 import cc.blit.groglog.widget.QuickLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -38,11 +40,13 @@ class LogDrinkTileService : TileService() {
         }
     }
 
-    private fun show(serve: Serve?, logged: Logged?) {
+    private fun show(serve: Serve?, outcome: Outcome?) {
+        val logged = outcome as? Logged
         val tile = qsTile ?: return
         tile.state = if (serve == null) Tile.STATE_UNAVAILABLE else Tile.STATE_INACTIVE
         val detail = when {
             logged != null -> "Logged · ${logged.units.unitsText} today"
+            outcome == Failed -> "Couldn't log"
             serve != null -> "${serve.drink.name}, ${serve.vessel.shortLabel(serve.volumeMl).lowercase()}"
             else -> "No drinks on the Log grid"
         }

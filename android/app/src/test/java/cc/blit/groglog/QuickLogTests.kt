@@ -8,6 +8,8 @@ import cc.blit.groglog.model.Favourite
 import cc.blit.groglog.model.Goal
 import cc.blit.groglog.model.Serve
 import cc.blit.groglog.model.Vessel
+import cc.blit.groglog.widget.Gone
+import cc.blit.groglog.widget.Logged
 import cc.blit.groglog.widget.QuickLog
 import cc.blit.groglog.widget.Today
 import java.time.Instant
@@ -20,6 +22,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import cc.blit.groglog.data.Logbook
 
 /**
  * What a widget tile, the Quick Settings tile and a launcher shortcut do when tapped: log a `Serve.key` through the same
@@ -35,13 +38,13 @@ class QuickLogTests {
         database.rows().insert(staropramen)
         database.rows().insert(Favourite(drinkId = staropramen.id, vessel = Vessel.PINT, volumeMl = 568.0, price = 6.20))
 
-        val logged = QuickLog.log(Serve(staropramen).id, database, Settings(), now)
+        val logged = QuickLog.log(Serve(staropramen).id, database, Settings(), now) as Logged
 
         val pours = database.rows().pours()
         assertEquals(1, pours.size)
         assertEquals(6.20, pours[0].price, 0.0)
         assertEquals(now, pours[0].timestamp)
-        assertTrue(near(2.84, logged!!.units))
+        assertTrue(near(2.84, logged.units))
         assertEquals("2.8 units today.", logged.summary)
     }
 
@@ -51,9 +54,9 @@ class QuickLogTests {
         val key = Serve(staropramen).id
 
         QuickLog.log(key, database, Settings(), now)
-        val logged = QuickLog.log(key, database, Settings(), now.plusSeconds(1800))
+        val logged = QuickLog.log(key, database, Settings(), now.plusSeconds(1800)) as Logged
 
-        assertTrue(near(5.68, logged!!.units))
+        assertTrue(near(5.68, logged.units))
         assertEquals(1, database.rows().days().size)
         assertTrue(near(5.68, database.rows().days()[0].units))
     }
@@ -63,16 +66,16 @@ class QuickLogTests {
         database.rows().insert(staropramen)
         val settings = Settings(goal = Goal(isEnabled = true, baselineWeekly = 28.0, start = now))
 
-        val logged = QuickLog.log(Serve(staropramen).id, database, settings, now)
+        val logged = QuickLog.log(Serve(staropramen).id, database, settings, now) as Logged
 
-        assertEquals(4.0, logged!!.budget!!, 0.0001)
+        assertEquals(4.0, logged.budget!!, 0.0001)
         assertEquals("2.8 units today, 1.2 of 4.0 left.", logged.summary)
     }
 
     @Test fun aTileForADrinkThatsGoneLogsNothing() = runBlocking {
         val database = database()
 
-        assertNull(QuickLog.log(Serve.key(UUID.randomUUID(), Vessel.PINT, 568.0), database, Settings(), now))
+        assertEquals(Gone, QuickLog.log(Serve.key(UUID.randomUUID(), Vessel.PINT, 568.0), database, Settings(), now))
         assertTrue(database.rows().pours().isEmpty())
         assertTrue(database.rows().days().isEmpty())
     }
@@ -116,5 +119,13 @@ class QuickLogTests {
         }
 
         assertEquals(listOf("Staropramen"), Today.observe(database, prefs()).first().tiles.map { it.drink.name })
+    }
+
+    @Test fun aWriteThatFailsIsNotReportedAsLogged() = runBlocking {
+        val database = database()
+        // A drink that was never saved: its entry breaks the foreign key, so the write rolls back.
+        val pours = Logbook(database, Settings().clock).log(Serve(staropramen), listOf(now))
+        assertNull(pours)
+        assertTrue(database.rows().pours().isEmpty())
     }
 }

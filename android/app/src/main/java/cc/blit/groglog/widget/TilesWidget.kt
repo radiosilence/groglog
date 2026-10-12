@@ -97,10 +97,15 @@ class LogTileAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val key = parameters[serve] ?: return
         val container = context.container
-        val logged = QuickLog.log(key, container.liveDatabase, container.livePrefs.current())
+        val outcome = QuickLog.log(key, container.liveDatabase, container.livePrefs.current())
         // A second tap during the tick restarts it rather than being cleared by the first. A drink deleted since the
         // widget was drawn says so in the widget itself: Android 13 and later hide a toast from the background.
-        val mark = "${if (logged == null) GONE else key}#${System.nanoTime()}"
+        val shown = when (outcome) {
+            is Logged -> key
+            Gone -> GONE
+            Failed -> FAILED
+        }
+        val mark = "$shown#${System.nanoTime()}"
         updateAppWidgetState(context, glanceId) { it[flash] = mark }
         TilesWidget().update(context, glanceId)
         delay(2.seconds)
@@ -112,6 +117,7 @@ class LogTileAction : ActionCallback {
         val serve = ActionParameters.Key<String>("serve")
         internal val flash = stringPreferencesKey("logged")
         internal const val GONE = "gone"
+        internal const val FAILED = "failed"
     }
 }
 
@@ -119,7 +125,11 @@ class LogTileAction : ActionCallback {
 private fun TilesContent(today: Today, flash: String?) {
     val size = LocalSize.current
     val logged = flash?.substringBefore('#')
-    val notice = if (logged == LogTileAction.GONE) "That drink is no longer in GrogLog" else null
+    val notice = when (logged) {
+        LogTileAction.GONE -> "That drink is no longer in GrogLog"
+        LogTileAction.FAILED -> "Couldn't log"
+        else -> null
+    }
     val modifier = GlanceModifier.widgetSurface().clickable(openLog(LocalContext.current))
     if (size.width >= TilesWidget.WIDE.width) {
         Row(modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
