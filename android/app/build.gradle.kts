@@ -40,6 +40,9 @@ android {
         release {
             // Unsigned without the upload key: Play refuses it, but the build is still checked.
             signingConfig = signingConfigs.findByName("upload")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 
