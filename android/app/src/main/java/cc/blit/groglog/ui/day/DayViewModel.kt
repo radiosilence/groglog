@@ -2,16 +2,10 @@ package cc.blit.groglog.ui.day
 
 import android.text.format.DateFormat
 import androidx.compose.runtime.Immutable
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
-import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import cc.blit.groglog.container
+import cc.blit.groglog.AppContainer
 import cc.blit.groglog.data.Logbook
-import cc.blit.groglog.data.Prefs
 import cc.blit.groglog.data.Queries
 import cc.blit.groglog.data.Settings
 import cc.blit.groglog.model.DayKey
@@ -20,12 +14,15 @@ import cc.blit.groglog.model.Entry
 import cc.blit.groglog.model.Ledger
 import cc.blit.groglog.model.Pour
 import cc.blit.groglog.model.Vessel
+import cc.blit.groglog.ui.LedgerState
+import cc.blit.groglog.ui.ledgerState
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -33,6 +30,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -63,21 +61,27 @@ data class DayState(
 }
 
 /**
- * A day with previous and next. The day shown is kept in saved state; none means today, so a Day tab left open
+ * A day with previous and next, starting on `start`, or on today for none. Following today means a Day tab left open
  * overnight moves on to the new day at the rollover.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class DayViewModel(
-    private val saved: SavedStateHandle,
+    ledgerState: Flow<LedgerState>,
     queries: Queries,
-    prefs: Prefs,
     private val logbook: suspend () -> Logbook,
+    start: DayKey? = null,
     now: Flow<Instant> = minutes(),
 ) : ViewModel() {
-    private val selected = saved.getStateFlow<Int?>(DAY, null)
+    constructor(container: AppContainer, start: DayKey? = null) : this(container.ledgerState(), container.queries, container::logbook, start)
 
-    private val day: Flow<DayKey> = combine(prefs.settings, now, selected) { settings, _, selected ->
-        selected?.let(::DayKey)?.coerceAtMost(settings.clock.today) ?: settings.clock.today
+    private val selected = MutableStateFlow(start)
+
+    /** Read afresh each minute, so the ledger's today moves on at the rollover even when nothing is logged. */
+    private val ledger = now.flatMapLatest { at -> ledgerState.map { it to at } }
+        .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+
+    private val day: Flow<DayKey> = combine(ledger, selected) { (state, _), selected ->
+        selected?.coerceAtMost(state.ledger.today) ?: state.ledger.today
     }.distinctUntilChanged()
 
     /** Entries arrive tagged with the day they were fetched for, so the state never pairs one day with another's window. */
@@ -85,13 +89,13 @@ class DayViewModel(
         queries.entries((day - 7)..day).map { day to it }
     }
 
-    val state: StateFlow<DayState?> = combine(prefs.settings, queries.days(), now, window) { settings, days, now, (day, entries) ->
-        DayState(day, Ledger(days, settings.clock), settings, entries, now)
+    val state: StateFlow<DayState?> = combine(ledger, window) { (state, now), (day, entries) ->
+        DayState(day, state.ledger, state.settings, entries, now)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** Shows `day`, or today for none or anything later. */
     fun show(day: DayKey?) {
-        saved[DAY] = day?.number
+        selected.value = day
     }
 
     fun previous() {
@@ -117,15 +121,6 @@ class DayViewModel(
     }
 
     companion object {
-        private const val DAY = "day"
-
-        val Factory = viewModelFactory {
-            initializer {
-                val container = this[APPLICATION_KEY]!!.container
-                DayViewModel(createSavedStateHandle(), container.queries, container.prefs, container::logbook)
-            }
-        }
-
         /** Ticks on each minute, to move the chart's "now" along and the day on at the rollover. */
         fun minutes(): Flow<Instant> = flow {
             while (true) {

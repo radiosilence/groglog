@@ -76,7 +76,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import cc.blit.groglog.data.Settings
 import cc.blit.groglog.model.Day
 import cc.blit.groglog.model.DayKey
@@ -93,6 +92,7 @@ import cc.blit.groglog.model.kcalText
 import cc.blit.groglog.model.money
 import cc.blit.groglog.model.unitsText
 import cc.blit.groglog.ui.calendar.Leaf
+import cc.blit.groglog.ui.containerViewModel
 import cc.blit.groglog.ui.theme.GrogColors
 import cc.blit.groglog.ui.theme.GrogLogTheme
 import java.time.Instant
@@ -102,10 +102,26 @@ import kotlinx.coroutines.flow.emptyFlow
 
 /** The Day tab: today, with previous and next. Choosing the tab again comes back to today. */
 @Composable
-fun DayScreen(modifier: Modifier = Modifier, reselected: Flow<Unit> = emptyFlow(), onSetGoal: () -> Unit = {}) {
-    val model: DayViewModel = viewModel(key = "day-tab", factory = DayViewModel.Factory)
-    LaunchedEffect(reselected) { reselected.collect { model.show(null) } }
-    DayPager(model, onSetGoal, modifier)
+fun DayScreen(
+    modifier: Modifier = Modifier,
+    reselected: Flow<Unit> = emptyFlow(),
+    onSetGoal: () -> Unit = {},
+    viewModel: DayViewModel = containerViewModel { DayViewModel(it) },
+) {
+    LaunchedEffect(reselected) { reselected.collect { viewModel.show(null) } }
+    DayPager(viewModel, onSetGoal, modifier)
+}
+
+/** A day opened from the calendar, with previous and next and a way back. */
+@Composable
+fun CalendarDayScreen(
+    day: DayKey,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    onSetGoal: () -> Unit = {},
+    viewModel: DayViewModel = containerViewModel { DayViewModel(it, day) },
+) {
+    DayPager(viewModel, onSetGoal, modifier, onBack)
 }
 
 /** A day with previous and next, for the Day tab and for a day opened from the calendar, which passes `onBack`. */

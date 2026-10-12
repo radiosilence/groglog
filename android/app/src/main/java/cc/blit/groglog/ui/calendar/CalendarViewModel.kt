@@ -2,27 +2,26 @@ package cc.blit.groglog.ui.calendar
 
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import cc.blit.groglog.container
+import cc.blit.groglog.AppContainer
 import cc.blit.groglog.data.Logbook
-import cc.blit.groglog.data.Prefs
-import cc.blit.groglog.data.Queries
 import cc.blit.groglog.model.DayKey
 import cc.blit.groglog.model.DayStatus
 import cc.blit.groglog.model.Goal
 import cc.blit.groglog.model.Ledger
 import cc.blit.groglog.model.unitsText
+import cc.blit.groglog.ui.LedgerState
 import cc.blit.groglog.ui.day.DayViewModel
+import cc.blit.groglog.ui.ledgerState
 import cc.blit.groglog.ui.theme.HeatBand
 import java.time.Instant
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -63,26 +62,21 @@ data class DayCellState(val day: DayKey, val status: DayStatus, val units: Doubl
         }
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class CalendarViewModel(
-    queries: Queries,
-    prefs: Prefs,
+    ledgerState: Flow<LedgerState>,
     private val logbook: suspend () -> Logbook,
     now: Flow<Instant> = DayViewModel.minutes(),
 ) : ViewModel() {
-    val state: StateFlow<CalendarState?> = combine(prefs.settings, queries.days(), now) { settings, days, _ ->
-        CalendarState(Ledger(days, settings.clock), settings.goal)
-    }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    constructor(container: AppContainer) : this(container.ledgerState(), container::logbook)
+
+    /** Read afresh each minute, so today moves on at the rollover even when nothing is logged. */
+    val state: StateFlow<CalendarState?> = now.flatMapLatest { ledgerState }
+        .map { CalendarState(it.ledger, it.settings.goal) }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun setAlcoholFree(dry: Boolean, day: DayKey) {
         viewModelScope.launch { logbook().setAlcoholFree(dry, day) }
-    }
-
-    companion object {
-        val Factory = viewModelFactory {
-            initializer {
-                val container = this[APPLICATION_KEY]!!.container
-                CalendarViewModel(container.queries, container.prefs, container::logbook)
-            }
-        }
     }
 }

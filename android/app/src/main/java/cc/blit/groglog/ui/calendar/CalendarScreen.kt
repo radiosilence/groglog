@@ -2,12 +2,6 @@ package cc.blit.groglog.ui.calendar
 
 import android.content.res.Configuration
 import android.text.format.DateFormat
-import androidx.activity.compose.PredictiveBackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -36,7 +30,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -46,8 +39,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,11 +51,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -82,12 +71,10 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import cc.blit.groglog.model.DayKey
 import cc.blit.groglog.model.DayStatus
 import cc.blit.groglog.model.unitsText
-import cc.blit.groglog.ui.day.DayPager
-import cc.blit.groglog.ui.day.DayViewModel
+import cc.blit.groglog.ui.containerViewModel
 import cc.blit.groglog.ui.day.sampleDayState
 import cc.blit.groglog.ui.theme.GrogColors
 import cc.blit.groglog.ui.theme.GrogLogTheme
@@ -95,71 +82,24 @@ import java.time.DayOfWeek
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle as DateTextStyle
 import java.util.Locale
-import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.coroutines.launch
 
 /**
- * The Calendar tab: every month logged, latest at the bottom. Tapping a day opens it over the calendar; choosing the
- * tab again closes it, or with no day open goes back to this month.
+ * The Calendar tab: every month logged, latest at the bottom. Tapping a day opens it; choosing the tab again goes back
+ * to this month.
  */
 @Composable
-fun CalendarScreen(modifier: Modifier = Modifier, reselected: Flow<Unit> = emptyFlow(), onSetGoal: () -> Unit = {}) {
-    val model: CalendarViewModel = viewModel(factory = CalendarViewModel.Factory)
-    val days: DayViewModel = viewModel(key = "calendar-day", factory = DayViewModel.Factory)
-    val state = model.state.collectAsStateWithLifecycle().value
-    var open by rememberSaveable { mutableStateOf(false) }
+fun CalendarScreen(
+    onOpen: (DayKey) -> Unit,
+    modifier: Modifier = Modifier,
+    reselected: Flow<Unit> = emptyFlow(),
+    viewModel: CalendarViewModel = containerViewModel(::CalendarViewModel),
+) {
+    val state = viewModel.state.collectAsStateWithLifecycle().value
     val list = rememberLazyListState()
-    val back = remember { Animatable(0f) }
-    val scope = rememberCoroutineScope()
-    LaunchedEffect(reselected) {
-        reselected.collect { if (open) open = false else list.animateScrollToItem(0) }
-    }
-    PredictiveBackHandler(enabled = open) { progress ->
-        try {
-            progress.collect { back.snapTo(it.progress) }
-            open = false
-        } catch (cancelled: CancellationException) {
-            scope.launch { back.animateTo(0f) }
-            throw cancelled
-        }
-    }
-
-    Box(modifier) {
-        if (state != null) {
-            CalendarContent(
-                state = state,
-                list = list,
-                onOpen = { day ->
-                    days.show(day)
-                    scope.launch { back.snapTo(0f) }
-                    open = true
-                },
-                onAlcoholFree = model::setAlcoholFree,
-                // Hidden from TalkBack while a day is open over it.
-                modifier = if (open) Modifier.clearAndSetSemantics {} else Modifier,
-            )
-        }
-        AnimatedVisibility(open, enter = slideInHorizontally { it }, exit = slideOutHorizontally { it / 3 } + fadeOut()) {
-            Surface(
-                Modifier
-                    .graphicsLayer {
-                        // Follows the back gesture as Material's predictive back does: shrinking a little, edging away.
-                        val scale = 1 - back.value * 0.1f
-                        scaleX = scale
-                        scaleY = scale
-                        translationX = back.value * 24.dp.toPx()
-                        shape = RoundedCornerShape(28.dp * back.value)
-                        clip = back.value > 0
-                    }
-                    // Takes every touch, so none reaches the calendar beneath.
-                    .pointerInput(Unit) {},
-            ) {
-                DayPager(days, onSetGoal, onBack = { open = false })
-            }
-        }
-    }
+    LaunchedEffect(reselected) { reselected.collect { list.animateScrollToItem(0) } }
+    if (state != null) CalendarContent(state, list, onOpen, viewModel::setAlcoholFree, modifier)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

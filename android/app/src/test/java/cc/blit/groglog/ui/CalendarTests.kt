@@ -88,7 +88,7 @@ class CalendarViewModelTests {
     @Test fun aLongPressMarksADryDayAndTheStreakCounts() = runBlocking {
         val database = database()
         val prefs = prefs()
-        val model = CalendarViewModel(database.queries(), prefs, { Logbook(database, prefs.current().clock) }, flowOf(Instant.now()))
+        val model = CalendarViewModel(ledgerState(database, prefs), { Logbook(database, prefs.current().clock) }, flowOf(Instant.now()))
         suspend fun until(test: (CalendarState) -> Boolean) = withTimeout(10_000) { model.state.first { it != null && test(it) }!! }
         val today = until { true }.ledger.today
         model.setAlcoholFree(true, today - 1)

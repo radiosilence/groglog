@@ -1,8 +1,8 @@
 package cc.blit.groglog.ui
 
-import androidx.lifecycle.SavedStateHandle
 import cc.blit.groglog.beer
 import cc.blit.groglog.clock
+import cc.blit.groglog.data.AppDatabase
 import cc.blit.groglog.data.Logbook
 import cc.blit.groglog.data.Prefs
 import cc.blit.groglog.data.Settings
@@ -16,6 +16,7 @@ import cc.blit.groglog.model.Entry
 import cc.blit.groglog.model.Ledger
 import cc.blit.groglog.model.Pour
 import cc.blit.groglog.model.Serve
+import cc.blit.groglog.model.Units
 import cc.blit.groglog.model.Vessel
 import cc.blit.groglog.prefs
 import cc.blit.groglog.ui.day.ChartSeries
@@ -30,6 +31,7 @@ import java.time.Instant
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -44,6 +46,10 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+
+/** What `AppContainer.ledgerState` gives, over a test database and settings. */
+fun ledgerState(database: AppDatabase, prefs: Prefs) =
+    combine(prefs.settings, database.queries().days()) { settings, days -> LedgerState(settings, Ledger(days, settings.clock)) }
 
 /** A day's drinks at given hours after the day starts, and the ledger over them. */
 private fun week(vararg drinks: Pair<DayKey, Double>): Pair<Ledger, List<Entry>> {
@@ -153,7 +159,7 @@ class DayViewModelTests {
     private fun model(prefs: Prefs = prefs()): Pair<DayViewModel, suspend () -> Logbook> {
         val database = database()
         val logbook: suspend () -> Logbook = { Logbook(database, prefs.current().clock) }
-        return DayViewModel(SavedStateHandle(), database.queries(), prefs, logbook, flowOf(Instant.now())) to logbook
+        return DayViewModel(ledgerState(database, prefs), database.queries(), logbook, now = flowOf(Instant.now())) to logbook
     }
 
     private suspend fun DayViewModel.until(test: (DayState) -> Boolean): DayState =
@@ -196,9 +202,10 @@ class DayViewModelTests {
         val entry = model.until { it.day == day && it.drinks.size == 1 }.drinks.single()
 
         model.update(entry.pour, time.plusSeconds(1800), Vessel.HALF, 284.0, 3.0, 5.5)
-        val edited = model.until { it.drinks.singleOrNull()?.volumeMl == 284.0 }
+        // Entries and day totals are separate observations; the edit has landed once both show it.
+        val edited = model.until { it.drinks.singleOrNull()?.volumeMl == 284.0 && it.totals.cost == 3.0 }
         assertEquals(5.5, edited.drinks.single().abv, 0.0)
-        assertEquals(3.0, edited.totals.cost, 0.0)
+        assertEquals(Units.of(284.0, 5.5), edited.totals.units, 0.0001)
         assertNull(edited.spendOverride)
 
         model.setSpend(20.0, day)
@@ -207,7 +214,6 @@ class DayViewModelTests {
         assertEquals(3.0, model.until { it.spendOverride == null }.totals.cost, 0.0)
 
         model.delete(edited.drinks.single().pour)
-        // Entries and day totals are separate observations, so the state settles once both have caught up.
         val emptied = model.until { it.drinks.isEmpty() && it.totals.count == 0 }
         assertEquals(0.0, emptied.totals.units, 0.0)
     }

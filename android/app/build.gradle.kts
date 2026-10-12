@@ -5,16 +5,41 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+/** A signing value from the environment (CI) or a Gradle property (a laptop's ~/.gradle/gradle.properties). */
+fun setting(env: String, property: String) =
+    providers.environmentVariable(env).orElse(providers.gradleProperty(property))
+
+val uploadKeystore = setting("ANDROID_UPLOAD_KEYSTORE_FILE", "groglogUploadKeystoreFile")
+
 android {
     namespace = "cc.blit.groglog"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "cc.blit.groglog"
         minSdk = 28
-        targetSdk = 36
-        versionCode = 1
+        targetSdk = 37
+        // CI passes its run number, so each upload is higher than the last.
+        versionCode = providers.gradleProperty("versionCode").orNull?.toInt() ?: 1
         versionName = "1.0"
+    }
+
+    signingConfigs {
+        if (uploadKeystore.isPresent) {
+            create("upload") {
+                storeFile = file(uploadKeystore.get())
+                storePassword = setting("ANDROID_UPLOAD_KEYSTORE_PASSWORD", "groglogUploadKeystorePassword").get()
+                keyAlias = setting("ANDROID_UPLOAD_KEY_ALIAS", "groglogUploadKeyAlias").get()
+                keyPassword = setting("ANDROID_UPLOAD_KEY_PASSWORD", "groglogUploadKeyPassword").get()
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            // Unsigned without the upload key: Play refuses it, but the build is still checked.
+            signingConfig = signingConfigs.findByName("upload")
+        }
     }
 
     buildFeatures {
@@ -49,6 +74,9 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.navigation3)
+    implementation(libs.androidx.navigation3.runtime)
+    implementation(libs.androidx.navigation3.ui)
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.tooling.preview)
