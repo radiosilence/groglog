@@ -142,7 +142,7 @@ fun SetupScreen(modifier: Modifier = Modifier, reselected: Flow<Unit> = emptyFlo
 }
 
 @Composable
-private fun SetupContent(
+internal fun SetupContent(
     model: SetupViewModel,
     isDemo: Boolean,
     onDemo: (Boolean) -> Unit,

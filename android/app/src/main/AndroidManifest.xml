@@ -32,10 +32,14 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.GrogLog">
+        <!-- Portrait, as on iOS. Android 16 ignores the lock on screens 600 dp and wider, so tablets and foldables
+             still turn. -->
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.GrogLog.Starting">
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.GrogLog.Starting"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

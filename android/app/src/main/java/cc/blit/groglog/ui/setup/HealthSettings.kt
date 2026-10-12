@@ -3,6 +3,8 @@ package cc.blit.groglog.ui.setup
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.health.connect.HealthConnectManager
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -21,8 +23,8 @@ import cc.blit.groglog.AppContainer
 import cc.blit.groglog.container
 import cc.blit.groglog.data.HealthSwitches
 import cc.blit.groglog.data.health.Health
-import cc.blit.groglog.ui.theme.GrogLogTheme
 import cc.blit.groglog.ui.shared.Section
+import cc.blit.groglog.ui.theme.GrogLogTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -184,12 +186,30 @@ internal fun HealthSettingsContent(
     }
 }
 
+/**
+ * GrogLog's own page in Health Connect, where its permissions are granted and withdrawn; failing that, Health Connect's
+ * data screen, and failing that, its Play listing.
+ */
 private fun Context.openHealthConnect() {
-    try {
-        startActivity(HealthConnectClient.getHealthConnectManageDataIntent(this).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    } catch (_: ActivityNotFoundException) {
-        openHealthConnectListing()
+    // Part of the platform from Android 14; before that, the Health Connect app answers its own action.
+    val manage = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        Intent(HealthConnectManager.ACTION_MANAGE_HEALTH_PERMISSIONS)
+    } else {
+        Intent("androidx.health.ACTION_MANAGE_HEALTH_PERMISSIONS").setPackage(Health.PROVIDER)
     }
+    val intents = listOf(
+        manage.putExtra(Intent.EXTRA_PACKAGE_NAME, packageName),
+        HealthConnectClient.getHealthConnectManageDataIntent(this),
+    )
+    for (intent in intents) {
+        try {
+            startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            return
+        } catch (_: ActivityNotFoundException) {
+            continue
+        }
+    }
+    openHealthConnectListing()
 }
 
 private fun Context.openHealthConnectListing() {
