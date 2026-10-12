@@ -45,6 +45,8 @@ import cc.blit.groglog.ui.shared.TimeRow
 import cc.blit.groglog.ui.theme.GrogColors
 import cc.blit.groglog.ui.theme.GrogLogTheme
 import java.time.Instant
+import cc.blit.groglog.ui.shared.SheetBar
+import cc.blit.groglog.ui.shared.parseDecimal
 
 /** Logs a bare number of units, for when the total is known but not the drinks. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,7 +61,7 @@ fun UnitsSheet(day: DayKey, clock: DayClock, initialTime: Instant, onDismiss: ()
 private fun UnitsForm(day: DayKey, clock: DayClock, initialTime: Instant, onDismiss: () -> Unit, onLog: (Double, Instant) -> Unit) {
     var text by rememberSaveable { mutableStateOf("") }
     var time by rememberSaveable { mutableStateOf(initialTime) }
-    val units = text.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }
+    val units = parseDecimal(text)?.takeIf { it > 0 }
     val focus = remember { FocusRequester() }
     LaunchedEffect(focus) { focus.requestFocus() }
 
@@ -70,11 +72,7 @@ private fun UnitsForm(day: DayKey, clock: DayClock, initialTime: Instant, onDism
     }
 
     Column(Modifier.imePadding().padding(bottom = 16.dp)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-            Text("Units", Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            Button(onClick = ::log, enabled = units != null) { Text("Log") }
-        }
+        SheetBar(title = "Units", action = "Log", onAction = ::log, onCancel = onDismiss, enabled = units != null)
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp),
             verticalAlignment = Alignment.Bottom,

@@ -6,6 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -187,6 +189,7 @@ private fun WeekdayHeader(firstWeekday: Int) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MonthGrid(
     month: DayKey,
@@ -202,9 +205,9 @@ private fun MonthGrid(
     val title = month.localDate.format(DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, "MMMMy"), locale))
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(verticalAlignment = Alignment.Bottom) {
+        // Side by side while they fit; at large text sizes the summary goes under the month rather than into it.
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, itemVerticalAlignment = Alignment.Bottom) {
             Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
-            Spacer(Modifier.weight(1f))
             Text(
                 "${units.unitsText} u · $dry dry",
                 style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),

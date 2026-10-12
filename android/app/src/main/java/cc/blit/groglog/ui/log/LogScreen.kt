@@ -131,6 +131,7 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.ui.platform.LocalResources
 import cc.blit.groglog.R
 import cc.blit.groglog.model.Pour
+import cc.blit.groglog.ui.shared.SheetBar
 
 /**
  * The Log tab: today's drink picker. `onCreateDrink` opens the drink editor with the search text as the name, and
@@ -187,14 +188,8 @@ fun AddDrinkSheet(
 ) {
     val viewModel = containerViewModel("log-$day") { LogViewModel(it, day) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                day.localDate.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL)),
-                Modifier.weight(1f).semantics { heading() },
-                style = MaterialTheme.typography.titleLarge,
-            )
-            TextButton(onClick = onDismiss) { Text("Done") }
-        }
+        // Each tap logs as it goes, so there is nothing to cancel.
+        SheetBar(title = day.localDate.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)), action = "Done", onAction = onDismiss)
         DrinkPicker(viewModel, Modifier.fillMaxSize(), onCreateDrink, onEditDrink)
     }
 }
@@ -634,8 +629,14 @@ fun DaySummaryBar(totals: DayTotals, status: DayStatus, onUndo: () -> Unit, onAl
                     TextButton(onClick = { onAlcoholFree(false) }) { Text("Undo") }
                 }
                 else -> {
-                    Text("Nothing logged", style = style, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.weight(1f))
+                    Text(
+                        "Nothing logged",
+                        Modifier.weight(1f),
+                        style = style,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     FilledTonalButton(
                         onClick = { onAlcoholFree(true) },
                         colors = ButtonDefaults.filledTonalButtonColors(containerColor = GrogColors.dry.copy(alpha = 0.2f), contentColor = GrogColors.dry),
@@ -643,7 +644,7 @@ fun DaySummaryBar(totals: DayTotals, status: DayStatus, onUndo: () -> Unit, onAl
                     ) {
                         Icon(GrogIcons.Leaf, contentDescription = null, Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Alcohol-free")
+                        Text("Alcohol-free", maxLines = 1, softWrap = false)
                     }
                 }
             }

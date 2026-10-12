@@ -147,7 +147,7 @@ class LogScreenTests {
         compose.onNodeWithContentDescription("More").performClick()
         compose.onNodeWithContentDescription("More").performClick()
         compose.waitUntilAtLeastOneExists(hasText("How many: 3"))
-        compose.onNode(hasText("Log 3 ", substring = true)).performClick()
+        compose.onNode(hasText("Log 3") and hasClickAction()).performClick()
         waitForPours(3)
         assertEquals(setOf(lager.id), pours().map { it.drinkId }.toSet())
 
@@ -162,7 +162,7 @@ class LogScreenTests {
         compose.waitUntilAtLeastOneExists(hasText("Which one?"))
         compose.onNodeWithContentDescription("Strength").performTextClearance()
         compose.onNodeWithContentDescription("Strength").performTextInput("5.2")
-        compose.onNode(hasText("Log ·", substring = true)).performClick()
+        compose.onNode(hasText("Log") and hasClickAction()).performClick()
         waitForPours(1)
         assertEquals(5.2, pours().single().abvOverride)
         assertEquals(5.0, runBlocking { database.rows().drink(lager.id) }!!.abv, 0.0)

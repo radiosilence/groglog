@@ -1,6 +1,7 @@
 package cc.blit.groglog.ui.shared
 
 import android.text.format.DateFormat
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -11,10 +12,14 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -39,6 +44,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,6 +57,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.error
@@ -129,7 +136,7 @@ fun NumberRow(
 ) {
     var focused by remember { mutableStateOf(false) }
     val focus = LocalFocusManager.current
-    Column(modifier) {
+    Column(modifier.keptAboveKeyboard(focused)) {
         FormRow(label) {
             BasicTextField(
                 state = state,
@@ -212,7 +219,7 @@ fun MoneyField(label: String, state: TextFieldState, currency: String, modifier:
     val focus = LocalFocusManager.current
     var focused by remember { mutableStateOf(false) }
     val shown = moneyValue(state.text, currency).money(currency)
-    FormRow(label, modifier) {
+    FormRow(label, modifier.keptAboveKeyboard(focused)) {
         BasicTextField(
             state = state,
             modifier = Modifier
@@ -315,6 +322,19 @@ fun FormRow(label: String, modifier: Modifier = Modifier, onClick: (() -> Unit)?
         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
         content()
     }
+}
+
+/**
+ * While a field is focused, keeps its whole row in view as the keyboard rises: the text field alone asks for its own
+ * bounds once, before the keyboard has finished opening, and ends up half hidden.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun Modifier.keptAboveKeyboard(focused: Boolean): Modifier {
+    val requester = remember { BringIntoViewRequester() }
+    val keyboard = WindowInsets.ime.getBottom(LocalDensity.current)
+    LaunchedEffect(focused, keyboard) { if (focused) requester.bringIntoView() }
+    return bringIntoViewRequester(requester)
 }
 
 /** Every field's width, so the right edges of a sheet's figures line up. */

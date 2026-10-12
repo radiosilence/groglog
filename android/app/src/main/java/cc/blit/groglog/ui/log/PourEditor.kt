@@ -70,6 +70,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import cc.blit.groglog.ui.shared.SheetBar
 
 /** Writes for `PourEditor`. */
 class PourEditorViewModel(prefs: Prefs, private val logbook: suspend () -> Logbook) : ViewModel() {
@@ -136,18 +137,18 @@ private fun PourForm(
     val abv = if (isUnits) entry.abv else parseDecimal(strength.text)?.takeIf(Units::isStrength)
 
     Column(Modifier.imePadding().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-            Text("Drink", Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
-            Button(
-                onClick = {
-                    if (volume == null || abv == null) return@Button
+        SheetBar(
+            title = "Drink",
+            action = "Done",
+            onAction = {
+                if (volume != null && abv != null) {
                     onSave(time, vessel, volume, moneyValue(price.text, currency), if (isUnits || abv == entry.drink.abv) null else abv)
                     onDismiss()
-                },
-                enabled = volume != null && abv != null,
-            ) { Text("Done") }
-        }
+                }
+            },
+            onCancel = onDismiss,
+            enabled = volume != null && abv != null,
+        )
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             DrinkGlyph(entry.category, vessel, Modifier.size(56.dp), volumeMl = volume ?: entry.volumeMl)
             Column {

@@ -45,6 +45,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -363,7 +364,14 @@ private fun <T> ChoiceDialog(title: String, options: List<T>, selected: T, label
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            val state = rememberLazyListState(initialFirstVisibleItemIndex = (options.indexOf(selected) - 2).coerceAtLeast(0))
+            // From the top, scrolled only as far as it takes to show the choice made, so a short list opens whole.
+            val state = rememberLazyListState()
+            LaunchedEffect(state) {
+                val index = options.indexOf(selected)
+                val shown = state.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }
+                val end = state.layoutInfo.viewportEndOffset
+                if (index >= 0 && (shown == null || shown.offset + shown.size > end)) state.scrollToItem(index)
+            }
             LazyColumn(Modifier.heightIn(max = 420.dp), state = state) {
                 items(options) { option ->
                     ListItem(
@@ -479,7 +487,14 @@ internal fun SwitchRow(title: String, checked: Boolean, onChange: (Boolean) -> U
     ListItem(
         headlineContent = { Text(title) },
         supportingContent = supporting?.let { { Text(it) } },
-        trailingContent = { Switch(checked = checked, onCheckedChange = null) },
+        // A white thumb on the amber track, as iOS draws an on switch: the amber's own ink (black) reads as a hole.
+        trailingContent = {
+            Switch(
+                checked = checked,
+                onCheckedChange = null,
+                colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedIconColor = GrogColors.grog),
+            )
+        },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = Modifier.toggleable(value = checked, role = Role.Switch, onValueChange = onChange),
     )

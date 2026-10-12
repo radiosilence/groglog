@@ -24,6 +24,10 @@ import cc.blit.groglog.model.money
 import cc.blit.groglog.ui.shared.MoneyField
 import cc.blit.groglog.ui.shared.moneyDigits
 import cc.blit.groglog.ui.shared.moneyValue
+import cc.blit.groglog.ui.shared.SheetBar
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 
 /** A day's spend set in one go, for a night when the total is known but not each round. Cleared, it falls back to what the drinks add up to. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,13 +35,14 @@ import cc.blit.groglog.ui.shared.moneyValue
 internal fun SpendSheet(derived: Double, override: Double?, currency: String, onSave: (Double?) -> Unit, onDismiss: () -> Unit) {
     val amount = rememberTextFieldState(moneyDigits(override ?: derived, currency))
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(Modifier.padding(horizontal = 24.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Spent", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        SheetBar(title = "Spent", action = "Save", onAction = { onSave(moneyValue(amount.text, currency)) }, onCancel = onDismiss)
+        Column(Modifier.padding(horizontal = 8.dp).navigationBarsPadding().imePadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             MoneyField("Spent", amount, currency)
             Text(
                 "Stands in for what the drinks add up to. Units and calories are unaffected.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp),
             )
             if (override != null) {
                 TextButton(onClick = { onSave(null) }) { Text("Back to drink prices", color = MaterialTheme.colorScheme.error) }
@@ -47,10 +52,7 @@ internal fun SpendSheet(derived: Double, override: Double?, currency: String, on
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
-                OutlinedButton(onClick = onDismiss) { Text("Cancel") }
-                Button(onClick = { onSave(moneyValue(amount.text, currency)) }) { Text("Save") }
-            }
+            Spacer(Modifier.height(16.dp))
         }
     }
 }

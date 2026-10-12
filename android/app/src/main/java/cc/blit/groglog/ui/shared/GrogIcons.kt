@@ -17,6 +17,11 @@ object GrogIcons {
         icon("Leaf", "M6.05,8.05c-2.73,2.73 -2.73,7.15 -0.02,9.88c1.47,-3.4 4.09,-6.24 7.36,-7.93c-2.77,2.34 -4.71,5.61 -5.39,9.32c2.6,1.23 5.8,0.78 7.95,-1.37C19.43,14.47 20,4 20,4S9.53,4.57 6.05,8.05z")
     }
 
+    /** An unpinned star, as iOS's `star`; the core set's outlined star is filled. */
+    val StarOutline: ImageVector by lazy {
+        icon("StarOutline", "M22,9.24l-7.19,-0.62L12,2 9.19,8.63 2,9.24l5.46,4.73L5.82,21 12,17.27 18.18,21l-1.63,-7.03L22,9.24zM12,15.4l-3.76,2.27 1,-4.28 -3.32,-2.88 4.38,-0.38L12,6.1l1.71,4.04 4.38,0.38 -3.32,2.88 1,4.28L12,15.4z")
+    }
+
     val Remove: ImageVector by lazy { icon("Remove", "M19,13H5v-2h14v2z") }
 
     private fun icon(name: String, path: String) =

@@ -13,7 +13,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -74,6 +73,10 @@ import kotlin.math.abs
 import androidx.compose.runtime.saveable.listSaver
 import cc.blit.groglog.model.Pour
 import cc.blit.groglog.model.Vessel
+import cc.blit.groglog.ui.shared.SheetBar
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Color
+import cc.blit.groglog.ui.shared.GrogIcons
 
 /** One of the user's drinks or a catalogue brand, presented the same way. */
 data class Choice(
@@ -150,33 +153,23 @@ fun LogOptionsSheet(
     val isToday = state.day == state.ledger.today
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Row(
-            Modifier.fillMaxWidth().padding(start = 24.dp, end = 16.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(
-                base.drink.name,
-                Modifier.weight(1f).semantics { heading() },
-                style = MaterialTheme.typography.titleLarge,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Button(
-                onClick = {
-                    if (strength == null) return@Button
+        SheetBar(
+            title = base.drink.name,
+            action = if (count > 1) "Log $count" else "Log",
+            onAction = {
+                if (strength != null) {
                     val name = choice.name
                     val units = each * count
                     viewModel.log(choice, size, moneyValue(priceField.text, state.currency), times, strength, state.currency) {
                         onLogged(name, count, units, it)
                     }
                     onDismiss()
-                },
-                enabled = strength != null,
-            ) {
-                Text("Log ${if (count > 1) "$count " else ""}· ${(each * count).unitsText} u", fontWeight = FontWeight.SemiBold)
-            }
-        }
+                }
+            },
+            onCancel = onDismiss,
+            enabled = strength != null,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
         LazyColumn(Modifier.imePadding()) {
             item {
                 SearchField(search, { search = it }, "Find a drink", Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
@@ -257,8 +250,13 @@ private fun ChoiceRow(
     onEdit: (() -> Unit)?,
 ) {
     val haptics = LocalHapticFeedback.current
+    // The highlight spans the whole row, star included, as iOS's selected row does.
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(end = 8.dp),
+        Modifier
+            .fillMaxWidth()
+            .background(if (isSelected) GrogColors.grog.copy(alpha = 0.14f) else Color.Transparent)
+            .heightIn(min = 56.dp)
+            .padding(end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
@@ -293,7 +291,7 @@ private fun ChoiceRow(
             },
         ) {
             Icon(
-                if (isPinned) Icons.Filled.Star else Icons.Outlined.Star,
+                if (isPinned) Icons.Filled.Star else GrogIcons.StarOutline,
                 contentDescription = if (isPinned) "Remove from Log grid" else "Add to Log grid",
                 tint = if (isPinned) GrogColors.grog else MaterialTheme.colorScheme.onSurfaceVariant,
             )
