@@ -125,7 +125,7 @@ class SetupViewModel(
     /** Reads and merges a backup, and says what happened in words fit to show. */
     internal suspend fun import(open: () -> InputStream): Notice =
         try {
-            val bytes = withContext(Dispatchers.IO) { open().use(::readBackup) }
+            val bytes = withContext(Dispatchers.IO) { open().use { readBackup(it) } }
             val added = Exporter.restore(bytes, database, prefs)
             Notice.Dialog("Backup imported", "Imported ${count(added, "drink")}.")
         } catch (error: ImportException) {
@@ -144,15 +144,15 @@ class SetupViewModel(
         /** Ten years of heavy logging is a few megabytes; a file near this is not a backup. */
         const val MAX_IMPORT_BYTES = 50_000_000
 
-        /** Reads at most `MAX_IMPORT_BYTES`, refusing anything larger without reading it all. */
-        internal fun readBackup(stream: InputStream): ByteArray {
+        /** Reads at most `limit` bytes, refusing anything larger without reading it all. */
+        internal fun readBackup(stream: InputStream, limit: Int = MAX_IMPORT_BYTES): ByteArray {
             val out = ByteArrayOutputStream()
             val buffer = ByteArray(64 * 1024)
             while (true) {
                 val read = stream.read(buffer)
                 if (read < 0) return out.toByteArray()
                 out.write(buffer, 0, read)
-                if (out.size() > MAX_IMPORT_BYTES) throw ImportException.tooLarge()
+                if (out.size() > limit) throw ImportException.tooLarge()
             }
         }
 
