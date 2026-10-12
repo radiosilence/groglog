@@ -30,15 +30,15 @@ object Widgets {
     fun follow(context: Context, container: AppContainer) {
         container.scope.launch {
             quietly {
-                Shortcuts.publish(context, container.database)
-                scheduleDayEnd(context, container.prefs.current().clock)
+                Shortcuts.publish(context, container.liveDatabase)
+                scheduleDayEnd(context, container.livePrefs.current().clock)
                 publishPreviews(context)
             }
         }
         container.scope.launch {
             merge(
-                container.database.invalidationTracker.createFlow("pour", "day", "drink", "favourite", emitInitialState = false).map {},
-                container.prefs.settings.drop(1).map {},
+                container.liveDatabase.invalidationTracker.createFlow("pour", "day", "drink", "favourite", emitInitialState = false).map {},
+                container.livePrefs.settings.drop(1).map {},
             ).conflate().collect { refresh(context, container) }
         }
     }
@@ -46,8 +46,8 @@ object Widgets {
     suspend fun refresh(context: Context, container: AppContainer) = quietly {
         TodayWidget().updateAll(context)
         TilesWidget().updateAll(context)
-        Shortcuts.publish(context, container.database)
-        scheduleDayEnd(context, container.prefs.current().clock)
+        Shortcuts.publish(context, container.liveDatabase)
+        scheduleDayEnd(context, container.livePrefs.current().clock)
     }
 
     /** Nothing here is worth stopping the app for: a widget left a commit behind is put right by the next one. */

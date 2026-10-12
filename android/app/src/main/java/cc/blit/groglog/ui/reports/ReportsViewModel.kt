@@ -9,6 +9,7 @@ import cc.blit.groglog.model.Goal
 import cc.blit.groglog.model.Ledger
 import cc.blit.groglog.model.Nights
 import cc.blit.groglog.ui.ledgerState
+import cc.blit.groglog.data.Seed
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -46,10 +47,15 @@ class ReportsViewModel(container: AppContainer) : ViewModel() {
     private val ledgerState = resumed.flatMapLatest { container.ledgerState() }.distinctUntilChanged()
     private val ledger = ledgerState.map { it.ledger }.distinctUntilChanged()
 
-    private val nights = combine(container.prefs.settings.map { it.clock }, container.prefs.health, resumed) { clock, switches, _ ->
-        Triple(clock, switches.heart, switches.sleep)
-    }.mapLatest { (clock, heart, sleep) -> container.health.nights(clock, heart, sleep) }
-        .onStart { emit(Nights()) }
+    /** Demo mode draws sample readings that follow its sample log, as on iOS, and never asks Health Connect. */
+    private val nights = if (container.isDemo) {
+        ledger.map(Seed::nights)
+    } else {
+        combine(container.prefs.settings.map { it.clock }, container.prefs.health, resumed) { clock, switches, _ ->
+            Triple(clock, switches.heart, switches.sleep)
+        }.mapLatest { (clock, heart, sleep) -> container.health.nights(clock, heart, sleep) }
+            .onStart { emit(Nights()) }
+    }
 
     private val entries = ledger.map(::runningRange).distinctUntilChanged().flatMapLatest { container.queries.entries(it) }
 

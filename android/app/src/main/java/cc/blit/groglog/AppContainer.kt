@@ -23,15 +23,23 @@ import kotlinx.coroutines.launch
 /** The log and its settings, one of each per process. Screens read through `queries` and write through `logbook()`. */
 class AppContainer(private val context: Context) {
     /**
-     * Debug builds can swap the log for four months of sample data in memory (Setup › Developer › Demo mode), leaving
-     * the real log untouched. Settings are shared.
+     * Debug builds can swap the log for four months of sample data (Setup › Developer › Demo mode), as iOS's
+     * `Store.demo()` does: the log and its settings in memory, sample heart and sleep readings for Reports, and nothing
+     * written to Health Connect. The real log and settings are left untouched.
      */
     val isDemo: Boolean = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0 &&
         context.getSharedPreferences(DEVELOPER, Context.MODE_PRIVATE).getBoolean(DEMO_MODE, false)
 
     val database: AppDatabase = if (isDemo) AppDatabase.inMemory(context) else AppDatabase.onDisk(context)
-    val prefs = Prefs(context.settingsStore)
+    val prefs = if (isDemo) Prefs.demo() else Prefs(context.settingsStore)
     val queries: Queries get() = database.queries()
+
+    /**
+     * The on-disk log and its settings, which the widgets, the Quick Settings tile and the launcher shortcuts always
+     * show and write, as iOS's use `Store.real`. Demo mode never reaches them.
+     */
+    val liveDatabase: AppDatabase by lazy { if (isDemo) AppDatabase.onDisk(context) else database }
+    val livePrefs: Prefs = if (isDemo) Prefs(context.settingsStore) else prefs
 
     /** Work that outlives a screen, such as a rebuild after the day-end hour changes. */
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -39,7 +47,7 @@ class AppContainer(private val context: Context) {
     /** A logbook on the current day-end hour. Settings are read afresh each time, so a changed hour is never stale. */
     suspend fun logbook(): Logbook = Logbook(database, prefs.current().clock)
 
-    val health = Health(database, prefs, Health.connect(context))
+    val health = Health(database, prefs, if (isDemo) ({ null }) else Health.connect(context))
 
     init {
         scope.launch {
@@ -47,6 +55,10 @@ class AppContainer(private val context: Context) {
             if (isDemo) Seed.sample(logbook())
         }
         scope.launch { prefs.settings.collect { Catalog.currency = it.currency } }
+        if (!isDemo) mirrorToHealth()
+    }
+
+    private fun mirrorToHealth() {
         // After the transaction, never inside it, so the log never waits on Health Connect or fails with it.
         scope.launch { Logbook.changed.collect { health.mirror(it) } }
         // Catches up anything that reached the log while Health Connect could not be written, such as a widget's tap
