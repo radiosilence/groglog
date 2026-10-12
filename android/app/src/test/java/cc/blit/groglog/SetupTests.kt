@@ -19,6 +19,7 @@ import cc.blit.groglog.ui.setup.SetupViewModel
 import cc.blit.groglog.ui.shared.moneyDigits
 import cc.blit.groglog.ui.shared.moneyValue
 import cc.blit.groglog.ui.shared.parseDecimal
+import cc.blit.groglog.model.DayKey
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.time.Instant
@@ -74,8 +75,54 @@ class SetupTests {
     @Test fun aFileThatIsNotABackupIsRefusedInWords() = runBlocking {
         val database = database()
         val notice = setup(database).import { ByteArrayInputStream("<html>not json</html>".toByteArray()) }
-        assertEquals(Notice.Dialog("Import failed", "The file is not a GrogLog backup, or it is damaged."), notice)
+        assertTrue((notice as Notice.Dialog).text.startsWith("The file is not a GrogLog backup, or it is damaged."))
         assertTrue(database.rows().pours().isEmpty())
+    }
+
+    @Test fun aBackupThatFailsChangesNoSettings() = runBlocking {
+        val prefs = prefs()
+        val database = database()
+        // iOS's decoder refuses a goal whose switch is the string "true", so this one is refused here too.
+        val before = prefs.current()
+        val file = """{"dayStartsAtHour": 3, "currency": "EUR", "goal": {"isEnabled": "true"}, "days": []}"""
+        val notice = setup(database, prefs).import { ByteArrayInputStream(file.toByteArray()) }
+        assertEquals("Import failed", (notice as Notice.Dialog).title)
+        assertEquals(before.rolloverHour, prefs.current().rolloverHour)
+        assertEquals(before.currency, prefs.current().currency)
+    }
+
+    @Test fun anEntryListedTwiceInOneBackupIsImportedOnce() = runBlocking {
+        val database = database()
+        val pour = """{"id": "9F1D3B57-2C8A-4E06-B7D4-61A0E5C93F28", "name": "Beer", "category": "beer", "abv": 4, "volumeMl": 568, "vessel": "pint", "time": "2026-10-01T19:05:42Z", "price": 6.4}"""
+        val file = """{"days": [{"date": "2026-10-01", "status": "drank", "pours": [$pour, $pour]}]}"""
+        val notice = setup(database).import { ByteArrayInputStream(file.toByteArray()) }
+        assertEquals(Notice.Dialog("Backup imported", "Imported 1 drink."), notice)
+        assertEquals(1, database.rows().pours().size)
+    }
+
+    @Test fun aBackupMovingTheDayEndWritesItOnlyAfterTheMerge() = runBlocking {
+        val prefs = prefs()
+        val database = database()
+        val file = """{"dayStartsAtHour": 3, "currency": "EUR", "days": []}"""
+        setup(database, prefs).import { ByteArrayInputStream(file.toByteArray()) }
+        assertEquals(3, prefs.current().rolloverHour)
+        assertEquals("EUR", prefs.current().currency)
+    }
+
+    @Test fun aDayEndMoveCutShortIsFinishedAtTheNextStart() = runBlocking {
+        val prefs = prefs()
+        val database = database()
+        val logbook = local(prefs, database)
+        val drink = beer()
+        logbook.rows.insert(drink)
+        // 3:30 on the 2nd belongs to the 1st while days end at 5, and to the 2nd once they end at 3.
+        val time = LocalDateTime.of(2026, 10, 2, 3, 30).atZone(logbook.clock.zone).toInstant()
+        logbook.log(Serve(drink), listOf(time))
+        assertEquals(DayKey.of(2026, 10, 1).number, database.rows().pours().single().day)
+
+        prefs.beginDayEndMove(3)
+        prefs.finishDayEndMove(database)
+        assertEquals(DayKey.of(2026, 10, 2).number, database.rows().pours().single().day)
     }
 
     @Test fun aBackupWithAnImpossibleDayEndIsRefused() = runBlocking {

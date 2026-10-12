@@ -272,6 +272,9 @@ object GoalSerializer : KSerializer<Goal> {
 
     fun decode(json: JsonObject): Goal {
         fun field(key: String) = json[key]?.takeIf { it !is JsonNull }?.jsonPrimitive
+        // A quoted "true" or "4.5" is refused as iOS's JSONDecoder refuses it, rather than read as the value it
+        // spells, so a file one platform rejects is rejected by both.
+        fun bare(key: String) = field(key)?.also { if (it.isString) throw SerializationException("Expected a bare value for $key, got \"${it.content}\"") }
         val fallback = Goal()
         val start = field("start")?.let { value ->
             if (value.isString) Iso8601.parse(value.content) ?: throw SerializationException("Expected an ISO 8601 date, got ${value.content}")
@@ -279,17 +282,17 @@ object GoalSerializer : KSerializer<Goal> {
         }
         // Older builds stored the taper as a Bool choosing between dynamic and proportional.
         val taper = field("taper")?.let { Taper.fromRaw(it.content) ?: throw SerializationException("Unknown taper ${it.content}") }
-            ?: field("isDynamic")?.boolean?.let { if (it) Taper.DYNAMIC else Taper.PROPORTIONAL }
+            ?: bare("isDynamic")?.boolean?.let { if (it) Taper.DYNAMIC else Taper.PROPORTIONAL }
             ?: fallback.taper
         var goal = Goal(
-            isEnabled = field("isEnabled")?.boolean ?: fallback.isEnabled,
+            isEnabled = bare("isEnabled")?.boolean ?: fallback.isEnabled,
             taper = taper,
-            baselineWeekly = field("baselineWeekly")?.double ?: fallback.baselineWeekly,
-            reductionPercent = field("reductionPercent")?.double ?: fallback.reductionPercent,
-            reductionUnits = field("reductionUnits")?.double ?: fallback.reductionUnits,
-            periodDays = field("periodDays")?.int ?: fallback.periodDays,
+            baselineWeekly = bare("baselineWeekly")?.double ?: fallback.baselineWeekly,
+            reductionPercent = bare("reductionPercent")?.double ?: fallback.reductionPercent,
+            reductionUnits = bare("reductionUnits")?.double ?: fallback.reductionUnits,
+            periodDays = bare("periodDays")?.int ?: fallback.periodDays,
             start = start ?: fallback.start,
-            targetWeekly = field("targetWeekly")?.double ?: fallback.targetWeekly,
+            targetWeekly = bare("targetWeekly")?.double ?: fallback.targetWeekly,
         )
         // A share or period the picker no longer offers would leave it blank, so the goal moves to the offered value
         // nearest its existing pace.

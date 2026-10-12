@@ -15,6 +15,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -26,7 +27,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.SerializationException
 
 /** Something to tell the user after an action finishes: a dialog when it needs reading, otherwise a brief message. */
 sealed interface Notice {
@@ -60,8 +60,7 @@ class SetupViewModel(
     /** Moves the day's end and reassigns every entry to a day under the new hour: seconds on a long log. */
     fun setRolloverHour(hour: Int): Job = background.launch {
         if (prefs.current().rolloverHour == hour) return@launch
-        prefs.setRolloverHour(hour)
-        Logbook(database, prefs.current().clock).rebuild(reassigningDays = true)
+        prefs.moveDayEnd(hour, database)
     }
 
     fun setCurrency(code: String) {
@@ -117,7 +116,8 @@ class SetupViewModel(
         }
     }
 
-    fun import(uri: Uri, resolver: ContentResolver): Job = viewModelScope.launch {
+    /** In the application's scope, so leaving Setup partway through cannot cancel a merge halfway. */
+    fun import(uri: Uri, resolver: ContentResolver): Job = background.launch {
         _notice.value = import { resolver.openInputStream(uri) ?: throw IOException("No stream") }
     }
 
@@ -127,14 +127,16 @@ class SetupViewModel(
             val bytes = withContext(Dispatchers.IO) { open().use { readBackup(it) } }
             val added = Exporter.restore(bytes, database, prefs)
             Notice.Dialog("Backup imported", "Imported ${count(added, "drink")}.")
+        } catch (error: CancellationException) {
+            throw error
         } catch (error: ImportException) {
             failed(error.message ?: "")
-        } catch (error: SerializationException) {
-            failed("The file is not a GrogLog backup, or it is damaged.")
-        } catch (error: IllegalArgumentException) {
-            failed("The file is not a GrogLog backup, or it is damaged.")
         } catch (error: IOException) {
             failed("The file could not be read.")
+        } catch (error: Exception) {
+            // Anything else the file can do to the decoder or the merge, such as a value of the wrong type or an entry
+            // listed twice under one id: nothing has been written, and the reason is given for anyone who asks.
+            failed("The file is not a GrogLog backup, or it is damaged.${error.message?.let { "\n\n$it" } ?: ""}")
         }
 
     private fun failed(reason: String) = Notice.Dialog("Import failed", reason)

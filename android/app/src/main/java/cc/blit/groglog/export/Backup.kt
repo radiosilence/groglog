@@ -37,6 +37,9 @@ import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
+import cc.blit.groglog.model.DayClock
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Everything, as one self-describing document. Days are listed explicitly, including unlogged ones, so a reader (human
@@ -233,19 +236,19 @@ object Exporter {
 
     /**
      * Merges a backup in one transaction without modifying existing data: drinks and entries are matched by id, and a
-     * day that already has drinks keeps them. Settings present in the file are restored first, so entries land on the
-     * correct days. Totals are recomputed for only the touched days. Returns how many entries were added.
+     * day that already has drinks keeps them. Entries are placed under the file's day end, so they land on the correct
+     * days, and the file's settings are written once the merge has committed. Totals are recomputed for only the
+     * touched days. Returns how many entries were added. Throws, having written nothing, for a file it cannot read.
      */
     suspend fun restore(data: ByteArray, database: AppDatabase, prefs: Prefs): Int {
-        val backup = decode(data)
+        val backup = withContext(Dispatchers.Default) { decode(data) }
         // An hour outside 0-23 would break every date the clock builds, so the file is refused.
         backup.dayStartsAtHour?.let { if (it !in 0..23) throw ImportException.dayEndsAtImpossibleHour(it) }
         val before = prefs.current()
-        val movesDayEnd = backup.dayStartsAtHour?.let { it != before.rolloverHour } ?: false
-        backup.dayStartsAtHour?.let { prefs.setRolloverHour(it) }
-        backup.currency?.let { prefs.setCurrency(it) }
-        backup.goal?.let { prefs.setGoal(it) }
-        val logbook = Logbook(database, prefs.current().clock)
+        val hour = backup.dayStartsAtHour ?: before.rolloverHour
+        // Entries are placed under the file's day end, but the settings are written only once they have committed, so
+        // a file that fails partway leaves the settings as they were along with the log.
+        val logbook = Logbook(database, DayClock(hour))
         val clock = logbook.clock
         var added = 0
 
@@ -269,7 +272,8 @@ object Exporter {
                 }
             }
 
-            val existingPours = rows.pourIds().toSet()
+            // A pour already logged, or listed earlier in the same file, is kept as it is: the first copy wins.
+            val existingPours = rows.pourIds().toHashSet()
             val daysWithPours = rows.daysWithPours().toSet()
             val touched = mutableSetOf<DayKey>()
             for (record in backup.days) {
@@ -293,7 +297,7 @@ object Exporter {
                     touched += day
                 }
                 pours.forEachIndexed { index, pour ->
-                    if (pour.id != null && pour.id in existingPours) return@forEachIndexed
+                    if (pour.id != null && !existingPours.add(pour.id)) return@forEachIndexed
                     val time = pour.time ?: evening.plusSeconds(index * 30L * 60)
                     val id = pour.id ?: UUID.randomUUID()
                     val volume = pour.volumeMl
@@ -315,9 +319,11 @@ object Exporter {
             }
             touched
         }
+        backup.currency?.let { prefs.setCurrency(it) }
+        backup.goal?.let { prefs.setGoal(it) }
         // Existing entries were assigned days by the old hour and imported ones by the new one, so every day is
         // reassigned.
-        if (movesDayEnd) logbook.rebuild(reassigningDays = true)
+        if (hour != before.rolloverHour) prefs.moveDayEnd(hour, database)
         return added
     }
 }

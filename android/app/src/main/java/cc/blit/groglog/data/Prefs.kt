@@ -84,6 +84,31 @@ class Prefs(private val store: DataStore<Preferences>) {
         store.edit { it[ROLLOVER_HOUR] = hour }
     }
 
+    /**
+     * Moves the day's end and reassigns every entry to a day under the new hour. The move is recorded first and cleared
+     * only once the entries are reassigned, so a process killed partway through finishes it at the next start
+     * (`finishDayEndMove`) rather than leaving entries on days the clock no longer gives them.
+     */
+    suspend fun moveDayEnd(hour: Int, database: AppDatabase) {
+        beginDayEndMove(hour)
+        finishDayEndMove(database)
+    }
+
+    /** The first half of `moveDayEnd`: the new hour, and a note that entries are still on the old hour's days. */
+    internal suspend fun beginDayEndMove(hour: Int) {
+        require(hour in 0..23) { "Not an hour of the day: $hour" }
+        store.edit {
+            it[ROLLOVER_HOUR] = hour
+            it[REASSIGN_PENDING] = true
+        }
+    }
+
+    /** Reassigns entries after a move of the day's end that did not finish. Does nothing when none is pending. */
+    suspend fun finishDayEndMove(database: AppDatabase) {
+        if (store.data.first()[REASSIGN_PENDING] != true) return
+        if (Logbook(database, current().clock).rebuild(reassigningDays = true)) store.edit { it.remove(REASSIGN_PENDING) }
+    }
+
     suspend fun setCurrency(code: String) {
         store.edit { it[CURRENCY] = code }
     }
@@ -104,6 +129,7 @@ class Prefs(private val store: DataStore<Preferences>) {
         private val READS_HEART = booleanPreferencesKey("readsHeart")
         private val READS_SLEEP = booleanPreferencesKey("readsSleep")
         private val DYNAMIC_COLOUR = booleanPreferencesKey("dynamicColour")
+        private val REASSIGN_PENDING = booleanPreferencesKey("reassignPending")
 
         /** Demo mode's settings: in memory, starting from the goal iOS's demo store sets, 10% every 7 days. */
         fun demo(): Prefs {
