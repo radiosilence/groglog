@@ -31,11 +31,13 @@ jobs:
     defaults:
       run:
         working-directory: android
-    env:
-      # Play refuses a version code it has seen, so each run's must be higher than the last.
-      VERSION_CODE: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Play refuses a version code it has seen, so each run's must be higher than the last, and a re-run, which
+      # uploads again, needs its own: the run number times 100, plus the attempt.
+      - name: Version code
+        run: echo "VERSION_CODE=$((GITHUB_RUN_NUMBER * 100 + GITHUB_RUN_ATTEMPT))" >> "$GITHUB_ENV"
 
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
@@ -58,11 +60,12 @@ jobs:
           printf '%s' "$ANDROID_UPLOAD_KEYSTORE" | base64 --decode > "$RUNNER_TEMP/upload.jks"
           echo "ANDROID_UPLOAD_KEYSTORE_FILE=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
 
+      # The key's passwords reach the build only on main, as the key itself does: a branch's code never sees them.
       - name: Test and bundle
         env:
-          ANDROID_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
-          ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
-          ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          ANDROID_UPLOAD_KEYSTORE_PASSWORD: ${{ github.ref == 'refs/heads/main' && secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD || '' }}
+          ANDROID_UPLOAD_KEY_ALIAS: ${{ github.ref == 'refs/heads/main' && secrets.ANDROID_UPLOAD_KEY_ALIAS || '' }}
+          ANDROID_UPLOAD_KEY_PASSWORD: ${{ github.ref == 'refs/heads/main' && secrets.ANDROID_UPLOAD_KEY_PASSWORD || '' }}
         run: ./gradlew :app:testDebugUnitTest :app:bundleRelease -PversionCode="$VERSION_CODE"
 
       - name: Remove the upload key

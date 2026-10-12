@@ -203,7 +203,8 @@ gh secret set ANDROID_UPLOAD_KEY_ALIAS --repo radiosilence/groglog --body upload
 `android/app/build.gradle.kts` signs the release build with the upload key when its location is given, and otherwise
 builds it unsigned, so CI on a pull request and a laptop without the key still bundle. Each value is read from the
 environment (CI) or a Gradle property (a laptop's `~/.gradle/gradle.properties`, never the repository's).
-`versionCode` comes from `-PversionCode`, which CI sets to the run number.
+`versionCode` comes from `-PversionCode`, which CI sets to the run number times 100 plus the attempt (see
+[releasing.md](releasing.md)).
 
 ```kotlin
 fun setting(env: String, property: String) =

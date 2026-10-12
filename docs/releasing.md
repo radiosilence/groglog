@@ -84,7 +84,8 @@ upload key's secrets exist the bundle stays unsigned and nothing is uploaded; un
 the signed bundle is kept as the run's `bundle` artifact and not uploaded. Setting both up, the Play Console forms and
 the closed test a personal account must run before production are in [play-store.md](play-store.md).
 
-The version code is the workflow's run number, so it always rises. The version name is `versionName` in
+The version code is the workflow's run number times 100 plus its attempt, so it always rises and a re-run uploads a
+code Play has not seen. The version name is `versionName` in
 `android/app/build.gradle.kts`; raise it with `MARKETING_VERSION`, so both apps carry the same version. Release notes
 on each upload are CHANGELOG.md's Unreleased section, or the newest version's, cut to Play's 500 characters.
 

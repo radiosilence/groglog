@@ -94,7 +94,9 @@ def changelog_notes():
     body = re.sub(r"\*\*|`", "", body)
     body = re.sub(r"\n{2,}", "\n", body).strip()
     if len(body) > 500:
-        body = body[:body.rfind("\n", 0, 470)] + "\n…and more in CHANGELOG.md"
+        # At a line break where there is one, otherwise mid-line: a single long paragraph has none.
+        cut = body.rfind("\n", 0, 470)
+        body = body[:cut if cut > 0 else 470] + "\n…and more in CHANGELOG.md"
     return body
 
 
