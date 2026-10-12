@@ -23,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavBackStack
@@ -32,26 +33,30 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import cc.blit.groglog.container
-import cc.blit.groglog.ui.calendar.CalendarScreen
 import cc.blit.groglog.model.DayKey
+import cc.blit.groglog.model.Drink
+import cc.blit.groglog.ui.calendar.CalendarScreen
 import cc.blit.groglog.ui.day.CalendarDayScreen
 import cc.blit.groglog.ui.day.DayScreen
 import cc.blit.groglog.ui.log.LogScreen
 import cc.blit.groglog.ui.reports.ReportsScreen
 import cc.blit.groglog.ui.setup.SetupScreen
+import cc.blit.groglog.ui.setup.setupEntries
 import cc.blit.groglog.ui.theme.GrogLogTheme
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         val prefs = container.prefs
         setContent {
-            val settings by prefs.settings.collectAsStateWithLifecycle(null)
-            GrogLogTheme(dynamicColour = settings?.dynamicColour == true) { Root() }
+            val dynamicColour by prefs.dynamicColour.collectAsStateWithLifecycle(false)
+            GrogLogTheme(dynamicColour) { Root() }
         }
     }
 }
@@ -66,13 +71,20 @@ private val tabs: List<Triple<Tab, String, ImageVector>> = listOf(
 
 /**
  * One back stack, rooted at the open tab. Choosing a tab replaces the stack, so back leaves the app from any tab's
- * root, as the system's predictive back gesture shows.
+ * root, as the system's predictive back gesture shows; choosing the open tab again tells it so, through `reselected`.
+ * Pages another tab opens, such as a drink's editor from the Log, are pushed onto the same stack, as iOS presents them
+ * as sheets over the tab.
+ *
+ * Every page draws its own top bar, which takes the status bar's inset; the tab bar's is taken here.
  */
 @Composable
 private fun Root() {
     val backStack = rememberNavBackStack(Tab.Log)
     val current = backStack.filterIsInstance<Tab>().lastOrNull() ?: Tab.Log
     val reselected = remember { MutableSharedFlow<Tab>(extraBufferCapacity = 1) }
+    val createDrink: (String) -> Unit = { backStack.add(SetupRoute.EditDrink(name = it)) }
+    val editDrink: (Drink) -> Unit = { backStack.add(SetupRoute.EditDrink(it.id.toString())) }
+    val setGoal: () -> Unit = { backStack.add(SetupRoute.Goal) }
     Scaffold(
         bottomBar = {
             NavigationBar {
@@ -87,29 +99,31 @@ private fun Root() {
             }
         },
     ) { padding ->
-        val modifier = Modifier.padding(padding)
+        val bottom = PaddingValues(bottom = padding.calculateBottomPadding())
+        val modifier = Modifier.padding(bottom).consumeWindowInsets(bottom)
         NavDisplay(
             backStack = backStack,
             onBack = { backStack.removeLastOrNull() },
             entryDecorators = listOf(rememberSaveableStateHolderNavEntryDecorator(), rememberViewModelStoreNavEntryDecorator()),
             entryProvider = entryProvider {
-                entry<Tab.Log> { LogScreen(modifier) }
-                // These draw their own top bars under the status bar, so they take only the bottom of the padding.
+                entry<Tab.Log> { LogScreen(modifier, reselected.of(Tab.Log), createDrink, editDrink) }
                 entry<Tab.Calendar> {
-                    CalendarScreen(
-                        onOpen = { backStack.add(CalendarDay(it.number)) },
-                        modifier = padding.bottomOnly(),
-                        reselected = remember { reselected.filter { it == Tab.Calendar }.map {} },
-                    )
+                    CalendarScreen(onOpen = { backStack.add(CalendarDay(it.number)) }, modifier = modifier, reselected = reselected.of(Tab.Calendar))
                 }
                 entry<CalendarDay> { key ->
-                    CalendarDayScreen(DayKey(key.day), onBack = { backStack.removeLastOrNull() }, modifier = padding.bottomOnly(), onSetGoal = { backStack.select(Tab.Setup) })
+                    CalendarDayScreen(
+                        DayKey(key.day),
+                        onBack = { backStack.removeLastOrNull() },
+                        modifier = modifier,
+                        onSetGoal = setGoal,
+                        onCreateDrink = createDrink,
+                        onEditDrink = editDrink,
+                    )
                 }
-                entry<Tab.Day> {
-                    DayScreen(padding.bottomOnly(), remember { reselected.filter { it == Tab.Day }.map {} }, onSetGoal = { backStack.select(Tab.Setup) })
-                }
+                entry<Tab.Day> { DayScreen(modifier, reselected.of(Tab.Day), setGoal, createDrink, editDrink) }
                 entry<Tab.Reports> { ReportsScreen(modifier) }
-                entry<Tab.Setup> { SetupScreen(modifier) }
+                entry<Tab.Setup> { SetupScreen(modifier, reselected.of(Tab.Setup), onOpen = backStack::add) }
+                setupEntries(modifier, backStack)
             },
         )
     }
@@ -121,7 +135,6 @@ private fun NavBackStack<NavKey>.select(tab: Tab) {
     add(tab)
 }
 
-private fun PaddingValues.bottomOnly(): Modifier {
-    val bottom = PaddingValues(bottom = calculateBottomPadding())
-    return Modifier.padding(bottom).consumeWindowInsets(bottom)
-}
+/** Reselections of one tab. */
+@Composable
+private fun Flow<Tab>.of(tab: Tab): Flow<Unit> = remember(this, tab) { filter { it == tab }.map {} }

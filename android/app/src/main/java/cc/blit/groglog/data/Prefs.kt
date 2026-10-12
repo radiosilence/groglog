@@ -22,8 +22,6 @@ data class Settings(
     val rolloverHour: Int = 5,
     val currency: String = Catalog.defaultCurrency(),
     val goal: Goal = Goal(),
-    /** Material You's wallpaper colours in place of GrogLog's palette. This device's choice; backups leave it out. */
-    val dynamicColour: Boolean = false,
 ) {
     val clock: DayClock get() = DayClock(rolloverHour)
 }
@@ -41,9 +39,14 @@ class Prefs(private val store: DataStore<Preferences>) {
             rolloverHour = values[ROLLOVER_HOUR] ?: 5,
             currency = values[CURRENCY] ?: Catalog.defaultCurrency(),
             goal = values[GOAL]?.let { runCatching { GoalSerializer.decode(it) }.getOrNull() } ?: Goal(),
-            dynamicColour = values[DYNAMIC_COLOUR] ?: false,
         )
     }.distinctUntilChanged()
+
+    /**
+     * Material You's wallpaper colours in place of GrogLog's palette. Kept apart from `settings` because it belongs to
+     * this device, as its wallpaper does, so backups leave it out.
+     */
+    val dynamicColour: Flow<Boolean> = store.data.map { it[DYNAMIC_COLOUR] ?: false }.distinctUntilChanged()
 
     suspend fun current(): Settings = settings.first()
 

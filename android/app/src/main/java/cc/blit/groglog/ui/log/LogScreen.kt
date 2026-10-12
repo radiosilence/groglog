@@ -28,6 +28,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -122,20 +124,31 @@ import cc.blit.groglog.ui.theme.GrogLogTheme
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 
 /**
  * The Log tab: today's drink picker. `onCreateDrink` opens the drink editor with the search text as the name, and
- * `onEditDrink` opens it on a drink; where they are null, the controls that lead there are left out.
+ * `onEditDrink` opens it on a drink; where they are null, the controls that lead there are left out. Choosing the tab
+ * again clears the search and goes back to the top.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LogScreen(
     modifier: Modifier = Modifier,
+    reselected: Flow<Unit> = emptyFlow(),
     onCreateDrink: ((String) -> Unit)? = null,
     onEditDrink: ((Drink) -> Unit)? = null,
     viewModel: LogViewModel = containerViewModel { LogViewModel(it.queries, it.prefs, it::logbook) },
 ) {
+    val grid = rememberLazyGridState()
+    LaunchedEffect(reselected) {
+        reselected.collect {
+            viewModel.search = ""
+            grid.animateScrollToItem(0)
+        }
+    }
     Scaffold(
         modifier,
         topBar = {
@@ -148,12 +161,11 @@ fun LogScreen(
                         }
                     }
                 },
-                windowInsets = WindowInsets(0),
             )
         },
         contentWindowInsets = WindowInsets(0),
     ) { padding ->
-        DrinkPicker(viewModel, Modifier.padding(padding), onCreateDrink, onEditDrink)
+        DrinkPicker(viewModel, Modifier.padding(padding), onCreateDrink, onEditDrink, grid)
     }
 }
 
@@ -190,6 +202,7 @@ fun DrinkPicker(
     modifier: Modifier = Modifier,
     onCreateDrink: ((String) -> Unit)? = null,
     onEditDrink: ((Drink) -> Unit)? = null,
+    grid: LazyGridState = rememberLazyGridState(),
 ) {
     LifecycleResumeEffect(viewModel) {
         viewModel.appeared()
@@ -239,6 +252,7 @@ fun DrinkPicker(
                         confirm("${item.name} · ${item.units.unitsText} u", 1)
                     },
                     onCreateDrink = onCreateDrink,
+                    grid = grid,
                 )
             }
         }
@@ -287,6 +301,7 @@ private fun PickerGrid(
     onOptions: (Serve) -> Unit,
     onAdopt: (CatalogItem) -> Unit,
     onCreateDrink: ((String) -> Unit)?,
+    grid: LazyGridState,
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
     val focus = LocalFocusManager.current
@@ -308,6 +323,7 @@ private fun PickerGrid(
 
     LazyVerticalGrid(
         columns = GridCells.Adaptive(tileWidth),
+        state = grid,
         modifier = Modifier.fillMaxSize().nestedScroll(dismissKeyboard),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 96.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
