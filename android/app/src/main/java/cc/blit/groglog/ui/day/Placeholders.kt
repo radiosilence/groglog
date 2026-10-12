@@ -1,6 +1,5 @@
 package cc.blit.groglog.ui.day
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,7 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -21,40 +19,19 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.unit.dp
 import cc.blit.groglog.model.DayKey
-import cc.blit.groglog.model.DrinkCategory
-import cc.blit.groglog.model.Vessel
 import cc.blit.groglog.model.money
 import java.util.Currency
 import kotlin.math.pow
 import kotlin.math.roundToLong
 
-// Stand-ins for components the Log and Setup tabs own (ui/shared and the drink picker). Each has the shape its owner
+// Stand-ins for components the Log tab owns (ui/shared controls and the drink picker). Each has the shape its owner
 // is expected to provide, so swapping one is a change of import.
-
-/** Stand-in for ui/shared's DrinkGlyph: a glass filled with the drink's colour. */
-@Composable
-internal fun DrinkGlyph(category: DrinkCategory, vessel: Vessel, volumeMl: Double, modifier: Modifier = Modifier) {
-    val liquid = Color(category.liquid)
-    val outline = MaterialTheme.colorScheme.onSurfaceVariant
-    Canvas(modifier) {
-        val glass = Size(size.width * 0.56f, size.height * 0.78f)
-        val topLeft = Offset((size.width - glass.width) / 2, (size.height - glass.height) / 2)
-        val fill = glass.height * 0.72f
-        drawRoundRect(liquid, topLeft + Offset(0f, glass.height - fill), Size(glass.width, fill), CornerRadius(6.dp.toPx()))
-        drawRoundRect(outline, topLeft, glass, CornerRadius(6.dp.toPx()), style = Stroke(1.5.dp.toPx()))
-    }
-}
 
 /** Stand-in for the Log tab's picker, opened for backfilling a day. */
 @Composable

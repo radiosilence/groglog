@@ -50,6 +50,7 @@ import cc.blit.groglog.model.Units
 import cc.blit.groglog.model.Vessel
 import cc.blit.groglog.model.money
 import cc.blit.groglog.model.unitsText
+import cc.blit.groglog.ui.shared.DrinkGlyph
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -87,7 +88,7 @@ internal fun PourEditor(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                DrinkGlyph(entry.category, vessel, volume, Modifier.size(56.dp))
+                DrinkGlyph(entry.category, vessel, Modifier.size(56.dp), volume)
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text(entry.name, style = MaterialTheme.typography.titleMedium)

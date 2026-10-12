@@ -93,6 +93,7 @@ import cc.blit.groglog.model.money
 import cc.blit.groglog.model.unitsText
 import cc.blit.groglog.ui.calendar.Leaf
 import cc.blit.groglog.ui.containerViewModel
+import cc.blit.groglog.ui.shared.DrinkGlyph
 import cc.blit.groglog.ui.theme.GrogColors
 import cc.blit.groglog.ui.theme.GrogLogTheme
 import java.time.Instant
@@ -471,7 +472,7 @@ internal fun PourRow(entry: Entry, currency: String, modifier: Modifier = Modifi
     val context = LocalContext.current
     val time = remember(entry.timestamp) { DateFormat.getTimeFormat(context).format(Date.from(entry.timestamp)) }
     ListItem(
-        leadingContent = { DrinkGlyph(entry.category, entry.vessel, entry.volumeMl, Modifier.size(40.dp)) },
+        leadingContent = { DrinkGlyph(entry.category, entry.vessel, Modifier.size(40.dp), entry.volumeMl) },
         headlineContent = { Text(entry.name, fontWeight = FontWeight.Medium) },
         supportingContent = { Text(entry.category.serving(entry.vessel, entry.volumeMl, entry.abv)) },
         trailingContent = {
