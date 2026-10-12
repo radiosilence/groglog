@@ -68,7 +68,8 @@ private fun Root() {
             Tab.LOG -> LogScreen(modifier)
             Tab.CALENDAR -> CalendarScreen(modifier)
             Tab.DAY -> DayScreen(modifier)
-            Tab.REPORTS -> ReportsScreen(modifier)
+            // Reports draws its own app bar under the status bar, so it takes only the navigation bar's padding.
+            Tab.REPORTS -> ReportsScreen(Modifier.padding(bottom = padding.calculateBottomPadding()), onSetGoal = { tab = Tab.SETUP })
             Tab.SETUP -> SetupScreen(modifier)
         }
     }

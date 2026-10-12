@@ -31,6 +31,8 @@ android {
         unitTests.all {
             // Robolectric's Android 16 sandbox reaches into JDK internals that Java 21 keeps closed by default.
             it.jvmArgs("--add-opens=java.base/jdk.internal.access=ALL-UNNAMED")
+            // `-Pshots=DIR` renders the screenshot tests into DIR; without it they are skipped.
+            it.systemProperty("groglog.shots", providers.gradleProperty("shots").getOrElse(""))
         }
     }
 }
