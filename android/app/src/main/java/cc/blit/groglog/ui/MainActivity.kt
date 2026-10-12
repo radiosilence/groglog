@@ -19,6 +19,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -53,6 +54,8 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) Destinations.open(intent)
+        addOnNewIntentListener(Destinations::open)
         val prefs = container.prefs
         setContent {
             val dynamicColour by prefs.dynamicColour.collectAsStateWithLifecycle(false)
@@ -85,6 +88,12 @@ private fun Root() {
     val createDrink: (String) -> Unit = { backStack.add(SetupRoute.EditDrink(name = it)) }
     val editDrink: (Drink) -> Unit = { backStack.add(SetupRoute.EditDrink(it.id.toString())) }
     val setGoal: () -> Unit = { backStack.add(SetupRoute.Goal) }
+    val destination by Destinations.pending.collectAsStateWithLifecycle()
+    LaunchedEffect(destination) {
+        if (destination == null) return@LaunchedEffect
+        backStack.select(Tab.Log)
+        Destinations.pending.compareAndSet(Destination.LOG, null)
+    }
     Scaffold(
         bottomBar = {
             NavigationBar {
@@ -106,7 +115,16 @@ private fun Root() {
             onBack = { backStack.removeLastOrNull() },
             entryDecorators = listOf(rememberSaveableStateHolderNavEntryDecorator(), rememberViewModelStoreNavEntryDecorator()),
             entryProvider = entryProvider {
-                entry<Tab.Log> { LogScreen(modifier, reselected.of(Tab.Log), createDrink, editDrink) }
+                entry<Tab.Log> {
+                    LogScreen(
+                        modifier,
+                        reselected.of(Tab.Log),
+                        createDrink,
+                        editDrink,
+                        unitsRequested = destination == Destination.UNITS,
+                        onUnitsShown = { Destinations.pending.compareAndSet(Destination.UNITS, null) },
+                    )
+                }
                 entry<Tab.Calendar> {
                     CalendarScreen(onOpen = { backStack.add(CalendarDay(it.number)) }, modifier = modifier, reselected = reselected.of(Tab.Calendar))
                 }

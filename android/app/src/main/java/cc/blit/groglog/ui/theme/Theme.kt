@@ -73,7 +73,7 @@ enum class HeatBand {
  * Material's tint from the primary colour. Light is iOS's grouped background with white cards on it; dark is black with
  * the elevated greys. Selection chrome (the tab indicator, tonal buttons) is grey too, leaving amber for what it marks.
  */
-private val light = lightColorScheme(
+internal val light = lightColorScheme(
     primary = GrogColors.grog,
     onPrimary = Color.Black,
     primaryContainer = Color(0xFFFFDDB3),
@@ -112,7 +112,7 @@ private val light = lightColorScheme(
     surfaceContainerHighest = Color(0xFFD1D1D6),
 )
 
-private val dark = darkColorScheme(
+internal val dark = darkColorScheme(
     primary = GrogColors.grog,
     onPrimary = Color.Black,
     primaryContainer = Color(0xFF5C3A00),

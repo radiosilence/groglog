@@ -122,6 +122,8 @@ dependencies {
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
     implementation(libs.datastore.preferences)
+    implementation(libs.glance.appwidget)
+    implementation(libs.glance.material3)
     implementation(libs.kotlinx.serialization.json)
 
     testImplementation(libs.junit)

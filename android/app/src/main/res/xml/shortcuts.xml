@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_units"
+        android:shortcutId="units"
+        android:shortcutLongLabel="@string/shortcut_units_long"
+        android:shortcutShortLabel="@string/shortcut_units_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="groglog://log/units"
+            android:targetClass="cc.blit.groglog.ui.MainActivity"
+            android:targetPackage="cc.blit.groglog" />
+    </shortcut>
+</shortcuts>

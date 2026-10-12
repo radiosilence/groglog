@@ -1,3 +1,13 @@
 <resources>
     <string name="app_name">GrogLog</string>
+
+    <string name="widget_today_label">Today</string>
+    <string name="widget_today_description">What you have drunk today against the day\'s budget. Tap to log.</string>
+    <string name="widget_tiles_label">Log</string>
+    <string name="widget_tiles_description">Your usual drinks, one tap each, against what is left of the day\'s budget.</string>
+
+    <string name="tile_log_label">Log a drink</string>
+
+    <string name="shortcut_units_short">Log units</string>
+    <string name="shortcut_units_long">Log a number of units</string>
 </resources>
