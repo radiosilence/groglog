@@ -244,7 +244,8 @@ android {
 
 ## Play API access
 
-`scripts/play.py` and CI publish through the Google Play Developer API as a service account. Once:
+`scripts/play.py` and CI publish through the Google Play Developer API as a service account. `just play-service-account`
+runs the commands below, keeping the key in 1Password and out of the working directory. Once:
 
 ```sh
 gcloud projects create groglog-play --name "GrogLog Play"
