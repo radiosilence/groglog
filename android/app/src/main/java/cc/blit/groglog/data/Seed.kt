@@ -16,6 +16,8 @@ import cc.blit.groglog.model.Vessel
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.random.Random
+import cc.blit.groglog.model.Goal
+import kotlin.math.roundToInt
 
 object Seed {
     private class Generic(val name: String, val category: DrinkCategory, val serves: List<Triple<Vessel, Double, Double>>)
@@ -62,6 +64,17 @@ object Seed {
                 }
             }
         }
+    }
+
+    /**
+     * The demo's goal over `sample`'s log: a taper begun two weeks ago, from what the sample's first four weeks averaged
+     * rounded to a whole unit a day (as "Use my last 4 weeks" sets it), so Reports and the Day tab show a budget part
+     * way down rather than one begun this morning or one already run to nothing.
+     */
+    fun demoGoal(ledger: Ledger, goal: Goal): Goal {
+        val first = ledger.firstDay ?: return goal
+        val baseline = ledger.weeklyAverage(first..(first + 27))?.let { (it / 7).roundToInt() * 7.0 } ?: goal.baselineWeekly
+        return goal.copy(start = ledger.clock.start(ledger.today - 14), baselineWeekly = baseline)
     }
 
     /**

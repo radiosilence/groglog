@@ -19,7 +19,6 @@ import cc.blit.groglog.model.Ledger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
 /** The log and its settings, one of each per process. Screens read through `queries` and write through `logbook()`. */
@@ -58,15 +57,7 @@ class AppContainer(private val context: Context) {
             if (isDemo) {
                 val logbook = logbook()
                 Seed.sample(logbook)
-                // The demo's taper starts with its log, from what its first four weeks averaged rounded to a whole unit a
-                // day, as "Use my last 4 weeks" sets it, so Reports and the Day tab show a taper under way from the
-                // sample's own level rather than one begun this morning.
-                val ledger = Ledger(database.rows().days(), logbook.clock)
-                ledger.firstDay?.let { first ->
-                    val baseline = ledger.weeklyAverage(first..(first + 27))?.let { (it / 7).roundToInt() * 7.0 }
-                    val goal = prefs.current().goal
-                    prefs.setGoal(goal.copy(start = logbook.clock.start(first), baselineWeekly = baseline ?: goal.baselineWeekly))
-                }
+                prefs.setGoal(Seed.demoGoal(Ledger(database.rows().days(), logbook.clock), prefs.current().goal))
             }
         }
         scope.launch { prefs.settings.collect { Catalog.currency = it.currency } }
