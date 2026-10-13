@@ -9,9 +9,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.MedicalServices
+import androidx.compose.material.icons.filled.PersonalInjury
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.MedicalServices
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -21,7 +28,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,14 +68,14 @@ import cc.blit.groglog.model.Ledger
 import cc.blit.groglog.model.Taper
 import cc.blit.groglog.model.Units
 import cc.blit.groglog.model.unitsText
-import cc.blit.groglog.ui.theme.GrogColors
-import cc.blit.groglog.ui.theme.GrogLogTheme
 import cc.blit.groglog.ui.shared.ChipRow
-import cc.blit.groglog.ui.textField
 import cc.blit.groglog.ui.shared.NumberRow
+import cc.blit.groglog.ui.shared.Section
 import cc.blit.groglog.ui.shared.decimalText
 import cc.blit.groglog.ui.shared.parseDecimal
-import cc.blit.groglog.ui.shared.Section
+import cc.blit.groglog.ui.textField
+import cc.blit.groglog.ui.theme.GrogColors
+import cc.blit.groglog.ui.theme.GrogLogTheme
 import java.text.NumberFormat
 import java.time.Instant
 import java.time.LocalDate
@@ -258,8 +264,14 @@ internal fun LazyListScope.goalEditor(goal: Goal, ledger: Ledger, model: GoalVie
             footer = "These are signs that withdrawal has become serious. They need emergency care, not a slower reduction.",
         ) {
             Column(Modifier.padding(vertical = 8.dp)) {
-                for (sign in listOf("A fit or seizure", "Seeing or hearing things that are not there", "Confusion, or being unsteady on your feet")) {
-                    Note(sign, Icons.Filled.Warning, GrogColors.over, MaterialTheme.typography.bodyLarge)
+                // iOS's bolt.fill, eye.trianglebadge.exclamationmark.fill and figure.fall.
+                val signs = listOf(
+                    "A fit or seizure" to Icons.Filled.Bolt,
+                    "Seeing or hearing things that are not there" to Icons.Filled.Visibility,
+                    "Confusion, or being unsteady on your feet" to Icons.Filled.PersonalInjury,
+                )
+                for ((sign, icon) in signs) {
+                    Note(sign, icon, GrogColors.over, MaterialTheme.typography.bodyLarge)
                 }
             }
         }
@@ -307,7 +319,7 @@ private fun GoalSection(goal: Goal, ledger: Ledger, model: GoalViewModel, onGuid
             Taper.DYNAMIC -> SettingsRow(
                 title = "Starts at",
                 value = "10% every ${periodLabel(Goal.pace(from))}",
-                trailingIcon = Icons.Filled.Info,
+                trailingIcon = Icons.Outlined.Info,
                 onClick = onGuidance,
                 onClickLabel = "Where this comes from",
             )
@@ -375,14 +387,14 @@ private fun Warnings(goal: Goal, drinking: Double) {
         // The same guidance names 25 units a day as a reason to halve the pace, and NICE gives two thresholds above it
         // where the right response is professional support.
         when {
-            drinking >= Goal.INPATIENT_WEEKLY -> Note("Over 30 units a day. At this level NICE recommends inpatient or residential withdrawal rather than reducing alone. Please speak to your GP or an alcohol service before you begin.", Icons.Filled.Warning, GrogColors.over)
-            drinking >= Goal.ASSISTED_WITHDRAWAL_WEEKLY -> Note("Over 15 units a day. At this level NICE recommends considering medically assisted withdrawal. Please consider speaking to your GP or an alcohol service about support.", Icons.Filled.Info, secondary)
-            drinking > Goal.SLOWER_ABOVE_WEEKLY -> Note("Over 25 units a day, the guidance recommends reducing by no more than 10% every four days, so the faster options are not available.", Icons.Filled.Info, secondary)
+            drinking >= Goal.INPATIENT_WEEKLY -> Note("Over 30 units a day. At this level NICE recommends inpatient or residential withdrawal rather than reducing alone. Please speak to your GP or an alcohol service before you begin.", Icons.Filled.MedicalServices, GrogColors.over)
+            drinking >= Goal.ASSISTED_WITHDRAWAL_WEEKLY -> Note("Over 15 units a day. At this level NICE recommends considering medically assisted withdrawal. Please consider speaking to your GP or an alcohol service about support.", Icons.Outlined.MedicalServices, secondary)
+            drinking > Goal.SLOWER_ABOVE_WEEKLY -> Note("Over 25 units a day, the guidance recommends reducing by no more than 10% every four days, so the faster options are not available.", Icons.Outlined.Info, secondary)
         }
         // The pace in units, which the percentage obscures: 10% of 60 is 6. When that is why an option is unavailable,
         // this explains it rather than leaving a gap.
         val opening = goal.openingDrop(goal.baselineWeekly)
-        if (opening > 0) Note("That is ${opening.unitsText} u/day less to begin with.", null, secondary)
+        if (opening > 0) Note("That is ${opening.unitsText} u/day less to begin with.", Icons.AutoMirrored.Filled.TrendingDown, secondary)
         // A linear taper's share grows as the budget shrinks, so the warning is a level, worth showing only while the
         // budget is still above the guideline.
         if (goal.sharpensWhileItMatters(goal.baselineWeekly)) {

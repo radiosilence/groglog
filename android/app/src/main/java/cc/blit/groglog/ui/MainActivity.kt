@@ -10,14 +10,19 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.ShowChart
+import androidx.compose.material.icons.automirrored.outlined.ShowChart
 import androidx.compose.material.icons.filled.AddCircle
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.outlined.AddCircleOutline
+import androidx.compose.material.icons.outlined.BarChart
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
@@ -71,12 +76,16 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private val tabs: List<Triple<Tab, String, ImageVector>> = listOf(
-    Triple(Tab.Log, "Log", Icons.Filled.AddCircle),
-    Triple(Tab.Calendar, "Calendar", Icons.Filled.DateRange),
-    Triple(Tab.Day, "Day", Icons.Filled.Info),
-    Triple(Tab.Reports, "Reports", Icons.AutoMirrored.Filled.List),
-    Triple(Tab.Setup, "Setup", Icons.Filled.Settings),
+/** A tab as the bar draws it: outlined, and filled while open, as Material's navigation bar and iOS's tab bar both do. */
+private data class TabItem(val tab: Tab, val label: String, val icon: ImageVector, val openIcon: ImageVector = icon)
+
+/** The iOS tab bar's symbols in Material's: plus.circle, calendar, chart.line.uptrend.xyaxis, chart.bar.xaxis, slider.horizontal.3. */
+private val tabs = listOf(
+    TabItem(Tab.Log, "Log", Icons.Outlined.AddCircleOutline, Icons.Filled.AddCircle),
+    TabItem(Tab.Calendar, "Calendar", Icons.Outlined.CalendarMonth, Icons.Filled.CalendarMonth),
+    TabItem(Tab.Day, "Day", Icons.AutoMirrored.Outlined.ShowChart, Icons.AutoMirrored.Filled.ShowChart),
+    TabItem(Tab.Reports, "Reports", Icons.Outlined.BarChart, Icons.Filled.BarChart),
+    TabItem(Tab.Setup, "Setup", Icons.Outlined.Tune, Icons.Filled.Tune),
 )
 
 /**
@@ -95,7 +104,7 @@ private val tabs: List<Triple<Tab, String, ImageVector>> = listOf(
 private fun Root() {
     val stacks = tabs.associate { (tab) -> tab to rememberNavBackStack(tab) }
     var currentIndex by rememberSaveable { mutableIntStateOf(0) }
-    val current = tabs[currentIndex].first
+    val current = tabs[currentIndex].tab
     val backStack = stacks.getValue(current)
     val reselected = remember { MutableSharedFlow<Tab>(extraBufferCapacity = 1) }
     val createDrink: (String) -> Unit = { backStack.add(SetupRoute.EditDrink(name = it)) }
@@ -106,7 +115,7 @@ private fun Root() {
             val stack = stacks.getValue(tab)
             if (stack.size > 1) stack.subList(1, stack.size).clear() else reselected.tryEmit(tab)
         } else {
-            currentIndex = tabs.indexOfFirst { it.first == tab }
+            currentIndex = tabs.indexOfFirst { it.tab == tab }
         }
     }
     val destination by Destinations.pending.collectAsStateWithLifecycle()
@@ -121,12 +130,12 @@ private fun Root() {
     Scaffold(
         bottomBar = {
             NavigationBar {
-                for ((tab, label, icon) in tabs) {
+                for ((tab, label, icon, openIcon) in tabs) {
                     val selected = current == tab
                     NavigationBarItem(
                         selected = selected,
                         onClick = { select(tab) },
-                        icon = { Icon(icon, contentDescription = if (compactLabels) label else null) },
+                        icon = { Icon(if (selected) openIcon else icon, contentDescription = if (compactLabels) label else null) },
                         label = if (compactLabels) null else ({ Text(label, maxLines = 1, softWrap = false) }),
                         // The open tab's label in the ordinary ink, as on iOS: the theme's secondary is the dry teal,
                         // which means an alcohol-free day everywhere else.
@@ -138,7 +147,7 @@ private fun Root() {
     ) { padding ->
         val bottom = PaddingValues(bottom = padding.calculateBottomPadding())
         val modifier = Modifier.padding(bottom).consumeWindowInsets(bottom)
-        val shown = tabs.map { it.first }.filter { it != current }.flatMap { stacks.getValue(it) } + backStack
+        val shown = tabs.map { it.tab }.filter { it != current }.flatMap { stacks.getValue(it) } + backStack
         val activity = LocalActivity.current
         NavDisplay(
             backStack = shown,

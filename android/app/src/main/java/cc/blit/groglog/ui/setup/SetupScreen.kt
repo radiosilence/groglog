@@ -29,7 +29,13 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.outlined.Chat
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.DataObject
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.PanTool
+import androidx.compose.material.icons.outlined.PriceChange
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -50,7 +56,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -72,6 +80,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.core.content.pm.PackageInfoCompat
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavBackStack
@@ -87,22 +96,19 @@ import cc.blit.groglog.model.Taper
 import cc.blit.groglog.ui.SetupRoute
 import cc.blit.groglog.ui.containerViewModel
 import cc.blit.groglog.ui.savedViewModel
+import cc.blit.groglog.ui.shared.LocalSnackbar
+import cc.blit.groglog.ui.shared.Section
+import cc.blit.groglog.ui.shared.launchSafely
+import cc.blit.groglog.ui.shared.rememberNotice
+import cc.blit.groglog.ui.shared.startSafely
 import cc.blit.groglog.ui.theme.GrogColors
 import cc.blit.groglog.ui.theme.GrogLogTheme
-import cc.blit.groglog.ui.shared.Section
 import java.io.File
 import java.util.Currency
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.material3.TopAppBarScrollBehavior
-import androidx.core.net.toUri
-import cc.blit.groglog.ui.shared.LocalSnackbar
-import cc.blit.groglog.ui.shared.launchSafely
-import cc.blit.groglog.ui.shared.rememberNotice
-import cc.blit.groglog.ui.shared.startSafely
 
 /** Setup's pushed pages, for MainActivity's back stack. A page closes only itself, so a double tap cannot close two. */
 fun EntryProviderScope<NavKey>.setupEntries(modifier: Modifier, backStack: NavBackStack<NavKey>) {
@@ -283,7 +289,7 @@ internal fun SetupHome(
             Section(footer = "Drinks after midnight count towards the evening before.") {
                 SettingsRow("Drinks", chevron = true, onClick = onDrinks)
                 RowDivider()
-                SettingsRow("Reset prices to the catalogue", onClick = { dialog = "prices" })
+                SettingsRow("Reset prices to the catalogue", icon = Icons.Outlined.PriceChange, onClick = { dialog = "prices" })
                 RowDivider()
                 SettingsRow("Day ends at", value = hourLabel(settings.rolloverHour, settings.rolloverHour), onClick = { dialog = "hour" })
                 RowDivider()
@@ -308,18 +314,18 @@ internal fun SetupHome(
                 title = "Data",
                 footer = "Your log stays on this phone, and in your Google account's device backup if that is on. Importing a backup adds to your log and never overwrites it.",
             ) {
-                SettingsRow("Export for an LLM (Markdown)", supporting = "Shares a readable log to paste into a chat.", onClick = onExportMarkdown)
+                SettingsRow("Export for an LLM (Markdown)", icon = Icons.AutoMirrored.Outlined.Chat, supporting = "Shares a readable log to paste into a chat.", onClick = onExportMarkdown)
                 RowDivider()
-                SettingsRow("Export backup (JSON)", supporting = "Saves everything to a file, to import here or on an iPhone.", onClick = onExportBackup)
+                SettingsRow("Export backup (JSON)", icon = Icons.Outlined.DataObject, supporting = "Saves everything to a file, to import here or on an iPhone.", onClick = onExportBackup)
                 RowDivider()
-                SettingsRow("Import backup", onClick = onImport)
+                SettingsRow("Import backup", icon = Icons.Outlined.Download, onClick = onImport)
             }
         }
         item(key = "about") {
             Section(footer = version) {
-                LinkRow("Privacy policy", "https://groglog.io/privacy.html")
+                LinkRow("Privacy policy", "https://groglog.io/privacy.html", Icons.Outlined.PanTool)
                 RowDivider()
-                LinkRow("Support", "https://groglog.io/support.html")
+                LinkRow("Support", "https://groglog.io/support.html", Icons.AutoMirrored.Outlined.HelpOutline)
             }
         }
         if (developer) {
@@ -536,11 +542,12 @@ internal fun SwitchRow(title: String, checked: Boolean, onChange: (Boolean) -> U
 }
 
 @Composable
-internal fun LinkRow(title: String, url: String) {
+internal fun LinkRow(title: String, url: String, icon: ImageVector? = null) {
     val context = LocalContext.current
     val notice = rememberNotice()
     SettingsRow(
         title,
+        icon = icon,
         valueColor = MaterialTheme.colorScheme.primary,
         onClick = { if (!context.startSafely(Intent(Intent.ACTION_VIEW, url.toUri()))) notice("No app on this phone can open the link.") },
         onClickLabel = "Open in browser",

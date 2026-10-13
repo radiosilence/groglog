@@ -16,6 +16,7 @@ import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.outlined.LibraryAdd
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -59,21 +60,21 @@ import cc.blit.groglog.model.DrinkCategory
 import cc.blit.groglog.model.ServeSize
 import cc.blit.groglog.model.Units
 import cc.blit.groglog.model.Vessel
+import cc.blit.groglog.model.abvText
+import cc.blit.groglog.model.kcalText
+import cc.blit.groglog.model.unitsText
 import cc.blit.groglog.ui.shared.ChipRow
-import cc.blit.groglog.ui.textField
+import cc.blit.groglog.ui.shared.DrinkGlyph
 import cc.blit.groglog.ui.shared.MoneyField
 import cc.blit.groglog.ui.shared.NumberRow
+import cc.blit.groglog.ui.shared.Section
 import cc.blit.groglog.ui.shared.decimalText
 import cc.blit.groglog.ui.shared.moneyDigits
 import cc.blit.groglog.ui.shared.moneyValue
 import cc.blit.groglog.ui.shared.parseDecimal
-import cc.blit.groglog.model.abvText
-import cc.blit.groglog.model.kcalText
-import cc.blit.groglog.model.unitsText
-import cc.blit.groglog.ui.shared.DrinkGlyph
+import cc.blit.groglog.ui.textField
 import cc.blit.groglog.ui.theme.GrogColors
 import cc.blit.groglog.ui.theme.GrogLogTheme
-import cc.blit.groglog.ui.shared.Section
 import java.util.UUID
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -360,7 +361,7 @@ internal fun DrinkEditorPage(
                 ) {
                     SettingsRow(
                         title = "Save as new drink",
-                        icon = Icons.Filled.Add,
+                        icon = Icons.Outlined.LibraryAdd,
                         enabled = model.canSave,
                         onClick = { scope.launch { if (model.saveAsNew()) onClose() } },
                     )
