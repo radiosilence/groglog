@@ -4,6 +4,7 @@
 
 ### Internal
 
+- **Android Reports and Health Connect.** The Android port has the Reports tab and reads heart and sleep from Health Connect, copying each drink's calories back as nutrition, since Health Connect has no record for alcohol.
 - **Google Play listing and releases.** The listing, the Play Console declarations and the path to production are in `docs/play-store.md`; CI releases each Android build on `main` to the internal track through `scripts/play.py`.
 
 ## 1.1.1
