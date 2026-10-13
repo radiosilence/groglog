@@ -31,3 +31,7 @@ android-test: (android-gradle ":app:testDebugUnitTest")
 
 # Installs on the connected device or running emulator. Installing over the app keeps its data.
 android-install: (android-gradle ":app:installDebug")
+
+# Creates the Play upload key, keeps it in 1Password and sets CI's signing secrets. Once only.
+android-upload-key:
+    PATH="$(mise where java)/bin:$PATH" scripts/android-upload-key.sh

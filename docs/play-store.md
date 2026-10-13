@@ -169,6 +169,10 @@ is uploaded, and is required for app bundles.
 
 ### Creating the upload key
 
+`just android-upload-key` does everything in this section and the next in one step: it generates the key with a random
+password, stores both in 1Password and sets the four GitHub secrets, without leaving the keystore on disk. The
+commands below are what it runs.
+
 On a laptop, once. `keytool` comes with the JDK in `mise.toml`.
 
 ```sh
