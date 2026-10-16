@@ -64,7 +64,7 @@ class Prefs(private val store: DataStore<Preferences>) {
      * Material You's wallpaper colours in place of GrogLog's palette. Kept apart from `settings` because it belongs to
      * this device, as its wallpaper does, so backups leave it out.
      */
-    val dynamicColour: Flow<Boolean> = store.data.map { it[DYNAMIC_COLOUR] ?: false }.distinctUntilChanged()
+    val dynamicColour: Flow<Boolean> = store.data.map { it[DYNAMIC_COLOUR] ?: true }.distinctUntilChanged()
     val health: Flow<HealthSwitches> = store.data.map { values ->
         HealthSwitches(values[COPIES_TO_HEALTH] ?: false, values[READS_HEART] ?: false, values[READS_SLEEP] ?: false)
     }.distinctUntilChanged()

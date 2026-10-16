@@ -98,7 +98,7 @@ fun <T> ChipRow(
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
     isEnabled: (T) -> Boolean = { true },
-    tint: (T) -> Color = { GrogColors.grog },
+    tint: ((T) -> Color)? = null,
     label: (T) -> String,
 ) {
     FlowRow(
@@ -112,7 +112,7 @@ fun <T> ChipRow(
                 onClick = { onSelect(option) },
                 enabled = isEnabled(option),
                 label = { Text(label(option), fontWeight = if (isSelected) FontWeight.SemiBold else null) },
-                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = tint(option).copy(alpha = 0.24f)),
+                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = tint?.let { it(option).copy(alpha = 0.24f) } ?: MaterialTheme.colorScheme.secondaryContainer),
             )
         }
     }
@@ -153,7 +153,7 @@ fun NumberRow(
                 inputTransformation = DecimalInput,
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.End),
                 lineLimits = TextFieldLineLimits.SingleLine,
-                cursorBrush = SolidColor(GrogColors.grog),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
                 onKeyboardAction = { focus.clearFocus() },
                 decorator = { field ->
@@ -233,7 +233,7 @@ fun MoneyField(label: String, state: TextFieldState, currency: String, modifier:
             decorator = { field ->
                 // The digits field takes the keystrokes unseen; what shows is the amount they make.
                 FieldFrame {
-                    Text(shown, style = MaterialTheme.typography.bodyLarge, color = if (focused) GrogColors.grog else MaterialTheme.colorScheme.onSurface)
+                    Text(shown, style = MaterialTheme.typography.bodyLarge, color = if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
                     Box(Modifier.alpha(0f).width(0.dp)) { field() }
                 }
             },

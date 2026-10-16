@@ -429,7 +429,7 @@ internal fun SearchField(query: String, onQueryChange: (String) -> Unit, placeho
                     modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Search drinks" },
                     singleLine = true,
                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-                    cursorBrush = SolidColor(GrogColors.grog),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { focus.clearFocus() }),
                 )

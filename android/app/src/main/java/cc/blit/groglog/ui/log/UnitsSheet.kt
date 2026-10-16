@@ -85,7 +85,7 @@ private fun UnitsForm(day: DayKey, clock: DayClock, initialTime: Instant, onDism
                 modifier = Modifier.width(IntrinsicSize.Min).widthIn(min = 40.dp).focusRequester(focus).semantics { contentDescription = "Units" },
                 textStyle = figure,
                 singleLine = true,
-                cursorBrush = SolidColor(GrogColors.grog),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { log() }),
                 decorationBox = { field ->

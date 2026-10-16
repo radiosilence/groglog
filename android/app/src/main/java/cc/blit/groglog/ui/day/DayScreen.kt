@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -37,6 +36,8 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -59,8 +60,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLocale
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -210,8 +209,6 @@ internal fun DayPage(
                     onClick = { adding = true },
                     icon = { Icon(Icons.Filled.Add, contentDescription = null) },
                     text = { Text("Add drinks") },
-                    containerColor = GrogColors.grog,
-                    contentColor = Color.Black,
                 )
             }
         },
@@ -298,7 +295,7 @@ private fun LazyListScope.dayContent(
                         Text(
                             state.totals.cost.money(currency),
                             style = MaterialTheme.typography.bodyLarge.copy(fontFeatureSettings = "tnum"),
-                            color = if (state.spendOverride == null) MaterialTheme.colorScheme.onSurfaceVariant else GrogColors.grog,
+                            color = if (state.spendOverride == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
                         )
                     },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
@@ -418,6 +415,7 @@ internal fun TotalsHeader(totals: DayTotals, budget: Double?, currency: String, 
 }
 
 /** What remains of the day's budget, draining as drinks are logged rather than filling up. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun BudgetBar(used: Double, budget: Double, modifier: Modifier = Modifier) {
     val left = budget - used
@@ -438,15 +436,12 @@ internal fun BudgetBar(used: Double, budget: Double, modifier: Modifier = Modifi
             Spacer(Modifier.weight(1f))
             Text("of ${budget.unitsText} u", style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Box(Modifier.fillMaxWidth().height(10.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerHighest)) {
-            Box(
-                Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(shown)
-                    .clip(CircleShape)
-                    .background(Brush.verticalGradient(listOf(color.copy(alpha = 0.8f), color))),
-            )
-        }
+        LinearWavyProgressIndicator(
+            progress = { shown },
+            modifier = Modifier.fillMaxWidth(),
+            color = color,
+            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+        )
     }
 }
 

@@ -282,7 +282,7 @@ internal fun SetupHome(
             Section(
                 footer = "Choose a rate of reduction to set a daily and weekly budget.\n\nGrogLog does not provide medical advice. It is intended to help you follow a plan agreed with your GP or alcohol service. If you are dependent on alcohol, do not stop suddenly without medical support.",
             ) {
-                SettingsRow("Goal", value = goalSummary(settings.goal, ledger), valueColor = GrogColors.grog, onClick = onGoal)
+                SettingsRow("Goal", value = goalSummary(settings.goal, ledger), valueColor = MaterialTheme.colorScheme.primary, onClick = onGoal)
             }
         }
         item(key = "log") {
@@ -533,7 +533,7 @@ internal fun SwitchRow(title: String, checked: Boolean, onChange: (Boolean) -> U
             Switch(
                 checked = checked,
                 onCheckedChange = null,
-                colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedIconColor = GrogColors.grog),
+                colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedIconColor = MaterialTheme.colorScheme.primary),
             )
         },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),

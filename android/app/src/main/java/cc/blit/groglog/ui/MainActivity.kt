@@ -70,7 +70,7 @@ class MainActivity : ComponentActivity() {
         addOnNewIntentListener(Destinations::open)
         val prefs = container.prefs
         setContent {
-            val dynamicColour by prefs.dynamicColour.collectAsStateWithLifecycle(false)
+            val dynamicColour by prefs.dynamicColour.collectAsStateWithLifecycle(true)
             GrogLogTheme(dynamicColour) { Root() }
         }
     }

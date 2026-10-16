@@ -393,7 +393,7 @@ private fun DrinkHeader(draft: Drink, abv: Double?) {
             "${Units.of(draft.volumeMl, it).unitsText} u · ${Units.kcal(draft.volumeMl, it, draft.category).kcalText} kcal"
         } ?: "–"
         AnimatedContent(figures, label = "figures") {
-            Text(it, style = MaterialTheme.typography.titleMedium, color = GrogColors.grog, fontWeight = FontWeight.SemiBold)
+            Text(it, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
         }
     }
 }

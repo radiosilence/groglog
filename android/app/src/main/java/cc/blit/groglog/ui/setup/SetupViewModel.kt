@@ -48,7 +48,7 @@ class SetupViewModel(
     val state: StateFlow<LedgerState?> = combine(prefs.settings, database.queries().days()) { settings, days -> LedgerState(settings, Ledger(days, settings.clock)) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    val dynamicColour: StateFlow<Boolean> = prefs.dynamicColour.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    val dynamicColour: StateFlow<Boolean> = prefs.dynamicColour.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 
     private val _notice = MutableStateFlow<Notice?>(null)
     val notice: StateFlow<Notice?> = _notice.asStateFlow()

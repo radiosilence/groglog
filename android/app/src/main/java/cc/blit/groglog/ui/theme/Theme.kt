@@ -2,7 +2,9 @@ package cc.blit.groglog.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.darkColorScheme
@@ -69,94 +71,94 @@ enum class HeatBand {
 }
 
 /**
- * The neutrals are iOS's system greys, so cards, sheets and bars read as plain grey as they do there, rather than taking
- * Material's tint from the primary colour. Light is iOS's grouped background with white cards on it; dark is black with
- * the elevated greys. Selection chrome (the tab indicator, tonal buttons) is grey too, leaving amber for what it marks.
+ * The scheme used before Android 12 and when wallpaper colours are off: Material's tonal-spot scheme generated from
+ * GrogLog's amber, so surfaces are warm neutrals tinted by the seed and containers carry the amber.
  */
 internal val light = lightColorScheme(
-    primary = GrogColors.grog,
-    onPrimary = Color.Black,
-    primaryContainer = Color(0xFFFFDDB3),
-    onPrimaryContainer = Color(0xFF2A1800),
-    inversePrimary = GrogColors.grog,
-    secondary = GrogColors.dry,
-    onSecondary = Color.Black,
-    secondaryContainer = Color(0xFFE5E5EA),
-    onSecondaryContainer = Color.Black,
-    tertiary = GrogColors.hrv,
-    onTertiary = Color.White,
-    tertiaryContainer = Color(0xFFE3E1FF),
-    onTertiaryContainer = Color(0xFF14105E),
-    background = Color(0xFFF2F2F7),
-    onBackground = Color.Black,
-    surface = Color(0xFFF2F2F7),
-    onSurface = Color.Black,
-    surfaceVariant = Color(0xFFE5E5EA),
-    onSurfaceVariant = Color(0xFF6C6C70),
-    surfaceTint = Color.Transparent,
-    inverseSurface = Color(0xFF1C1C1E),
-    inverseOnSurface = Color(0xFFF2F2F7),
-    error = GrogColors.over,
-    onError = Color.White,
-    errorContainer = Color(0xFFFFDAD9),
-    onErrorContainer = Color(0xFF410007),
-    outline = Color(0xFF8E8E93),
-    outlineVariant = Color(0xFFC6C6C8),
-    scrim = Color.Black,
-    surfaceBright = Color.White,
-    surfaceDim = Color(0xFFD1D1D6),
-    surfaceContainerLowest = Color.White,
-    surfaceContainerLow = Color.White,
-    surfaceContainer = Color(0xFFF9F9F9),
-    surfaceContainerHigh = Color(0xFFE5E5EA),
-    surfaceContainerHighest = Color(0xFFD1D1D6),
+    primary = Color(0xFF815620),
+    onPrimary = Color(0xFFFFF7F3),
+    primaryContainer = Color(0xFFFEC483),
+    onPrimaryContainer = Color(0xFF633D07),
+    inversePrimary = Color(0xFFFEC483),
+    secondary = Color(0xFF725B42),
+    onSecondary = Color(0xFFFFF7F3),
+    secondaryContainer = Color(0xFFFDDDBD),
+    onSecondaryContainer = Color(0xFF644E35),
+    tertiary = Color(0xFF5E632F),
+    onTertiary = Color(0xFFF9FEBB),
+    tertiaryContainer = Color(0xFFF6FCB9),
+    onTertiaryContainer = Color(0xFF5C612D),
+    background = Color(0xFFFFF8F4),
+    onBackground = Color(0xFF3B3125),
+    surface = Color(0xFFFFF8F4),
+    onSurface = Color(0xFF3B3125),
+    surfaceVariant = Color(0xFFF2DFCF),
+    onSurfaceVariant = Color(0xFF6A5D50),
+    surfaceTint = Color(0xFF815620),
+    inverseSurface = Color(0xFF120D08),
+    inverseOnSurface = Color(0xFFA59B93),
+    error = Color(0xFFA73B21),
+    onError = Color(0xFFFFF7F6),
+    errorContainer = Color(0xFFFD795A),
+    onErrorContainer = Color(0xFF6E1400),
+    outline = Color(0xFF87786A),
+    outlineVariant = Color(0xFFC0AFA0),
+    scrim = Color(0xFF000000),
+    surfaceBright = Color(0xFFFFF8F4),
+    surfaceDim = Color(0xFFE9D7C7),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFFFF1E6),
+    surfaceContainer = Color(0xFFFBEBDD),
+    surfaceContainerHigh = Color(0xFFF6E5D7),
+    surfaceContainerHighest = Color(0xFFF2DFCF),
 )
 
 internal val dark = darkColorScheme(
-    primary = GrogColors.grog,
-    onPrimary = Color.Black,
-    primaryContainer = Color(0xFF5C3A00),
-    onPrimaryContainer = Color(0xFFFFDDB3),
-    inversePrimary = GrogColors.grog,
-    secondary = GrogColors.dry,
-    onSecondary = Color.Black,
-    secondaryContainer = Color(0xFF3A3A3C),
-    onSecondaryContainer = Color.White,
-    tertiary = GrogColors.hrv,
-    onTertiary = Color.White,
-    tertiaryContainer = Color(0xFF2E2A8A),
-    onTertiaryContainer = Color(0xFFE3E1FF),
-    background = Color.Black,
-    onBackground = Color.White,
-    surface = Color.Black,
-    onSurface = Color.White,
-    surfaceVariant = Color(0xFF2C2C2E),
-    onSurfaceVariant = Color(0xFFA1A1A6),
-    surfaceTint = Color.Transparent,
-    inverseSurface = Color(0xFFF2F2F7),
-    inverseOnSurface = Color(0xFF1C1C1E),
-    error = GrogColors.over,
-    onError = Color.White,
-    errorContainer = Color(0xFF93000A),
-    onErrorContainer = Color(0xFFFFDAD6),
-    outline = Color(0xFF8E8E93),
-    outlineVariant = Color(0xFF38383A),
-    scrim = Color.Black,
-    surfaceBright = Color(0xFF3A3A3C),
-    surfaceDim = Color.Black,
-    surfaceContainerLowest = Color.Black,
-    surfaceContainerLow = Color(0xFF1C1C1E),
-    surfaceContainer = Color(0xFF161618),
-    surfaceContainerHigh = Color(0xFF2C2C2E),
-    surfaceContainerHighest = Color(0xFF3A3A3C),
+    primary = Color(0xFFEDBE8B),
+    onPrimary = Color(0xFF593A12),
+    primaryContainer = Color(0xFF6D4C22),
+    onPrimaryContainer = Color(0xFFFFDDBC),
+    inversePrimary = Color(0xFF7C582E),
+    secondary = Color(0xFFE0C1A3),
+    onSecondary = Color(0xFF513C25),
+    secondaryContainer = Color(0xFF4B3821),
+    onSecondaryContainer = Color(0xFFD8BA9C),
+    tertiary = Color(0xFFF9FEBB),
+    onTertiary = Color(0xFF5E632F),
+    tertiaryContainer = Color(0xFFEBF0AE),
+    onTertiaryContainer = Color(0xFF555A27),
+    background = Color(0xFF120D08),
+    onBackground = Color(0xFFF5E2D2),
+    surface = Color(0xFF120D08),
+    onSurface = Color(0xFFF5E2D2),
+    surfaceVariant = Color(0xFF2E2419),
+    onSurfaceVariant = Color(0xFFB9A899),
+    surfaceTint = Color(0xFFEDBE8B),
+    inverseSurface = Color(0xFFFFF8F4),
+    inverseOnSurface = Color(0xFF5C544C),
+    error = Color(0xFFF97758),
+    onError = Color(0xFF450900),
+    errorContainer = Color(0xFF85230A),
+    onErrorContainer = Color(0xFFFF9B82),
+    outline = Color(0xFF817365),
+    outlineVariant = Color(0xFF52463A),
+    scrim = Color(0xFF000000),
+    surfaceBright = Color(0xFF352A1F),
+    surfaceDim = Color(0xFF120D08),
+    surfaceContainerLowest = Color(0xFF000000),
+    surfaceContainerLow = Color(0xFF19120B),
+    surfaceContainer = Color(0xFF201810),
+    surfaceContainerHigh = Color(0xFF261E15),
+    surfaceContainerHighest = Color(0xFF2E2419),
 )
 
 /**
- * GrogLog's palette, or with `dynamicColour` the wallpaper's on Android 12 and later. The budget colours in
- * `GrogColors` carry meaning, so they stay the same under either.
+ * The wallpaper's colours on Android 12 and later when `dynamicColour` is on, otherwise GrogLog's own scheme. The budget
+ * colours in `GrogColors` carry meaning, so they stay the same under either.
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun GrogLogTheme(dynamicColour: Boolean = false, darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
+fun GrogLogTheme(dynamicColour: Boolean = true, darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
     val context = LocalContext.current
     val scheme = when {
         dynamicColour && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
@@ -164,5 +166,5 @@ fun GrogLogTheme(dynamicColour: Boolean = false, darkTheme: Boolean = isSystemIn
         darkTheme -> dark
         else -> light
     }
-    MaterialTheme(colorScheme = scheme, content = content)
+    MaterialExpressiveTheme(colorScheme = scheme, motionScheme = MotionScheme.expressive(), content = content)
 }

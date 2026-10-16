@@ -255,7 +255,7 @@ private fun ChoiceRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .background(if (isSelected) GrogColors.grog.copy(alpha = 0.14f) else Color.Transparent)
+            .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f) else Color.Transparent)
             .heightIn(min = 56.dp)
             .padding(end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -282,7 +282,7 @@ private fun ChoiceRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            if (isSelected) Icon(Icons.Filled.Check, contentDescription = null, tint = GrogColors.grog)
+            if (isSelected) Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         }
         IconToggleButton(
             checked = isPinned,
@@ -294,7 +294,7 @@ private fun ChoiceRow(
             Icon(
                 if (isPinned) Icons.Filled.Star else GrogIcons.StarOutline,
                 contentDescription = if (isPinned) "Remove from Log grid" else "Add to Log grid",
-                tint = if (isPinned) GrogColors.grog else MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = if (isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

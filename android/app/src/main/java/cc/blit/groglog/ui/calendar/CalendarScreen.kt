@@ -273,7 +273,7 @@ private fun DayCell(
             .then(if (fill != null) Modifier.background(Brush.verticalGradient(listOf(lerp(fill, Color.White, 0.12f), fill)), shape) else Modifier)
             .then(
                 when {
-                    cell.isToday -> Modifier.border(2.5.dp, GrogColors.grog, shape)
+                    cell.isToday -> Modifier.border(2.5.dp, MaterialTheme.colorScheme.primary, shape)
                     status == DayStatus.FUTURE || status == DayStatus.UNTRACKED -> Modifier.border(1.dp, outline, shape)
                     status == DayStatus.UNLOGGED -> Modifier.drawBehind {
                         val inset = 0.5.dp.toPx()
