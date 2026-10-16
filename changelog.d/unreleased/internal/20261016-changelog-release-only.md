@@ -1,0 +1,1 @@
+- **Pull requests no longer regenerate CHANGELOG.md.** A PR adds its fragment and the release PR writes the file, so open PRs do not conflict on it; TestFlight and Play notes are assembled from the fragments.

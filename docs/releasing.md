@@ -40,7 +40,8 @@ only once it has been added to that group and passed Apple's beta review, which 
 ## Releasing a version
 
 Every change adds a fragment under `changelog.d/unreleased/` (see `changelog.d/README.md`); CHANGELOG.md is generated
-from them and never edited by hand.
+from them, by the release PR alone, and never edited by hand. TestFlight's What to Test and Play's release notes are
+assembled from the fragments, so they are current before a release is cut.
 
 1. `just release patch|minor|major` (or an exact version) branches from `main`, raises `MARKETING_VERSION` in `project.yml`,
    turns the unreleased fragments into that version with `just changelog --release`, and opens the release PR with the

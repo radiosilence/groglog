@@ -21,6 +21,7 @@ import json
 import os
 import pathlib
 import re
+import subprocess
 import sys
 import tomllib
 
@@ -82,7 +83,7 @@ class Edit:
 
 def changelog_notes():
     """CHANGELOG.md's Unreleased section, or the newest version's, as plain text within Play's 500 characters."""
-    text = (ROOT / "CHANGELOG.md").read_text()
+    text = subprocess.run([sys.executable, ROOT / "scripts/changelog.py", "--stdout"], check=True, capture_output=True, text=True).stdout
     sections = re.findall(r"^## ([^\n]+)\n(.*?)(?=^## |\Z)", text, re.S | re.M)
     if not sections:
         return ""
