@@ -29,6 +29,8 @@ jobs:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
 
       - name: Install toolchain
         uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
@@ -36,12 +38,17 @@ jobs:
       - name: Use the newest Xcode on the runner
         run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
 
-      # CHANGELOG.md is generated from changelog.d/; a change to it by hand, or a fragment without the regenerated
-      # file, fails here.
+      # CHANGELOG.md is generated from changelog.d/ and changes only in a release PR, so a PR adds fragments without
+      # regenerating it. Only its fragments and the released versions are checked; one that writes the file must write
+      # exactly what the fragments make.
       - name: Changelog
+        env:
+          EVENT: ${{ github.event_name }}
         run: |
           python3 -m unittest scripts/test_changelog.py
-          python3 scripts/changelog.py --check
+          if [ "$EVENT" = "pull_request" ] && git diff --name-only HEAD^1 HEAD | grep -qx CHANGELOG.md; then
+            python3 scripts/changelog.py --check
+          fi
           python3 scripts/changelog.py --lint
 
       - name: Test

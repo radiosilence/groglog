@@ -299,7 +299,7 @@ def review_attachment(path):
 
 def changelog_notes(version):
     """The version's CHANGELOG.md section as plain text, or Unreleased when it has none yet."""
-    text = (ROOT / "CHANGELOG.md").read_text()
+    text = subprocess.run([sys.executable, ROOT / "scripts/changelog.py", "--stdout"], check=True, capture_output=True, text=True).stdout
     section = lambda heading: (m := re.search(rf"^## {re.escape(heading)}\n(.*?)(?=^## |\Z)", text, re.S | re.M)) and m.group(1).strip()
     body = section(version) or section("Unreleased") or ""
     # CI and tooling notes are of no interest to testers; section headings become plain labels.
