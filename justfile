@@ -13,6 +13,10 @@ phone config="Debug":
 changelog *args:
     python3 scripts/changelog.py {{args}}
 
+# Opens the release PR: `just release patch|minor|major`, or an exact version. Tagging and publishing stay by hand.
+release version *args:
+    scripts/release.sh {{version}} {{args}}
+
 # The App Store listing, builds and review, from the terminal. See scripts/app-store.py.
 store command="status" *args:
     scripts/app-store.py {{command}} {{args}}

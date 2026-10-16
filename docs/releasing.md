@@ -42,8 +42,9 @@ only once it has been added to that group and passed Apple's beta review, which 
 Every change adds a fragment under `changelog.d/unreleased/` (see `changelog.d/README.md`); CHANGELOG.md is generated
 from them and never edited by hand.
 
-1. Raise `MARKETING_VERSION` in `project.yml`, run `just changelog --release X.Y.Z` to turn the unreleased fragments
-   into that version, and push; CI uploads the build.
+1. `just release patch|minor|major` (or an exact version) branches from `main`, raises `MARKETING_VERSION` in `project.yml`,
+   turns the unreleased fragments into that version with `just changelog --release`, and opens the release PR with the
+   changelog section as its body. Merging it uploads the build; it creates no tag, which is left to you.
 2. For an update, add a `## What's new` section to [app-store.md](app-store.md). Apple requires release notes on every
    version after the first and refuses them on the first.
 3. `just store listing` pushes app-store.md to the listing, creating the version in App Store Connect if needed.
