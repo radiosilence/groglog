@@ -27,7 +27,8 @@ on:
       - ".github/workflows/android.yml"
 
 concurrency:
-  group: android-${{ github.ref }}
+  # A manual run has a group of its own, so it neither cancels a push's upload nor is cancelled by one.
+  group: android-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && 'manual' || 'ci' }}
   # A newer push supersedes an upload that hasn't finished; on a PR it only saves runner time.
   cancel-in-progress: true
 
