@@ -2,23 +2,27 @@ name: Android
 
 # Tests and bundles the Android app on every push and pull request that touches it; on main, the bundle is signed with
 # the upload key and released to Play's internal track. Promotion to the closed test and production is done by hand;
-# see docs/releasing.md. Publishing a GitHub release attaches a signed APK to it.
+# see docs/releasing.md. Publishing a GitHub release attaches a signed APK to it; running the workflow by hand builds
+# and signs the APK without publishing, to check that a release would work.
 
 permissions:
   contents: read
 
 on:
+  workflow_dispatch:
   release:
     types: [published]
   push:
     branches: [main]
     paths:
       - "android/**"
+      - "project.yml"
       - "scripts/play.py"
       - ".github/workflows/android.yml"
   pull_request:
     paths:
       - "android/**"
+      - "project.yml"
       - "scripts/play.py"
       - ".github/workflows/android.yml"
 
@@ -29,7 +33,7 @@ concurrency:
 
 jobs:
   build:
-    if: github.event_name != 'release'
+    if: github.event_name != 'release' && github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -99,7 +103,7 @@ jobs:
   # The APK is signed with the upload key, not the key Play signs its own installs with, so it installs fresh but does
   # not update over a Play install, or the other way round.
   apk:
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -130,13 +134,30 @@ jobs:
           printf '%s' "$ANDROID_UPLOAD_KEYSTORE" | base64 --decode > "$RUNNER_TEMP/upload.jks"
           export ANDROID_UPLOAD_KEYSTORE_FILE="$RUNNER_TEMP/upload.jks"
           ./gradlew :app:assembleRelease -PversionCode="$((GITHUB_RUN_NUMBER * 100 + GITHUB_RUN_ATTEMPT))"
-          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/GrogLog-${{ github.event.release.tag_name }}.apk"
+          name="GrogLog-${{ github.event.release.tag_name || github.sha }}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/$name"
+          echo "APK=$RUNNER_TEMP/$name" >> "$GITHUB_ENV"
 
       - name: Remove the upload key
         if: always()
         run: rm -f "$RUNNER_TEMP/upload.jks"
 
+      # What a release would ship: the certificate it is signed with, which is the upload key's, and its version.
+      - name: Check the APK
+        run: |
+          tools=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$tools/apksigner" verify --print-certs "$APK" | grep -E "certificate (DN|SHA-256)"
+          "$tools/aapt2" dump badging "$APK" | grep -E "^package:"
+
       - name: Attach to the release
+        if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" "$RUNNER_TEMP/GrogLog-${{ github.event.release.tag_name }}.apk" --clobber
+        run: gh release upload "${{ github.event.release.tag_name }}" "$APK" --clobber
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          name: apk
+          path: ${{ env.APK }}
+          retention-days: 7

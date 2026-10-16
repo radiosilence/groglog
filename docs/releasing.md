@@ -100,5 +100,7 @@ To release a version on Android:
 
 Publishing a GitHub release attaches a signed APK to it, built by the `apk` job in `.github/workflows/android.yml` from the tagged commit. It is signed with the upload key, not the key Play signs installs with, so it installs fresh but does not update over a Play install, or the other way round.
 
+To check that a release would work first, run the Android workflow by hand (Actions › Android › Run workflow, or `gh workflow run android.yml`): the `apk` job builds and signs the APK, prints its certificate and version, and keeps it as a workflow artifact for a week, without publishing anything.
+
 `scripts/play.py status` shows what each track holds. It authenticates with the service account's key in
 `PLAY_SERVICE_ACCOUNT_JSON`.

@@ -1,0 +1,1 @@
+- **Android takes its version from `MARKETING_VERSION`.** `project.yml` is the one place a version is raised, and the Android workflow can be run by hand to build and sign the release APK without publishing it.
