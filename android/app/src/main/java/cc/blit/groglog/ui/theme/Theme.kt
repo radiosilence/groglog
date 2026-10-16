@@ -4,6 +4,7 @@ import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -12,6 +13,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import cc.blit.groglog.model.Units
 import kotlin.math.min
@@ -156,6 +158,13 @@ internal val dark = darkColorScheme(
  * The wallpaper's colours on Android 12 and later when `dynamicColour` is on, otherwise GrogLog's own scheme. The budget
  * colours in `GrogColors` carry meaning, so they stay the same under either.
  */
+/**
+ * A data colour used as text. Its mid-tones are too pale for small text on a light surface, so they are darkened there;
+ * on dark surfaces and for shapes and strokes it is used as it is.
+ */
+@Composable
+fun Color.asText(): Color = if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) lerp(this, Color.Black, 0.45f) else this
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun GrogLogTheme(dynamicColour: Boolean = true, darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {

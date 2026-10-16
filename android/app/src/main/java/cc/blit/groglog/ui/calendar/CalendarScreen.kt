@@ -82,6 +82,7 @@ import cc.blit.groglog.ui.containerViewModel
 import cc.blit.groglog.ui.day.sampleDayState
 import cc.blit.groglog.ui.shared.GrogIcons
 import cc.blit.groglog.ui.theme.GrogColors
+import cc.blit.groglog.ui.theme.asText
 import cc.blit.groglog.ui.theme.GrogLogTheme
 import java.time.DayOfWeek
 import java.time.format.DateTimeFormatter
@@ -130,7 +131,7 @@ internal fun CalendarContent(
                             Row(Modifier.padding(end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Icon(GrogIcons.Leaf, contentDescription = null, tint = GrogColors.dry, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text("$streak-day dry streak", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = GrogColors.dry)
+                                Text("$streak-day dry streak", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = GrogColors.dry.asText())
                             }
                         }
                     },

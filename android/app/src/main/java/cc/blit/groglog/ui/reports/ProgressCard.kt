@@ -28,6 +28,7 @@ import cc.blit.groglog.model.Ledger
 import cc.blit.groglog.model.Nights
 import cc.blit.groglog.model.unitsText
 import cc.blit.groglog.ui.theme.GrogColors
+import cc.blit.groglog.ui.theme.asText
 import cc.blit.groglog.ui.theme.HeatBand
 import java.time.Instant
 import kotlin.math.abs
@@ -180,7 +181,7 @@ fun ProgressCard(
                     Text(
                         if (stop <= today) "Already low enough to stop" else "Low enough to stop by ${DateText.format(stop, "dMMMyyyy")} at this rate",
                         style = style,
-                        color = GrogColors.dry,
+                        color = GrogColors.dry.asText(),
                     )
                 }
             }

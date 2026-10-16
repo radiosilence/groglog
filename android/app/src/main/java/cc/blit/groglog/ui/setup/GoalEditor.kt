@@ -75,6 +75,7 @@ import cc.blit.groglog.ui.shared.decimalText
 import cc.blit.groglog.ui.shared.parseDecimal
 import cc.blit.groglog.ui.textField
 import cc.blit.groglog.ui.theme.GrogColors
+import cc.blit.groglog.ui.theme.asText
 import cc.blit.groglog.ui.theme.GrogLogTheme
 import java.text.NumberFormat
 import java.time.Instant
@@ -429,7 +430,7 @@ private fun ProjectionRow(goal: Goal, ledger: Ledger) {
         projection.target?.let { Figure("${(goal.targetWeekly / 7).unitsText} u/day by", dateText(it), MaterialTheme.colorScheme.onSurface) }
         projection.stoppable?.let { stop ->
             if (stop <= ledger.today) {
-                Text("Already low enough to stop", style = MaterialTheme.typography.bodyMedium, color = GrogColors.dry)
+                Text("Already low enough to stop", style = MaterialTheme.typography.bodyMedium, color = GrogColors.dry.asText())
             } else {
                 Figure("Low enough to stop by", dateText(stop), GrogColors.dry)
             }

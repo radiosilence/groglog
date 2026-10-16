@@ -95,6 +95,7 @@ import cc.blit.groglog.ui.log.PourEditor
 import cc.blit.groglog.ui.shared.DrinkGlyph
 import cc.blit.groglog.ui.shared.GrogIcons
 import cc.blit.groglog.ui.theme.GrogColors
+import cc.blit.groglog.ui.theme.asText
 import cc.blit.groglog.ui.theme.GrogLogTheme
 import cc.blit.groglog.ui.shared.Section
 import java.util.Date
@@ -323,7 +324,7 @@ private fun LazyListScope.dayContent(
                 Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(GrogIcons.Leaf, contentDescription = null, tint = GrogColors.dry)
                     Spacer(Modifier.width(12.dp))
-                    Text("Alcohol-free day", style = MaterialTheme.typography.titleMedium, color = GrogColors.dry)
+                    Text("Alcohol-free day", style = MaterialTheme.typography.titleMedium, color = GrogColors.dry.asText())
                 }
                 TextButton(onClick = { onAlcoholFree(false) }, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)) {
                     Text("Not alcohol-free after all", color = MaterialTheme.colorScheme.error)
@@ -387,7 +388,7 @@ internal fun TotalsHeader(totals: DayTotals, budget: Double?, currency: String, 
             Text(
                 units.toDouble().unitsText,
                 style = MaterialTheme.typography.displayLarge.copy(fontSize = 52.sp, lineHeight = 56.sp, fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum"),
-                color = if (totals.units > 0) GrogColors.heat(totals.units, budget) else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (totals.units > 0) GrogColors.heat(totals.units, budget).asText() else MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
             )
             Text(budget?.let { "units of ${it.unitsText} budget" } ?: "units", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -431,7 +432,7 @@ internal fun BudgetBar(used: Double, budget: Double, modifier: Modifier = Modifi
             Text(
                 if (left < 0) "${(-left).unitsText} u over" else "${left.unitsText} u left",
                 style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum"),
-                color = color,
+                color = color.asText(),
             )
             Spacer(Modifier.weight(1f))
             Text("of ${budget.unitsText} u", style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"), color = MaterialTheme.colorScheme.onSurfaceVariant)

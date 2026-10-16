@@ -122,6 +122,7 @@ import cc.blit.groglog.model.unitsText
 import cc.blit.groglog.ui.shared.DrinkGlyph
 import cc.blit.groglog.ui.shared.GrogIcons
 import cc.blit.groglog.ui.theme.GrogColors
+import cc.blit.groglog.ui.theme.asText
 import cc.blit.groglog.ui.theme.GrogLogTheme
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -567,7 +568,7 @@ fun DrinkTile(
                     if (isUnits) "type it in" else "${units.unitsText} u",
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
-                    color = GrogColors.grog,
+                    color = GrogColors.grog.asText(),
                 )
             }
         }
@@ -635,7 +636,7 @@ fun DaySummaryBar(totals: DayTotals, status: DayStatus, onUndo: () -> Unit, onAl
                 }
                 DayStatus.ALCOHOL_FREE -> {
                     Icon(GrogIcons.Leaf, contentDescription = null, tint = GrogColors.dry, modifier = Modifier.size(18.dp))
-                    Text("Alcohol-free", Modifier.padding(start = 6.dp), style = style, color = GrogColors.dry)
+                    Text("Alcohol-free", Modifier.padding(start = 6.dp), style = style, color = GrogColors.dry.asText())
                     Spacer(Modifier.weight(1f))
                     TextButton(onClick = { onAlcoholFree(false) }) { Text("Undo") }
                 }
