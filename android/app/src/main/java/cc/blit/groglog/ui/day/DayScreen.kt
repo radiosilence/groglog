@@ -439,6 +439,7 @@ internal fun BudgetBar(used: Double, budget: Double, modifier: Modifier = Modifi
         }
         LinearWavyProgressIndicator(
             progress = { shown },
+            amplitude = { 0f },
             modifier = Modifier.fillMaxWidth(),
             color = color,
             trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,

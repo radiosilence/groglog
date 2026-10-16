@@ -98,5 +98,7 @@ To release a version on Android:
 3. When the listing has changed, `scripts/play.py listing` pushes `android/store/listing.toml` and the graphics. Run
    `scripts/render-play-graphics.sh` first if the icon has changed.
 
+Publishing a GitHub release attaches a signed APK to it, built by the `apk` job in `.github/workflows/android.yml` from the tagged commit. It is signed with the upload key, not the key Play signs installs with, so it installs fresh but does not update over a Play install, or the other way round.
+
 `scripts/play.py status` shows what each track holds. It authenticates with the service account's key in
 `PLAY_SERVICE_ACCOUNT_JSON`.

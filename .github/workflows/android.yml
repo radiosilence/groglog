@@ -2,12 +2,14 @@ name: Android
 
 # Tests and bundles the Android app on every push and pull request that touches it; on main, the bundle is signed with
 # the upload key and released to Play's internal track. Promotion to the closed test and production is done by hand;
-# see docs/releasing.md.
+# see docs/releasing.md. Publishing a GitHub release attaches a signed APK to it.
 
 permissions:
   contents: read
 
 on:
+  release:
+    types: [published]
   push:
     branches: [main]
     paths:
@@ -27,6 +29,7 @@ concurrency:
 
 jobs:
   build:
+    if: github.event_name != 'release'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -92,3 +95,48 @@ jobs:
             exit 0
           fi
           scripts/play.py upload android/app/build/outputs/bundle/release/app-release.aab internal
+
+  # The APK is signed with the upload key, not the key Play signs its own installs with, so it installs fresh but does
+  # not update over a Play install, or the other way round.
+  apk:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      - name: Build the signed APK
+        env:
+          ANDROID_UPLOAD_KEYSTORE: ${{ secrets.ANDROID_UPLOAD_KEYSTORE }}
+          ANDROID_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+          ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_UPLOAD_KEYSTORE" ]; then
+            echo "::error::ANDROID_UPLOAD_KEYSTORE is not set, and an unsigned APK cannot be installed"
+            exit 1
+          fi
+          printf '%s' "$ANDROID_UPLOAD_KEYSTORE" | base64 --decode > "$RUNNER_TEMP/upload.jks"
+          export ANDROID_UPLOAD_KEYSTORE_FILE="$RUNNER_TEMP/upload.jks"
+          ./gradlew :app:assembleRelease -PversionCode="$((GITHUB_RUN_NUMBER * 100 + GITHUB_RUN_ATTEMPT))"
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/GrogLog-${{ github.event.release.tag_name }}.apk"
+
+      - name: Remove the upload key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upload.jks"
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" "$RUNNER_TEMP/GrogLog-${{ github.event.release.tag_name }}.apk" --clobber
