@@ -100,7 +100,7 @@ To release a version on Android:
 3. When the listing has changed, `scripts/play.py listing` pushes `android/store/listing.toml` and the graphics. Run
    `scripts/render-play-graphics.sh` first if the icon has changed.
 
-Publishing a GitHub release attaches a signed APK to it, built by the `apk` job in `.github/workflows/android.yml` from the tagged commit. It is signed with the upload key, not the key Play signs installs with, so it installs fresh but does not update over a Play install, or the other way round.
+A push to `main` whose `MARKETING_VERSION` is newer than the latest GitHub release is released by the `apk` job in `.github/workflows/android.yml`: it builds a signed APK from the commit that raised the version, publishes the release with that version's changelog section as its notes and attaches the APK. Publishing a release by hand attaches the APK to it too. It is signed with the upload key, not the key Play signs installs with, so it installs fresh but does not update over a Play install, or the other way round.
 
 To check that a release would work first, run the Android workflow by hand (Actions › Android › Run workflow, or `gh workflow run android.yml`): the `apk` job builds and signs the APK, prints its certificate and version, and keeps it as a workflow artifact for a week, without publishing anything.
 
