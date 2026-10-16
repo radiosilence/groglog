@@ -185,8 +185,8 @@ It asks for one password; a PKCS12 store uses it for the key as well. Keep both 
 copy:
 
 ```sh
-op document create groglog-upload.jks --title "GrogLog Android upload keystore" --vault Private
-op item create --category password --title "GrogLog Android upload keystore password" --vault Private \
+op document create groglog-upload.jks --title "GrogLog Android upload keystore" --vault Claude
+op item create --category password --title "GrogLog Android upload keystore password" --vault Claude \
   'password=<the password>'
 rm groglog-upload.jks
 ```
@@ -194,11 +194,11 @@ rm groglog-upload.jks
 ### GitHub secrets
 
 ```sh
-op document get "GrogLog Android upload keystore" --vault Private | base64 \
+op document get "GrogLog Android upload keystore" --vault Claude | base64 \
   | gh secret set ANDROID_UPLOAD_KEYSTORE --repo radiosilence/groglog
-op read "op://Private/GrogLog Android upload keystore password/password" \
+op read "op://Claude/GrogLog Android upload keystore password/password" \
   | gh secret set ANDROID_UPLOAD_KEYSTORE_PASSWORD --repo radiosilence/groglog
-op read "op://Private/GrogLog Android upload keystore password/password" \
+op read "op://Claude/GrogLog Android upload keystore password/password" \
   | gh secret set ANDROID_UPLOAD_KEY_PASSWORD --repo radiosilence/groglog
 gh secret set ANDROID_UPLOAD_KEY_ALIAS --repo radiosilence/groglog --body upload
 ```
@@ -253,7 +253,7 @@ gcloud services enable androidpublisher.googleapis.com --project groglog-play
 gcloud iam service-accounts create play-publisher --project groglog-play --display-name "GrogLog Play publisher"
 gcloud iam service-accounts keys create play-publisher.json \
   --iam-account play-publisher@groglog-play.iam.gserviceaccount.com
-op document create play-publisher.json --title "GrogLog Play service account" --vault Private
+op document create play-publisher.json --title "GrogLog Play service account" --vault Claude
 gh secret set PLAY_SERVICE_ACCOUNT_JSON --repo radiosilence/groglog < play-publisher.json
 rm play-publisher.json
 ```
@@ -267,7 +267,7 @@ day to reach the API.
 To use the script from a laptop:
 
 ```sh
-PLAY_SERVICE_ACCOUNT_JSON="$(op document get 'GrogLog Play service account' --vault Private)" scripts/play.py status
+PLAY_SERVICE_ACCOUNT_JSON="$(op document get 'GrogLog Play service account' --vault Claude)" scripts/play.py status
 ```
 
 ## From nothing to production

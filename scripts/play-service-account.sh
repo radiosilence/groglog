@@ -3,7 +3,7 @@
 # It still has to be invited in Play Console › Users and permissions; see docs/play-store.md › Play API access.
 set -eu
 
-VAULT="${VAULT:-Private}"
+VAULT="${VAULT:-Claude}"
 REPO="radiosilence/groglog"
 PROJECT="${PROJECT:-groglog-play}"
 ACCOUNT="play-publisher@$PROJECT.iam.gserviceaccount.com"

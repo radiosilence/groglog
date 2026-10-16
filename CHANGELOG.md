@@ -8,6 +8,7 @@
 - **Google Play listing and releases.** The listing, the Play Console declarations and the path to production are in `docs/play-store.md`; CI releases each Android build on `main` to the internal track through `scripts/play.py`.
 - **Android takes its look from Material 3 Expressive.** Surfaces and controls follow the wallpaper on Android 12 and later, with a scheme generated from GrogLog's amber elsewhere; the budget is a thick rounded progress indicator; motion uses the Expressive spring scheme. Colours that carry meaning (budget, heat, charts) stay fixed. This pins material3 to 1.5.0-beta01, since the BOM's 1.4.0 keeps those APIs internal.
 - **GitHub releases carry the Android APK.** Publishing a release builds a signed APK from its tag and attaches it, for installing without Play.
+- **Android signing material defaults to the Claude vault.** The upload keystore and the Play service account are stored there unless `VAULT` says otherwise.
 
 ## 1.1.1
 

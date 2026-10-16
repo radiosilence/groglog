@@ -3,7 +3,7 @@
 # The keystore exists on disk only while this runs. See docs/play-store.md › Signing.
 set -eu
 
-VAULT="${VAULT:-Private}"
+VAULT="${VAULT:-Claude}"
 REPO="radiosilence/groglog"
 TITLE="GrogLog Android upload keystore"
 
