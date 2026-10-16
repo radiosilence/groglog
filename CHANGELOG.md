@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- **GrogLog for Android.** A native Android app with the same log: logging in one tap, the calendar, the day against its budget, reports, and a goal that tapers. It follows the wallpaper's colours, adds widgets, a Quick Settings tile and launcher shortcuts, and can copy calories to Health Connect and read heart and sleep from it. The log stays on the phone. A JSON backup moves it between Android and iOS in either direction.
+
 ### Internal
 
 - **Android Reports and Health Connect.** The Android port has the Reports tab and reads heart and sleep from Health Connect, copying each drink's calories back as nutrition, since Health Connect has no record for alcohol.
