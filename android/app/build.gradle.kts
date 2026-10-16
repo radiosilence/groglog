@@ -10,6 +10,9 @@ plugins {
 fun setting(env: String, property: String) =
     providers.environmentVariable(env).orElse(providers.gradleProperty(property))
 
+/** The version both apps carry, from MARKETING_VERSION in project.yml. */
+val marketingVersion = Regex("""MARKETING_VERSION: (\S+)""").find(rootProject.file("../project.yml").readText())!!.groupValues[1]
+
 val uploadKeystore = setting("ANDROID_UPLOAD_KEYSTORE_FILE", "groglogUploadKeystoreFile")
 
 android {
@@ -22,7 +25,7 @@ android {
         targetSdk = 37
         // CI passes its run number, so each upload is higher than the last.
         versionCode = providers.gradleProperty("versionCode").orNull?.toInt() ?: 1
-        versionName = "1.0"
+        versionName = marketingVersion
     }
 
     signingConfigs {
