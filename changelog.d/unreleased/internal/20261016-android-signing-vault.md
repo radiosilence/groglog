@@ -1,0 +1,1 @@
+- **Android signing material defaults to the Claude vault.** The upload keystore and the Play service account are stored there unless `VAULT` says otherwise.

@@ -1,0 +1,23 @@
+<resources>
+    <!-- The window behind Compose's first frame, light or dark with the system so nothing flashes. -->
+    <style name="Theme.GrogLog" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/splash</item>
+    </style>
+
+    <!-- A launcher shortcut's confirmation: a card over whatever was on screen, with no window of its own behind it. -->
+    <style name="Theme.GrogLog.Confirmation" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@android:style/Animation.Toast</item>
+    </style>
+
+    <!-- The launch screen: the icon's pint on its brown badge, over the app's light or dark background. -->
+    <style name="Theme.GrogLog.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/splash_icon</item>
+        <item name="postSplashScreenTheme">@style/Theme.GrogLog</item>
+    </style>
+</resources>

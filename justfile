@@ -16,3 +16,26 @@ changelog *args:
 # The App Store listing, builds and review, from the terminal. See scripts/app-store.py.
 store command="status" *args:
     scripts/app-store.py {{command}} {{args}}
+
+# The Google Play listing and releases, from the terminal. See scripts/play.py.
+play command="status" *args:
+    scripts/play.py {{command}} {{args}}
+
+# The Android app, built with Gradle from android/. JAVA_HOME comes from mise; ANDROID_HOME defaults to Homebrew's SDK.
+android-gradle *tasks:
+    cd android && JAVA_HOME="$(mise where java)" ANDROID_HOME="${ANDROID_HOME:-/opt/homebrew/share/android-commandlinetools}" ./gradlew {{tasks}}
+
+android-build: (android-gradle ":app:assembleDebug")
+
+android-test: (android-gradle ":app:testDebugUnitTest")
+
+# Installs on the connected device or running emulator. Installing over the app keeps its data.
+android-install: (android-gradle ":app:installDebug")
+
+# Creates the Play upload key, keeps it in 1Password and sets CI's signing secrets. Once only.
+android-upload-key:
+    PATH="$(mise where java)/bin:$PATH" scripts/android-upload-key.sh
+
+# Creates the Play publishing service account and sets PLAY_SERVICE_ACCOUNT_JSON. Once only.
+play-service-account:
+    scripts/play-service-account.sh

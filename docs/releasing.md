@@ -75,3 +75,30 @@ by hand. The version shown in the App Store is `MARKETING_VERSION` in `project.y
 Apple's standard status bar. The website uses the same images, in both appearances (`light` and `dark`, the script's second argument), so re-run it for each and copy them into `site/public/screens`
 when the app changes visibly. Then run `scripts/render-share-image.sh`, which builds the site's link-preview image
 (`site/public/share.png`, 1200×630) from the app icon and two of those screenshots.
+
+## Android
+
+Every push to `main` that touches `android/` is tested, bundled, signed with the upload key and released to Google
+Play's internal track by `.github/workflows/android.yml`. Pull requests are tested and bundled unsigned. Until the
+upload key's secrets exist the bundle stays unsigned and nothing is uploaded; until `PLAY_SERVICE_ACCOUNT_JSON` exists
+the signed bundle is kept as the run's `bundle` artifact and not uploaded. Setting both up, the Play Console forms and
+the closed test a personal account must run before production are in [play-store.md](play-store.md).
+
+The version code is the workflow's run number times 100 plus its attempt, so it always rises and a re-run uploads a
+code Play has not seen. The version name is `versionName` in
+`android/app/build.gradle.kts`; raise it with `MARKETING_VERSION`, so both apps carry the same version. Release notes
+on each upload are CHANGELOG.md's Unreleased section, or the newest version's, cut to Play's 500 characters.
+
+To release a version on Android:
+
+1. Let CI put the build on the internal track, and check it on a phone.
+2. Move it to the closed test or production with Testing › Internal testing › Promote release in Play Console, or
+   upload the same bundle (the run's `bundle` artifact) with `scripts/play.py upload app-release.aab alpha` or
+   `production`. Play reviews closed and production releases.
+3. When the listing has changed, `scripts/play.py listing` pushes `android/store/listing.toml` and the graphics. Run
+   `scripts/render-play-graphics.sh` first if the icon has changed.
+
+Publishing a GitHub release attaches a signed APK to it, built by the `apk` job in `.github/workflows/android.yml` from the tagged commit. It is signed with the upload key, not the key Play signs installs with, so it installs fresh but does not update over a Play install, or the other way round.
+
+`scripts/play.py status` shows what each track holds. It authenticates with the service account's key in
+`PLAY_SERVICE_ACCOUNT_JSON`.

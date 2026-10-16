@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The launch screen follows light and dark as iOS's generated one does: the app's background, with the icon's
+         glass on the icon's brown. -->
+    <color name="splash">#FFF2F2F7</color>
+    <color name="splash_icon">#FF1E140C</color>
+
+    <!-- GrogLog's colours, as in ui/theme/Theme.kt. -->
+    <color name="grog">#FFF7A333</color>
+    <color name="dry">#FF33BD99</color>
+
+    <!-- The widget picker's preview layouts, before Android 12's wallpaper colours: the app's light neutrals. -->
+    <color name="widget_background">#FFFFFFFF</color>
+    <color name="widget_container">#FFF2F2F7</color>
+    <color name="widget_text">#FF000000</color>
+    <color name="widget_text_secondary">#FF6C6C70</color>
+    <color name="widget_track">#FFE5E5EA</color>
+
+    <color name="shortcut_background">#FF1E140B</color>
+</resources>

@@ -1,0 +1,1 @@
+- **Android Reports and Health Connect.** The Android port has the Reports tab and reads heart and sleep from Health Connect, copying each drink's calories back as nutrition, since Health Connect has no record for alcohol.

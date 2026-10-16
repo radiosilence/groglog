@@ -1,0 +1,1 @@
+- **GitHub releases carry the Android APK.** Publishing a release builds a signed APK from its tag and attaches it, for installing without Play.

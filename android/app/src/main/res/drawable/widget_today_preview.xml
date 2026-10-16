@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The widget picker's preview before Android 12, which shows an image rather than a layout. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:width="220dp"
+        android:height="110dp"
+        android:drawable="@drawable/widget_preview_background" />
+    <item
+        android:width="192dp"
+        android:height="60dp"
+        android:drawable="@drawable/widget_preview_burndown"
+        android:gravity="center" />
+</layer-list>

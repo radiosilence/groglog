@@ -1,5 +1,7 @@
 [tools]
 # Exact versions: CI runs these with the App Store Connect key in the environment.
+gradle = "9.8.1"
+java = "temurin-21.0.12+8.0.LTS"
 just = "1.58.0"
 uv = "0.12.19"
 xcodegen = "2.46.0"
