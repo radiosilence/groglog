@@ -1,0 +1,1 @@
+- **A manual Android run no longer cancels, or is cancelled by, a push's.** It has its own concurrency group, so checking the release APK cannot interrupt a Play upload.
