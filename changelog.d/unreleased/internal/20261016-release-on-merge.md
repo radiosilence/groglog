@@ -1,0 +1,1 @@
+- **Merging a release PR publishes the GitHub release.** A push to `main` whose version is newer than the latest release builds the signed APK from the commit that raised it and publishes the release, with the changelog section as its notes.

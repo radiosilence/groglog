@@ -7,15 +7,16 @@ backup format, not code.
 ## Git
 
 - Work in PRs, which are squashed; do not rebase on merge.
-- Never push tags. Tags and GitHub releases are left to the maintainer.
+- Never push tags by hand. CI publishes the GitHub release, and so its tag, when the release PR merges.
 - Commits are signed.
 
 ## Changelog and docs
 
-`CHANGELOG.md` is assembled from fragments by `just changelog` and is never edited by hand, not even to fix a typo:
-change the fragment and run the recipe again. Every change adds one fragment under `changelog.d/unreleased/<section>/`,
-named `<yyyymmdd>-<slug>.md` and holding one `- **Lead.** Detail.` entry. The sections and the format are in
-`changelog.d/README.md`.
+`CHANGELOG.md` is generated and is never edited by hand, not even to fix a typo, and a feature PR does not commit it
+either: the release PR (`just release`) is what regenerates it, so open PRs never conflict on it. Every change adds one
+fragment under `changelog.d/unreleased/<section>/`, named `<yyyymmdd>-<slug>.md` and holding one `- **Lead.** Detail.`
+entry; to correct a note, change its fragment. `just changelog --stdout` prints the assembled text to check how a
+fragment reads. The sections and the format are in `changelog.d/README.md`.
 
 A change to behaviour, a setting or the backup format updates the matching page in `docs/` in the same PR.
 `docs/IMPORT.md` is the contract between the apps' backups, so a change there changes both.
@@ -33,7 +34,7 @@ just phone              # build, install and launch on the connected iPhone
 just android-test       # the Android JVM tests
 just android-build      # debug APK
 just android-install    # install on a running emulator or device
-just changelog          # regenerate CHANGELOG.md from the fragments
+just changelog --stdout # preview the assembled changelog
 just release minor      # open the release PR
 just store              # App Store Connect, from the terminal
 just play               # Google Play, from the terminal
