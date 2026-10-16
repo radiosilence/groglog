@@ -10,6 +10,7 @@
 - **GitHub releases carry the Android APK.** Publishing a release builds a signed APK from its tag and attaches it, for installing without Play.
 - **Android signing material defaults to the Claude vault.** The upload keystore and the Play service account are stored there unless `VAULT` says otherwise.
 - **Android takes its version from `MARKETING_VERSION`.** `project.yml` is the one place a version is raised, and the Android workflow can be run by hand to build and sign the release APK without publishing it.
+- **`just release` opens the release PR.** `just release patch|minor|major`, or an exact version, raises `MARKETING_VERSION`, cuts the changelog and opens the PR, instead of the two manual steps.
 
 ## 1.1.1
 

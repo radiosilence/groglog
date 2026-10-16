@@ -1,0 +1,1 @@
+- **`just release` opens the release PR.** `just release patch|minor|major`, or an exact version, raises `MARKETING_VERSION`, cuts the changelog and opens the PR, instead of the two manual steps.
