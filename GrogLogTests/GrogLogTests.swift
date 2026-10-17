@@ -54,6 +54,18 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(Units.unitMl == unitsUnitMl())
         #expect(Units.standardDrinkMl == unitsStandardDrinkMl())
     }
+
+    @Test func goalFiguresMatchTheCore() {
+        let core = goalStandards()
+        #expect(Goal.safeDailyCut == core.safeDailyCut)
+        #expect(Goal.slowerAboveWeekly == core.slowerAboveWeekly)
+        #expect(Goal.assistedWithdrawalWeekly == core.assistedWithdrawalWeekly)
+        #expect(Goal.stopFrom == core.stopFrom)
+        #expect(Goal.inpatientWeekly == core.inpatientWeekly)
+        #expect(Goal.standardCut == core.standardCut)
+        #expect(Goal.periods.map { Int64($0.days) } == core.periods)
+        #expect(Goal.unitCuts == core.unitCuts)
+    }
 }
 
 @Suite struct ServeSizeTests {

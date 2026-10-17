@@ -1,4 +1,5 @@
 import Foundation
+import GrogLogCore
 
 /// How the budget comes down.
 nonisolated enum Taper: String, Codable, Sendable, CaseIterable {
@@ -11,6 +12,14 @@ nonisolated enum Taper: String, Codable, Sendable, CaseIterable {
     /// The same number of units off every period. Reaches zero on a fixed date, but the share it takes grows
     /// as the budget shrinks, so the last stretch is the sharpest.
     case linear
+
+    var kind: TaperKind {
+        switch self {
+        case .dynamic: .dynamic
+        case .proportional: .proportional
+        case .linear: .linear
+        }
+    }
 
     var label: String {
         switch self {
@@ -84,98 +93,75 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
     /// 10% ceiling.
     static let unitCuts = [0.5, 1.0, 1.5, 2.0]
 
-    /// The quickest pace offered above each level, used both to narrow the picker and as the rung a stepped taper
-    /// runs at. Over 25 units a day the guidance sets the limit. The rung below is this app's own: NICE considers
-    /// assisted withdrawal over 15 a day, and the ceiling was not written for unsupervised reduction at that
-    /// level. Under 15 the ceiling applies.
-    static let ladder: [(aboveWeekly: Double, pace: Int)] = [
-        (slowerAboveWeekly, 4),
-        (assistedWithdrawalWeekly, 3),
-        (-.infinity, 1),
-    ]
-
     /// `from` is the taper's baseline, which decides the size of its steps. Over 25 units a day the guidance
     /// sets a slower pace of no more than 10% every four days, so the two quicker periods are not offered.
     static func periods(from weekly: Double) -> [(days: Int, label: String)] {
-        let floor = ladder.first { weekly > $0.aboveWeekly }!.pace
-        let offered = periods.filter { $0.days >= floor }
-        return offered.isEmpty ? [periods[periods.count - 1]] : offered
+        goalPeriodsFrom(weekly: weekly).compactMap { days in periods.first { $0.days == Int(days) } }
     }
 
     /// The pace to fall back on when a baseline change removes the chosen one: the quickest still offered, so
     /// raising the baseline slows the taper as little as possible.
     static func nearestOffered(period days: Int, from weekly: Double) -> Int {
-        let offered = periods(from: weekly).map(\.days)
-        return offered.contains(days) ? days : (offered.min() ?? periods[periods.count - 1].days)
+        Int(goalNearestOfferedPeriod(days: Int64(days), weekly: weekly))
     }
 
     static func nearestOffered(units: Double, from weekly: Double, perDays days: Int) -> Double {
-        let offered = unitCuts(from: weekly, perDays: days)
-        return offered.contains(units) ? units : (offered.max() ?? unitCuts[0])
+        goalNearestOfferedUnits(units: units, weekly: weekly, perDays: Int64(days))
     }
 
     /// What this takes off the budget on its first day: the steepest step of a proportional taper, and every
     /// step of a linear one.
-    func openingDrop(from weekly: Double) -> Double {
-        switch taper {
-        case .linear: dailyUnitCut
-        // Stepped starts on whichever rung its baseline lands it on.
-        case .dynamic: weekly / 7 * Self.rate(forPace: Self.pace(drinking: weekly))
-        case .proportional: weekly / 7 * dailyCut
-        }
-    }
+    func openingDrop(from weekly: Double) -> Double { goalOpeningDrop(goal: spec(), weekly: weekly) }
 
     /// The pace a dynamic taper runs at once the budget reaches this level: the quickest offered there, taken
     /// from the same list as the picker so the two cannot disagree.
-    static func pace(drinking weekly: Double) -> Int {
-        periods(from: weekly).map(\.days).min() ?? periods[periods.count - 1].days
-    }
+    static func pace(drinking weekly: Double) -> Int { Int(goalPaceDrinking(weekly: weekly)) }
 
     /// The linear amounts offered. A share scales with intake but a fixed number of units does not: two a day
     /// off a ten-a-day budget is 20%, twice the ceiling, on the first day. Only amounts that open inside the
     /// ceiling are offered; where none do, the smallest is kept so the picker is never empty.
     static func unitCuts(from weekly: Double, perDays days: Int) -> [Double] {
-        let ceiling = weekly / 7 * safeDailyCut * Double(max(1, days))
-        let offered = unitCuts.filter { $0 <= ceiling + 0.0001 }
-        return offered.isEmpty ? [unitCuts.min() ?? 0.5] : offered
+        goalUnitCuts(weekly: weekly, perDays: Int64(days))
     }
 
     /// The offered period closest in pace to a rate, for a goal saved with a period no longer offered. The
     /// daily rate is matched rather than the number of days, which could make a long taper several times
     /// faster.
-    static func nearestPeriod(toDailyCut cut: Double) -> Int {
-        periods.map(\.days).min {
-            abs(Goal(periodDays: $0).dailyCut - cut) < abs(Goal(periodDays: $1).dailyCut - cut)
-        } ?? 1
-    }
+    static func nearestPeriod(toDailyCut cut: Double) -> Int { Int(goalNearestPeriodToDailyCut(cut: cut)) }
 
     /// The daily rate a pace compounds to.
-    static func rate(forPace days: Int) -> Double { 1 - pow(1 - standardCut / 100, 1 / Double(max(1, days))) }
+    static func rate(forPace days: Int) -> Double { goalRateForPace(days: Int64(days)) }
 
     /// The equivalent share per day, for comparing proportional plans on the same footing.
-    var dailyCut: Double { 1 - pow(1 - reductionPercent / 100, 1 / Double(max(1, periodDays))) }
+    var dailyCut: Double { goalDailyCut(goal: spec()) }
 
     /// Units off the daily budget per day, for a linear plan.
-    var dailyUnitCut: Double { reductionUnits / Double(max(1, periodDays)) }
+    var dailyUnitCut: Double { goalDailyUnitCut(goal: spec()) }
 
     /// A linear taper takes the same units off whatever the budget, so the share it takes climbs as the
     /// budget falls: it passes the safe rate at this daily budget and is sharper than it from there down.
-    var sharpensBelow: Double { dailyUnitCut / Self.safeDailyCut }
+    var sharpensBelow: Double { goalSharpensBelow(goal: spec()) }
 
     /// Whether to warn about it. The 10%-a-day limit concerns withdrawal from heavy drinking and has no meaning
     /// near the guideline, where warning would contradict the advice on the same screen. The warning applies
     /// only when the taper sharpens while intake is still high.
-    func sharpensWhileItMatters(from weekly: Double) -> Bool {
-        taper == .linear && weekly >= Self.assistedWithdrawalWeekly && sharpensBelow > Units.weeklyGuideline / 7
-    }
+    func sharpensWhileItMatters(from weekly: Double) -> Bool { goalSharpensWhileItMatters(goal: spec(), weekly: weekly) }
 
-    var isFasterThanSafe: Bool {
-        switch taper {
-        case .dynamic, .proportional: dailyCut > Self.safeDailyCut + 0.0005
-        // Safe at the start and too fast at the end, so a single answer would be wrong; `sharpensBelow`
-        // gives the crossover.
-        case .linear: false
-        }
+    var isFasterThanSafe: Bool { goalIsFasterThanSafe(goal: spec()) }
+
+    /// The goal as the shared maths sees it. `startDay` is the day the taper begins, which depends on the calendar
+    /// the caller reads the start time in; the figures that do not involve a date leave it at zero.
+    func spec(startDay: DayKey = DayKey(number: 0)) -> GoalSpec {
+        GoalSpec(
+            isEnabled: isEnabled,
+            taper: taper.kind,
+            baselineWeekly: baselineWeekly,
+            reductionPercent: reductionPercent,
+            reductionUnits: reductionUnits,
+            periodDays: Int64(periodDays),
+            startDay: Int64(startDay.number),
+            targetWeekly: targetWeekly
+        )
     }
 
     init(isEnabled: Bool = false, taper: Taper = .dynamic, baselineWeekly: Double = 28,

@@ -2,6 +2,8 @@
 //! so what a day is, what a unit is and what a goal asks for cannot differ between them.
 
 mod days;
+mod goal;
+mod ledger;
 mod units;
 
 uniffi::setup_scaffolding!();

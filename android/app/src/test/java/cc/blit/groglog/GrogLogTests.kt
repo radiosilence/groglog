@@ -9,6 +9,7 @@ import cc.blit.groglog.core.dayMonthStart
 import cc.blit.groglog.core.dayNumber
 import cc.blit.groglog.core.dayWeekStart
 import cc.blit.groglog.core.dayWeekday
+import cc.blit.groglog.core.goalStandards
 import cc.blit.groglog.core.unitsIsStrength
 import cc.blit.groglog.core.unitsKcal
 import cc.blit.groglog.core.unitsOf
@@ -71,6 +72,18 @@ class CoreParityTests {
         assertEquals(unitsWeeklyGuideline(), Units.WEEKLY_GUIDELINE, 0.0)
         assertEquals(unitsUnitMl(), Units.UNIT_ML, 0.0)
         assertEquals(unitsStandardDrinkMl(), Units.STANDARD_DRINK_ML, 0.0)
+    }
+
+    @Test fun goalFiguresMatch() {
+        val core = goalStandards()
+        assertEquals(core.safeDailyCut, Goal.SAFE_DAILY_CUT, 0.0)
+        assertEquals(core.slowerAboveWeekly, Goal.SLOWER_ABOVE_WEEKLY, 0.0)
+        assertEquals(core.assistedWithdrawalWeekly, Goal.ASSISTED_WITHDRAWAL_WEEKLY, 0.0)
+        assertEquals(core.stopFrom, Goal.STOP_FROM, 0.0)
+        assertEquals(core.inpatientWeekly, Goal.INPATIENT_WEEKLY, 0.0)
+        assertEquals(core.standardCut, Goal.STANDARD_CUT, 0.0)
+        assertEquals(core.periods, Goal.periods.map { it.days.toLong() })
+        assertEquals(core.unitCuts, Goal.unitCuts)
     }
 
     @Test fun dayArithmeticMatches() {

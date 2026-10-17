@@ -1,4 +1,5 @@
 import Foundation
+import GrogLogCore
 
 nonisolated enum DayStatus: Equatable {
     case drank, alcoholFree, today, unlogged, future, untracked
@@ -17,6 +18,13 @@ nonisolated struct DayTotals: Equatable {
         kcal = row.kcal
         cost = row.spend
         count = row.count
+    }
+
+    init(_ totals: TotalsRow) {
+        units = totals.units
+        kcal = totals.kcal
+        cost = totals.cost
+        count = Int(totals.count)
     }
 
     init(_ entries: some Sequence<Entry>) {
@@ -43,6 +51,15 @@ nonisolated struct CurvePoint: Identifiable, Equatable {
     var x: Double
     var units: Double
     var id: Double { x }
+
+    init(x: Double, units: Double) {
+        self.x = x
+        self.units = units
+    }
+
+    init(_ point: PointRow) {
+        self.init(x: point.x, units: point.units)
+    }
 }
 
 nonisolated struct WeekStat: Identifiable, Equatable {
@@ -56,62 +73,46 @@ nonisolated struct WeekStat: Identifiable, Equatable {
 
 /// Read-only view over every drinking day, built from `Day` rows (a few hundred a year) so it is cheap to rebuild on
 /// each change. The running-total curves need individual drinks and take them from the caller, fetched for only the
-/// days on screen.
+/// days on screen. The maths is the shared core's; this works out what needs the calendar (which day a moment is in,
+/// how many hours into it) and hands over plain values.
 nonisolated struct Ledger: Equatable {
     let clock: DayClock
     let today: DayKey
     let firstDay: DayKey?
-    private let days: [Int: Day]
+    private let rows: [Day]
+    private let core: CoreLedger
 
     init(days rows: [Day], clock: DayClock) {
         self.clock = clock
         today = clock.today
-        days = Dictionary(rows.map { ($0.number, $0) }, uniquingKeysWith: { first, _ in first })
-        firstDay = days.keys.min().map(DayKey.init(number:))
+        self.rows = rows
+        core = CoreLedger(days: rows.map(DayRow.init), today: Int64(today.number), firstWeekday: Int64(clock.calendar.firstWeekday))
+        firstDay = core.firstDay().map { DayKey(number: Int($0)) }
     }
 
-    func totals(on day: DayKey) -> DayTotals { days[day.number].map(DayTotals.init) ?? DayTotals() }
+    static func == (lhs: Ledger, rhs: Ledger) -> Bool {
+        lhs.clock == rhs.clock && lhs.today == rhs.today && lhs.rows == rhs.rows
+    }
+
+    func totals(on day: DayKey) -> DayTotals { DayTotals(core.totals(day: Int64(day.number))) }
 
     /// The manually set spend for a day, which replaces the drinks' prices while set.
-    func spendOverride(on day: DayKey) -> Double? { days[day.number]?.costOverride }
+    func spendOverride(on day: DayKey) -> Double? { core.spendOverride(day: Int64(day.number)) }
 
     /// The sum of the day's drink prices, ignoring any manual spend.
-    func derivedSpend(on day: DayKey) -> Double { days[day.number]?.cost ?? 0 }
+    func derivedSpend(on day: DayKey) -> Double { core.derivedSpend(day: Int64(day.number)) }
 
-    func status(on day: DayKey) -> DayStatus {
-        if let row = days[day.number] {
-            if row.count > 0 { return .drank }
-            if row.isAlcoholFree { return .alcoholFree }
-        }
-        if day > today { return .future }
-        if day == today { return .today }
-        guard let firstDay, day >= firstDay else { return .untracked }
-        return .unlogged
-    }
+    func status(on day: DayKey) -> DayStatus { DayStatus(core.status(day: Int64(day.number))) }
 
     /// Has drinks or a dry mark. A day with only a manual spend is not logged.
-    func isLogged(_ day: DayKey) -> Bool { days[day.number].map { $0.count > 0 || $0.isAlcoholFree } ?? false }
+    func isLogged(_ day: DayKey) -> Bool { core.isLogged(day: Int64(day.number)) }
 
     /// Consecutive alcohol-free days up to today. An empty today does not break the streak, since the day is not
     /// over.
-    func dryStreak() -> Int {
-        var day = status(on: today) == .today ? today - 1 : today
-        var count = 0
-        while status(on: day) == .alcoholFree {
-            count += 1
-            day = day - 1
-        }
-        return count
-    }
+    func dryStreak() -> Int { Int(core.dryStreak()) }
 
     func longestDryStreak(in range: ClosedRange<DayKey>) -> Int {
-        var best = 0
-        var run = 0
-        for day in range {
-            run = status(on: day) == .alcoholFree ? run + 1 : 0
-            best = max(best, run)
-        }
-        return best
+        Int(core.longestDryStreak(first: Int64(range.lowerBound.number), last: Int64(range.upperBound.number)))
     }
 
     /// The week before `day`, which a day is compared against.
@@ -120,190 +121,111 @@ nonisolated struct Ledger: Equatable {
     /// Running units total across `days`, stepping at each drink. x is in days, so a heavy night shows as a steep
     /// climb rather than a single step.
     func runningTotal(_ entries: [Entry], over days: ClosedRange<DayKey>, through: DayKey? = nil) -> [CurvePoint] {
-        let last = through ?? days.upperBound
-        var total = 0.0
-        var hours = HourCounter(clock)
-        var points = [CurvePoint(x: 0, units: 0)]
-        for entry in entries.filter({ days.contains($0.dayKey) && $0.dayKey <= last }).sorted(by: { $0.timestamp < $1.timestamp }) {
-            total += entry.units
-            let into = Double(days.lowerBound.distance(to: entry.dayKey)) + min(1, max(0, hours.hours(entry.timestamp, into: entry.dayKey) / 24))
-            points.append(CurvePoint(x: into, units: total))
-        }
-        return points
+        core.runningTotal(
+            entries: curveInputs(entries),
+            first: Int64(days.lowerBound.number),
+            last: Int64(days.upperBound.number),
+            through: through.map { Int64($0.number) }
+        ).map(CurvePoint.init)
     }
 
     /// The week's budget as a running total, for comparing with `runningTotal`.
     func weekBudgetCurve(of start: DayKey, goal: Goal) -> [CurvePoint] {
-        var total = 0.0
-        var points = [CurvePoint(x: 0, units: 0)]
-        for index in 0..<7 {
-            guard let budget = dailyBudget(on: start + index, goal: goal) else { return points.count > 1 ? points : [] }
-            total += budget
-            points.append(CurvePoint(x: Double(index + 1), units: total))
-        }
-        return points
+        core.weekBudgetCurve(start: Int64(start.number), goal: spec(goal)).map(CurvePoint.init)
     }
 
     func week(starting start: DayKey, goal: Goal) -> WeekStat {
-        let days = start...(start + 6)
-        let budgets = days.map { dailyBudget(on: $0, goal: goal) }
+        let week = core.week(start: Int64(start.number), goal: spec(goal))
         return WeekStat(
             start: start,
-            totals: days.reduce(DayTotals()) { $0 + totals(on: $1) },
-            dryDays: days.filter { status(on: $0) == .alcoholFree }.count,
-            unloggedDays: days.filter { status(on: $0) == .unlogged }.count,
-            budget: budgets.contains(nil) ? nil : budgets.compactMap(\.self).reduce(0, +)
+            totals: DayTotals(week.totals),
+            dryDays: Int(week.dryDays),
+            unloggedDays: Int(week.unloggedDays),
+            budget: week.budget
         )
     }
 
     /// Units a week at the rate drunk on the logged days in `range`. Unlogged days are excluded rather than counted
     /// as dry, so missing nights do not make a week look light. Nil when nothing in the range was logged.
     func weeklyAverage(over range: ClosedRange<DayKey>) -> Double? {
-        let logged = range.filter(isLogged)
-        guard !logged.isEmpty else { return nil }
-        return logged.reduce(0) { $0 + totals(on: $1).units } / Double(logged.count) * 7
+        core.weeklyAverage(first: Int64(range.lowerBound.number), last: Int64(range.upperBound.number))
     }
 
     /// The same over the last `weeks` complete weeks, used as the default baseline for a reduction plan.
-    func recentWeeklyAverage(weeks: Int = 4) -> Double? {
-        let thisWeek = clock.weekStart(of: today)
-        return weeklyAverage(over: (thisWeek - 7 * weeks)...(thisWeek - 1))
-    }
+    func recentWeeklyAverage(weeks: Int = 4) -> Double? { core.recentWeeklyAverage(weeks: Int64(weeks)) }
 
     // MARK: Budget
 
     /// The unit budget for `day`: the taper, held at the target once it gets there.
-    func dailyBudget(on day: DayKey, goal: Goal) -> Double? {
-        taper(on: day, goal: goal).map { max($0.budget, min(goal.targetWeekly / 7, $0.reference)) }
-    }
+    func dailyBudget(on day: DayKey, goal: Goal) -> Double? { core.dailyBudget(goal: spec(goal), day: Int64(day.number)) }
 
     /// How many days the budget takes to lose a tenth on `day`: the chosen period, or for a stepped taper the pace
     /// of the rung its budget has reached (the baseline's rung before it starts).
-    func pace(on day: DayKey, goal: Goal) -> Int {
-        guard goal.taper == .dynamic else { return goal.periodDays }
-        return Goal.pace(drinking: (taper(on: day, goal: goal)?.budget ?? goal.baselineWeekly / 7) * 7)
-    }
+    func pace(on day: DayKey, goal: Goal) -> Int { Int(goalPaceOn(goal: spec(goal), day: Int64(day.number))) }
 
     /// When the taper, continued from today, reaches the target and the level at which drinking can stop
     /// (`Goal.stopFrom`).
     func projection(goal: Goal) -> (target: DayKey?, stoppable: DayKey?) {
-        guard let now = taper(on: today, goal: goal) else { return (nil, nil) }
-        guard goal.taper == .linear ? goal.dailyUnitCut > 0 : goal.dailyCut > 0 else { return (nil, nil) }
-        func day(reaching level: Double) -> DayKey? {
-            // A proportional taper crosses a level on a day given by a logarithm and never reaches zero. A linear
-            // taper falls at a fixed rate and can reach zero, so only it answers for a level of zero.
-            guard goal.taper == .linear ? level >= 0 : level > 0 else { return nil }
-            if now.budget <= level { return today }
-            let days = goal.taper == .linear
-                ? (now.budget - level) / goal.dailyUnitCut
-                : log(level / now.budget) / log(1 - goal.dailyCut)
-            return today + Int(days.rounded(.up))
-        }
-        return (day(reaching: goal.targetWeekly / 7), day(reaching: Goal.stopFrom / 7))
+        let projection = core.projection(goal: spec(goal))
+        return (projection.target.map { DayKey(number: Int($0)) }, projection.stoppable.map { DayKey(number: Int($0)) })
     }
-
-    /// The unfloored budget for `day` and the level it tapers from. All tapers run from the baseline on the start
-    /// date: proportional takes a share off, linear a fixed number of units (so it can reach zero), and stepped
-    /// takes the share its ladder gives for the level the budget has reached.
-    private func taper(on day: DayKey, goal: Goal) -> (budget: Double, reference: Double)? {
-        guard goal.isEnabled else { return nil }
-        let elapsed = DayKey(goal.start, in: clock.calendar).distance(to: day)
-        guard elapsed >= 0 else { return nil }
-        let reference = goal.baselineWeekly / 7
-        switch goal.taper {
-        case .linear:
-            return (max(0, reference - goal.dailyUnitCut * Double(elapsed)), reference)
-        case .proportional:
-            return (reference * pow(1 - goal.dailyCut, Double(elapsed)), reference)
-        case .dynamic:
-            // Pace changes one rung at a time on the way down. Within a rung the decline is geometric, so the
-            // crossing into the next rung is solved with a logarithm rather than by stepping day by day: this runs
-            // for every calendar cell and chart point, and stepping a long-running goal would dominate those
-            // screens.
-            var budget = reference
-            var days = elapsed
-            for rung in Goal.ladder where days > 0 && budget * 7 > rung.aboveWeekly {
-                let factor = 1 - Goal.rate(forPace: rung.pace)
-                var steps = days
-                if rung.aboveWeekly > 0 {
-                    // The first count of cuts that leaves it no longer above the rung, adjusted either way so a
-                    // floating-point error in the logarithm cannot misplace the crossing by a day.
-                    steps = max(0, Int((log(rung.aboveWeekly / (budget * 7)) / log(factor)).rounded(.up)))
-                    while steps > 0, budget * pow(factor, Double(steps - 1)) * 7 <= rung.aboveWeekly { steps -= 1 }
-                    while budget * pow(factor, Double(steps)) * 7 > rung.aboveWeekly { steps += 1 }
-                    steps = min(steps, days)
-                }
-                budget *= pow(factor, Double(steps))
-                days -= steps
-            }
-            return (budget, reference)
-        }
-    }
-
 
     // MARK: Curves
 
     /// Running total of units through a day, as a step series from `from` to `through` hours after the day starts.
     func cumulative(_ pours: [Entry], on day: DayKey, from: Double = 0, through: Double = 24) -> [CurvePoint] {
         let start = clock.start(of: day)
-        let timed = pours.filter { $0.day == day.number }.map { (hour: $0.timestamp.timeIntervalSince(start) / 3600, units: $0.units) }
-        var total = timed.filter { $0.hour <= from }.reduce(0) { $0 + $1.units }
-        var points = [CurvePoint(x: from, units: total)]
-        for pour in timed where pour.hour > from && pour.hour <= through {
-            total += pour.units
-            points.append(CurvePoint(x: pour.hour, units: total))
-        }
-        points.append(CurvePoint(x: through, units: total))
-        return points
+        let timed = pours.filter { $0.day == day.number }.map { TimedUnits(hours: $0.timestamp.timeIntervalSince(start) / 3600, units: $0.units) }
+        return ledgerCumulative(pours: timed, from: from, through: through).map(CurvePoint.init)
     }
 
     /// Mean running total across the logged days in `range`, smoothed over about half an hour. Unlogged days are
-    /// excluded rather than counted as zero. The raw mean is a staircase of small steps; the line is meant to show
-    /// where a typical day stands by a given hour, so it is smoothed. `smoothed: false` gives the unsmoothed mean,
-    /// for reading off as a number.
+    /// excluded rather than counted as zero. `smoothed: false` gives the unsmoothed mean, for reading off as a
+    /// number.
     func averageCumulative(_ pours: [Entry], over range: ClosedRange<DayKey>, from: Double = 0, smoothed: Bool = true) -> [CurvePoint] {
-        let logged = range.filter(isLogged)
-        guard !logged.isEmpty else { return [] }
+        core.averageCumulative(
+            entries: curveInputs(pours),
+            first: Int64(range.lowerBound.number),
+            last: Int64(range.upperBound.number),
+            from: from,
+            smoothed: smoothed
+        ).map(CurvePoint.init)
+    }
+
+    private func spec(_ goal: Goal) -> GoalSpec { goal.spec(startDay: DayKey(goal.start, in: clock.calendar)) }
+
+    /// The hours into its day are the calendar's to work out, and a day's start is cached across a screen's drinks.
+    private func curveInputs(_ entries: [Entry]) -> [CurveInput] {
         var hours = HourCounter(clock)
-        let timed = pours
-            .filter { range.contains($0.dayKey) }
-            .map { (hour: hours.hours($0.timestamp, into: $0.dayKey), units: $0.units) }
-            .sorted { $0.hour < $1.hour }
-        var total = 0.0
-        var index = 0
-        let raw = stride(from: from, through: 24, by: 0.25).map { hour -> CurvePoint in
-            while index < timed.count, timed[index].hour <= hour {
-                total += timed[index].units
-                index += 1
-            }
-            return CurvePoint(x: hour, units: total / Double(logged.count))
+        return entries.map {
+            CurveInput(day: Int64($0.day), hours: hours.hours($0.timestamp, into: $0.dayKey), units: $0.units, order: $0.timestamp.timeIntervalSince1970)
         }
-        guard smoothed else { return raw }
-        // The result must remain a running total: starting at zero, never falling, and ending on the mean.
-        // So the drinks are spread over a short window and re-accumulated, then scaled to preserve the total.
-        // Blurring the curve itself would drag its ends inwards.
-        var previous = 0.0
-        let pours = raw.map { point -> Double in
-            defer { previous = point.units }
-            return point.units - previous
+    }
+}
+
+nonisolated extension DayStatus {
+    init(_ kind: StatusKind) {
+        self = switch kind {
+        case .drank: .drank
+        case .alcoholFree: .alcoholFree
+        case .today: .today
+        case .unlogged: .unlogged
+        case .future: .future
+        case .untracked: .untracked
         }
-        let week = pours.reduce(0, +)
-        guard week > 0 else { return raw }
-        // Two quarter-hours either side, applied twice, so the kernel tapers at the edges instead of
-        // cutting off as a single box pass would.
-        let span = 2
-        let blur = { (xs: [Double]) in
-            xs.indices.map { i in
-                (max(0, i - span)...min(xs.count - 1, i + span)).reduce(0) { $0 + xs[$1] } / Double(2 * span + 1)
-            }
-        }
-        let spread = blur(blur(pours))
-        // The blur pushes a little past the end of the day, where it is lost; scaling restores it.
-        let scale = week / spread.reduce(0, +)
-        var running = 0.0
-        return zip(raw, spread).map { point, poured in
-            running += poured * scale
-            return CurvePoint(x: point.x, units: running)
-        }
+    }
+}
+
+nonisolated extension DayRow {
+    init(_ row: Day) {
+        self.init(
+            number: Int64(row.number),
+            isAlcoholFree: row.isAlcoholFree,
+            units: row.units,
+            kcal: row.kcal,
+            cost: row.cost,
+            count: Int64(row.count),
+            costOverride: row.costOverride
+        )
     }
 }

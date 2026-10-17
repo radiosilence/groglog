@@ -1,9 +1,22 @@
 package cc.blit.groglog.model
 
+import cc.blit.groglog.core.GoalSpec
+import cc.blit.groglog.core.TaperKind
+import cc.blit.groglog.core.goalDailyCut
+import cc.blit.groglog.core.goalDailyUnitCut
+import cc.blit.groglog.core.goalIsFasterThanSafe
+import cc.blit.groglog.core.goalNearestOfferedPeriod
+import cc.blit.groglog.core.goalNearestOfferedUnits
+import cc.blit.groglog.core.goalNearestPeriodToDailyCut
+import cc.blit.groglog.core.goalOpeningDrop
+import cc.blit.groglog.core.goalPaceDrinking
+import cc.blit.groglog.core.goalPeriodsFrom
+import cc.blit.groglog.core.goalRateForPace
+import cc.blit.groglog.core.goalSharpensBelow
+import cc.blit.groglog.core.goalSharpensWhileItMatters
+import cc.blit.groglog.core.goalUnitCuts
 import java.time.Instant
 import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.pow
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -65,9 +78,6 @@ enum class Taper(val raw: String) {
 /** A choice of pace: how many days apart the cut lands, and how the picker names it. */
 data class Period(val days: Int, val label: String)
 
-/** A rung of the stepped taper: above this weekly level, the quickest pace offered. */
-data class Rung(val aboveWeekly: Double, val pace: Int)
-
 /**
  * Brings the budget down until it reaches `targetWeekly`. A proportional taper cuts `reductionPercent` every
  * `periodDays`, compounded smoothly day by day so the budget never steps. A linear taper takes `reductionUnits` off the
@@ -98,40 +108,47 @@ data class Goal(
      * What this takes off the budget on its first day: the steepest step of a proportional taper, and every step of a
      * linear one.
      */
-    fun openingDrop(weekly: Double): Double = when (taper) {
-        Taper.LINEAR -> dailyUnitCut
-        // Stepped starts on whichever rung its baseline lands it on.
-        Taper.DYNAMIC -> weekly / 7 * rate(pace(weekly))
-        Taper.PROPORTIONAL -> weekly / 7 * dailyCut
-    }
+    fun openingDrop(weekly: Double): Double = goalOpeningDrop(spec(), weekly)
 
     /** The equivalent share per day, for comparing proportional plans on the same footing. */
-    val dailyCut: Double get() = 1 - (1 - reductionPercent / 100).pow(1 / max(1, periodDays).toDouble())
+    val dailyCut: Double get() = goalDailyCut(spec())
 
     /** Units off the daily budget per day, for a linear plan. */
-    val dailyUnitCut: Double get() = reductionUnits / max(1, periodDays)
+    val dailyUnitCut: Double get() = goalDailyUnitCut(spec())
 
     /**
      * A linear taper takes the same units off whatever the budget, so the share it takes climbs as the budget falls: it
      * passes the safe rate at this daily budget and is sharper than it from there down.
      */
-    val sharpensBelow: Double get() = dailyUnitCut / SAFE_DAILY_CUT
+    val sharpensBelow: Double get() = goalSharpensBelow(spec())
 
     /**
      * Whether to warn about it. The 10%-a-day limit concerns withdrawal from heavy drinking and has no meaning near the
      * guideline, where warning would contradict the advice on the same screen. The warning applies only when the taper
      * sharpens while intake is still high.
      */
-    fun sharpensWhileItMatters(weekly: Double) =
-        taper == Taper.LINEAR && weekly >= ASSISTED_WITHDRAWAL_WEEKLY && sharpensBelow > Units.WEEKLY_GUIDELINE / 7
+    fun sharpensWhileItMatters(weekly: Double) = goalSharpensWhileItMatters(spec(), weekly)
 
-    val isFasterThanSafe: Boolean
-        get() = when (taper) {
-            Taper.DYNAMIC, Taper.PROPORTIONAL -> dailyCut > SAFE_DAILY_CUT + 0.0005
-            // Safe at the start and too fast at the end, so a single answer would be wrong; `sharpensBelow` gives the
-            // crossover.
-            Taper.LINEAR -> false
-        }
+    val isFasterThanSafe: Boolean get() = goalIsFasterThanSafe(spec())
+
+    /**
+     * The goal as the shared maths sees it. `startDay` is the day the taper begins, which depends on the zone the start
+     * time is read in; the figures that do not involve a date leave it at zero.
+     */
+    fun spec(startDay: DayKey = DayKey(0)) = GoalSpec(
+        isEnabled,
+        when (taper) {
+            Taper.DYNAMIC -> TaperKind.DYNAMIC
+            Taper.PROPORTIONAL -> TaperKind.PROPORTIONAL
+            Taper.LINEAR -> TaperKind.LINEAR
+        },
+        baselineWeekly,
+        reductionPercent,
+        reductionUnits,
+        periodDays.toLong(),
+        startDay.number.toLong(),
+        targetWeekly,
+    )
 
     companion object {
         /**
@@ -179,67 +196,40 @@ data class Goal(
         val unitCuts: List<Double> = listOf(0.5, 1.0, 1.5, 2.0)
 
         /**
-         * The quickest pace offered above each level, used both to narrow the picker and as the rung a stepped taper
-         * runs at. Over 25 units a day the guidance sets the limit. The rung below is this app's own: NICE considers
-         * assisted withdrawal over 15 a day, and the ceiling was not written for unsupervised reduction at that level.
-         * Under 15 the ceiling applies.
-         */
-        val ladder: List<Rung> = listOf(
-            Rung(SLOWER_ABOVE_WEEKLY, 4),
-            Rung(ASSISTED_WITHDRAWAL_WEEKLY, 3),
-            Rung(Double.NEGATIVE_INFINITY, 1),
-        )
-
-        /**
          * `weekly` is the taper's baseline, which decides the size of its steps. Over 25 units a day the guidance sets
          * a slower pace of no more than 10% every four days, so the two quicker periods are not offered.
          */
-        fun periods(weekly: Double): List<Period> {
-            val floor = ladder.first { weekly > it.aboveWeekly }.pace
-            val offered = periods.filter { it.days >= floor }
-            return offered.ifEmpty { listOf(periods.last()) }
-        }
+        fun periods(weekly: Double): List<Period> = goalPeriodsFrom(weekly).mapNotNull { days -> periods.firstOrNull { it.days.toLong() == days } }
 
         /**
          * The pace to fall back on when a baseline change removes the chosen one: the quickest still offered, so
          * raising the baseline slows the taper as little as possible.
          */
-        fun nearestOffered(period: Int, weekly: Double): Int {
-            val offered = periods(weekly).map { it.days }
-            return if (period in offered) period else offered.minOrNull() ?: periods.last().days
-        }
+        fun nearestOffered(period: Int, weekly: Double): Int = goalNearestOfferedPeriod(period.toLong(), weekly).toInt()
 
-        fun nearestOffered(units: Double, weekly: Double, perDays: Int): Double {
-            val offered = unitCuts(weekly, perDays)
-            return if (units in offered) units else offered.maxOrNull() ?: unitCuts[0]
-        }
+        fun nearestOffered(units: Double, weekly: Double, perDays: Int): Double = goalNearestOfferedUnits(units, weekly, perDays.toLong())
 
         /**
          * The pace a dynamic taper runs at once the budget reaches this level: the quickest offered there, taken from
          * the same list as the picker so the two cannot disagree.
          */
-        fun pace(weekly: Double): Int = periods(weekly).minOfOrNull { it.days } ?: periods.last().days
+        fun pace(weekly: Double): Int = goalPaceDrinking(weekly).toInt()
 
         /**
          * The linear amounts offered. A share scales with intake but a fixed number of units does not: two a day off a
          * ten-a-day budget is 20%, twice the ceiling, on the first day. Only amounts that open inside the ceiling are
          * offered; where none do, the smallest is kept so the picker is never empty.
          */
-        fun unitCuts(weekly: Double, perDays: Int): List<Double> {
-            val ceiling = weekly / 7 * SAFE_DAILY_CUT * max(1, perDays)
-            val offered = unitCuts.filter { it <= ceiling + 0.0001 }
-            return offered.ifEmpty { listOf(unitCuts.minOrNull() ?: 0.5) }
-        }
+        fun unitCuts(weekly: Double, perDays: Int): List<Double> = goalUnitCuts(weekly, perDays.toLong())
 
         /**
          * The offered period closest in pace to a rate, for a goal saved with a period no longer offered. The daily
          * rate is matched rather than the number of days, which could make a long taper several times faster.
          */
-        fun nearestPeriod(dailyCut: Double): Int =
-            periods.map { it.days }.minByOrNull { abs(Goal(periodDays = it).dailyCut - dailyCut) } ?: 1
+        fun nearestPeriod(dailyCut: Double): Int = goalNearestPeriodToDailyCut(dailyCut).toInt()
 
         /** The daily rate a pace compounds to. */
-        fun rate(pace: Int): Double = 1 - (1 - STANDARD_CUT / 100).pow(1 / max(1, pace).toDouble())
+        fun rate(pace: Int): Double = goalRateForPace(pace.toLong())
     }
 }
 
