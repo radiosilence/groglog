@@ -1,7 +1,7 @@
 # Releasing
 
 Every push to `main` that passes the tests is archived, signed and uploaded to App Store Connect by
-`.github/workflows/app.yml`, and appears in TestFlight once Apple has processed it. The listing and review submission
+`.github/workflows/ios.yml`, and appears in TestFlight once Apple has processed it. The listing and review submission
 are driven from the terminal by `scripts/app-store.py` (`just store <command>`), so the App Store Connect website is
 needed only for what Apple offers no API for.
 
