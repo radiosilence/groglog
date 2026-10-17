@@ -38,7 +38,6 @@ const SCHOONER: Size = Size::new(WineGlass, 70.0);
 const PORT: Size = Size::new(WineGlass, 50.0);
 const LONG_DRINK: Size = Size::new(Tumbler, 225.0);
 const DOUBLE_LONG: Size = Size::new(Tumbler, 250.0);
-const ROCKS: Size = Size::new(Tumbler, 100.0);
 const COUPE: Size = Size::new(Coupe, 150.0);
 const SMALL_COUPE: Size = Size::new(Coupe, 120.0);
 
