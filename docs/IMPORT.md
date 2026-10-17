@@ -2,7 +2,9 @@
 
 Setup › Data › Import backup takes GrogLog's own JSON backup, or a hand-written file in the same shape. Only `days[].date` and `days[].status` are required, so an LLM can turn screenshots or PDFs from another app, such as Drink Coach, into an import.
 
-Import merges: a day that already has drinks is left alone, and pours with an `id` already present are skipped. Re-importing the same file is safe.
+Import merges: a day that already has drinks is left alone, and pours with an `id` already present, or listed earlier in the same file, are skipped. Re-importing the same file is safe. A day after today takes the pours the file lists for it, but not a dry mark, a spend or a daily total.
+
+The format and the merge are written once, in the shared Rust core (`core/src/backup.rs`), so both apps read and write the same document.
 
 ## Minimal: daily totals
 

@@ -1,0 +1,6 @@
+{
+  "days": [
+    { "date": "2026-09-12", "status": "drank", "units": 30.6, "kcal": 2696, "cost": 42.00 },
+    { "date": "2026-09-11", "status": "alcohol_free" }
+  ]
+}
