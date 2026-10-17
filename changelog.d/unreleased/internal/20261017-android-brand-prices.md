@@ -1,0 +1,1 @@
+- **Catalogue brands on Android carry no price table.** Nothing read it; prices are asked of the shared core when they are needed, as on iOS.

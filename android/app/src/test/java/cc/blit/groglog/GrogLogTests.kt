@@ -866,7 +866,7 @@ class BackupTests {
 class CatalogTests {
     @Test fun everyBrandAndItemIsMapped() {
         assertEquals(catalogBrands().size, Catalog.brands.size)
-        assertTrue(Catalog.brands.all { it.prices.isNotEmpty() && it.sizes.isNotEmpty() })
+        assertTrue(Catalog.brands.all { it.sizes.isNotEmpty() })
     }
 
     @Test fun theCoresKindsAreTheAppsKinds() {
