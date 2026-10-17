@@ -16,12 +16,18 @@ on:
     branches: [main]
     paths:
       - "android/**"
+      - "core/**"
+      - "tools/**"
+      - "Cargo.*"
       - "project.yml"
       - "scripts/play.py"
       - ".github/workflows/android.yml"
   pull_request:
     paths:
       - "android/**"
+      - "core/**"
+      - "tools/**"
+      - "Cargo.*"
       - "project.yml"
       - "scripts/play.py"
       - ".github/workflows/android.yml"
@@ -53,6 +59,14 @@ jobs:
           java-version: "21"
 
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      # The shared Rust core: Gradle builds it for each ABI with cargo-ndk, and the tests load a build for this machine.
+      - name: Rust toolchain and NDK
+        run: |
+          rustup target add aarch64-linux-android x86_64-linux-android
+          cargo install cargo-ndk --locked --version 4.1.2
+          ndk=$(sed -n 's/.*ndkVersion = "\(.*\)"/\1/p' app/build.gradle.kts)
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$ndk" > /dev/null
 
       # Only on main, and only once the secrets exist: without them the bundle is built unsigned, which tests that it
       # builds and can't be uploaded.
@@ -120,6 +134,14 @@ jobs:
           java-version: "21"
 
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      # The shared Rust core: Gradle builds it for each ABI with cargo-ndk, and the tests load a build for this machine.
+      - name: Rust toolchain and NDK
+        run: |
+          rustup target add aarch64-linux-android x86_64-linux-android
+          cargo install cargo-ndk --locked --version 4.1.2
+          ndk=$(sed -n 's/.*ndkVersion = "\(.*\)"/\1/p' app/build.gradle.kts)
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$ndk" > /dev/null
 
       - name: Build the signed APK
         env:

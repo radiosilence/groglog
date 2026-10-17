@@ -1,24 +1,25 @@
+import GrogLogCore
 import SwiftUI
 
 nonisolated enum Units {
     /// UK units: 10 ml of pure alcohol.
-    static func of(ml: Double, abv: Double) -> Double { ml * abv / 1000 }
+    static func of(ml: Double, abv: Double) -> Double { unitsOf(ml: ml, abv: abv) }
 
     /// Whether a typed strength is one a drink can have: above zero and at most pure alcohol.
-    static func isStrength(_ abv: Double) -> Bool { abv > 0 && abv <= 100 }
+    static func isStrength(_ abv: Double) -> Bool { unitsIsStrength(abv: abv) }
 
-    /// Ethanol at 0.789 g/ml and 7 kcal/g, plus the category's non-alcohol calories.
+    /// The energy in the alcohol, plus the category's non-alcohol calories.
     static func kcal(ml: Double, abv: Double, category: DrinkCategory) -> Double {
-        ml * abv / 100 * 0.789 * 7 + ml * category.kcalPerMl
+        unitsKcal(ml: ml, abv: abv, otherKcalPerMl: category.kcalPerMl)
     }
 
     /// UK Chief Medical Officers' low-risk weekly guideline.
-    static let weeklyGuideline = 14.0
+    static let weeklyGuideline = unitsWeeklyGuideline()
 
-    static let unitMl = 10.0
+    static let unitMl = unitsUnitMl()
 
     /// Health's standard drink: 14 g of alcohol, which at 0.789 g/ml is 17.7 ml, nearly two UK units.
-    static let standardDrinkMl = 14 / 0.789
+    static let standardDrinkMl = unitsStandardDrinkMl()
 }
 
 nonisolated enum DrinkCategory: String, CaseIterable, Codable, Identifiable {

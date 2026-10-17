@@ -1,0 +1,1 @@
+- **Shared core.** Day arithmetic, the day clock and unit maths now live in one Rust crate used by both apps, so they cannot drift apart. Other logic moves across in later changes.

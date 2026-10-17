@@ -1,8 +1,9 @@
 # GrogLog
 
 A drink tracker for iOS (SwiftUI, GRDB, in `GrogLog/`) and Android (Compose, Room, in `android/`). The README holds the
-decisions worth knowing, so read it before changing how days, units, prices or sync work. The two apps share a model and a
-backup format, not code.
+decisions worth knowing, so read it before changing how days, units, prices or sync work. The apps share a Rust core in
+`core/` (days, units and, as it moves across, the rest of the logic) and a backup format; presentation and storage stay
+native.
 
 ## Git
 
@@ -27,6 +28,7 @@ both apps.
 ## Build and check
 
 ```sh
+scripts/core-apple.sh   # build the Rust core for iOS; run before xcodegen
 xcodegen generate       # GrogLog.xcodeproj is generated, never committed
 scripts/ci-test.sh      # the iOS tests, on whichever iPhone simulator exists
 just phone              # build, install and launch on the connected iPhone
@@ -44,6 +46,7 @@ does not exist; otherwise they use Homebrew's SDK.
 
 ## Where things live
 
+- `core`: the shared Rust crate, exposed to Swift and Kotlin through uniffi. `core/out` is generated and not committed.
 - `GrogLog/Model`: the database, `Logbook` (every write goes through it), `Ledger` (derived totals), goals, units and the
   catalogue. `GrogLog/Views` has a folder per tab; `GrogLog/Sync` is CloudKit; `GrogLogWidgets` the widgets.
 - `android/app/src/main/java/cc/blit/groglog`: `model`, `data`, `export`, `ui` (a package per tab), `widget`, `shortcut`.

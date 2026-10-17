@@ -1,25 +1,31 @@
 package cc.blit.groglog.model
 
+import cc.blit.groglog.core.unitsIsStrength
+import cc.blit.groglog.core.unitsKcal
+import cc.blit.groglog.core.unitsOf
+import cc.blit.groglog.core.unitsStandardDrinkMl
+import cc.blit.groglog.core.unitsUnitMl
+import cc.blit.groglog.core.unitsWeeklyGuideline
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 object Units {
     /** UK units: 10 ml of pure alcohol. */
-    fun of(ml: Double, abv: Double) = ml * abv / 1000
+    fun of(ml: Double, abv: Double) = unitsOf(ml, abv)
 
     /** Whether a typed strength is one a drink can have: above zero and at most pure alcohol. */
-    fun isStrength(abv: Double) = abv > 0 && abv <= 100
+    fun isStrength(abv: Double) = unitsIsStrength(abv)
 
-    /** Ethanol at 0.789 g/ml and 7 kcal/g, plus the category's non-alcohol calories. */
-    fun kcal(ml: Double, abv: Double, category: DrinkCategory) = ml * abv / 100 * 0.789 * 7 + ml * category.kcalPerMl
+    /** The energy in the alcohol, plus the category's non-alcohol calories. */
+    fun kcal(ml: Double, abv: Double, category: DrinkCategory) = unitsKcal(ml, abv, category.kcalPerMl)
 
     /** UK Chief Medical Officers' low-risk weekly guideline. */
-    const val WEEKLY_GUIDELINE = 14.0
+    val WEEKLY_GUIDELINE = unitsWeeklyGuideline()
 
-    const val UNIT_ML = 10.0
+    val UNIT_ML = unitsUnitMl()
 
     /** A standard drink elsewhere: 14 g of alcohol, which at 0.789 g/ml is 17.7 ml, nearly two UK units. */
-    const val STANDARD_DRINK_ML = 14 / 0.789
+    val STANDARD_DRINK_ML = unitsStandardDrinkMl()
 }
 
 /** Packs 0–1 colour components as an opaque ARGB colour, so the model carries colours without depending on Compose. */

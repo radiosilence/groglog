@@ -1,5 +1,8 @@
 package cc.blit.groglog.model
 
+import cc.blit.groglog.core.dayDrinking
+import cc.blit.groglog.core.dayIsAfterMidnight
+import cc.blit.groglog.core.dayWeekStart
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
@@ -27,21 +30,21 @@ data class DayClock(
     /** Decided on the wall clock, so it agrees with `start` on the nights the clocks change. */
     fun day(instant: Instant): DayKey {
         val hour = instant.atZone(zone).hour
-        return DayKey.of(instant, zone) - if (hour < rolloverHour) 1 else 0
+        return DayKey(dayDrinking(DayKey.of(instant, zone).number.toLong(), hour.toLong(), rolloverHour.toLong()).toInt())
     }
 
     fun start(day: DayKey): Instant = LocalDateTime.of(day.localDate, LocalTime.of(rolloverHour, 0)).atZone(zone).toInstant()
 
     fun end(day: DayKey): Instant = start(day + 1)
 
-    fun weekStart(day: DayKey): DayKey = day - (day.weekday - firstWeekday + 7) % 7
+    fun weekStart(day: DayKey): DayKey = DayKey(dayWeekStart(day.number.toLong(), firstWeekday.toLong()).toInt())
 
     fun hours(instant: Instant, day: DayKey): Double = Duration.between(start(day), instant).toMillis() / 3_600_000.0
 
     /** Places a clock time within the drinking day: 01:30 lands after midnight rather than before the day began. */
     fun resolve(time: Instant, day: DayKey): Instant {
         val parts = time.atZone(zone)
-        val date = (if (parts.hour < rolloverHour) day + 1 else day).localDate
+        val date = (if (dayIsAfterMidnight(parts.hour.toLong(), rolloverHour.toLong())) day + 1 else day).localDate
         return LocalDateTime.of(date, LocalTime.of(parts.hour, parts.minute)).atZone(zone).toInstant()
     }
 

@@ -1,0 +1,15 @@
+[package]
+name = "groglog-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "The logic GrogLog's iOS and Android apps share, exposed through uniffi."
+
+[lib]
+name = "groglog_core"
+crate-type = ["staticlib", "cdylib", "lib"]
+
+[dependencies]
+uniffi = "0.32"

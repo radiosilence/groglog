@@ -1,9 +1,15 @@
 package cc.blit.groglog.model
 
+import cc.blit.groglog.core.dayCivil
+import cc.blit.groglog.core.dayDaysInMonth
+import cc.blit.groglog.core.dayFormat
+import cc.blit.groglog.core.dayMonthStart
+import cc.blit.groglog.core.dayNumber
+import cc.blit.groglog.core.dayParse
+import cc.blit.groglog.core.dayWeekday
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import java.util.Locale
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.Serializable
@@ -23,33 +29,14 @@ value class DayKey(val number: Int) : Comparable<DayKey> {
     data class Components(val year: Int, val month: Int, val day: Int)
 
     val components: Components
-        get() {
-            val z = number + 719_468
-            val era = (if (z >= 0) z else z - 146_096) / 146_097
-            val doe = z - era * 146_097
-            val yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365
-            val doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
-            val mp = (5 * doy + 2) / 153
-            val day = doy - (153 * mp + 2) / 5 + 1
-            val month = if (mp < 10) mp + 3 else mp - 9
-            return Components(yoe + era * 400 + if (month <= 2) 1 else 0, month, day)
-        }
+        get() = dayCivil(number.toLong()).let { Components(it.year.toInt(), it.month.toInt(), it.day.toInt()) }
 
     /** 1 = Sunday … 7 = Saturday, matching iOS's `Calendar`. */
-    val weekday: Int get() = ((number + 4) % 7 + 7) % 7 + 1
+    val weekday: Int get() = dayWeekday(number.toLong()).toInt()
 
-    val monthStart: DayKey
-        get() {
-            val c = components
-            return of(c.year, c.month, 1)
-        }
+    val monthStart: DayKey get() = DayKey(dayMonthStart(number.toLong()).toInt())
 
-    val daysInMonth: Int
-        get() {
-            val c = components
-            val next = if (c.month == 12) of(c.year + 1, 1, 1) else of(c.year, c.month + 1, 1)
-            return monthStart.distanceTo(next)
-        }
+    val daysInMonth: Int get() = dayDaysInMonth(number.toLong()).toInt()
 
     /** Local midnight, for display and chart axes. */
     fun date(zone: ZoneId): Instant = localDate.atStartOfDay(zone).toInstant()
@@ -63,21 +50,11 @@ value class DayKey(val number: Int) : Comparable<DayKey> {
     override fun compareTo(other: DayKey) = number.compareTo(other.number)
 
     /** `yyyy-MM-dd`. */
-    override fun toString(): String {
-        val c = components
-        return String.format(Locale.ROOT, "%04d-%02d-%02d", c.year, c.month, c.day)
-    }
+    override fun toString(): String = dayFormat(number.toLong())
 
     companion object {
-        /** Days from civil date (Howard Hinnant's algorithm), valid for the proleptic Gregorian calendar. */
-        fun of(year: Int, month: Int, day: Int): DayKey {
-            val y = if (month <= 2) year - 1 else year
-            val era = (if (y >= 0) y else y - 399) / 400
-            val yoe = y - era * 400
-            val doy = (153 * (month + if (month > 2) -3 else 9) + 2) / 5 + day - 1
-            val doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
-            return DayKey(era * 146_097 + doe - 719_468)
-        }
+        /** Days from civil date, in the proleptic Gregorian calendar. */
+        fun of(year: Int, month: Int, day: Int): DayKey = DayKey(dayNumber(year.toLong(), month.toLong(), day.toLong()).toInt())
 
         /** The civil date `instant` falls on in `zone`. */
         fun of(instant: Instant, zone: ZoneId): DayKey {
@@ -89,12 +66,7 @@ value class DayKey(val number: Int) : Comparable<DayKey> {
          * A valid `yyyy-MM-dd` date. Imported files are parsed with this, so impossible or day-first dates are refused
          * rather than rolled over into another day.
          */
-        fun parse(string: String): DayKey? {
-            val parts = string.split("-").filter { it.isNotEmpty() }.mapNotNull { it.toIntOrNull() }
-            if (parts.size != 3 || parts[0] !in 1900..2200 || parts[1] !in 1..12 || parts[2] !in 1..31) return null
-            val key = of(parts[0], parts[1], parts[2])
-            return if (key.components == Components(parts[0], parts[1], parts[2])) key else null
-        }
+        fun parse(string: String): DayKey? = dayParse(string)?.let { DayKey(it.toInt()) }
     }
 }
 

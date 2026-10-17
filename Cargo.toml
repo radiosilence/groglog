@@ -1,0 +1,16 @@
+[workspace]
+resolver = "2"
+members = ["core", "tools/uniffi-bindgen"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.91"
+license = "MIT"
+publish = false
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "s"
+strip = true
