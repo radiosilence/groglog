@@ -15,8 +15,8 @@ fun setting(env: String, property: String) =
 /** The version both apps carry, from MARKETING_VERSION in project.yml. */
 val marketingVersion = Regex("""MARKETING_VERSION: (\S+)""").find(rootProject.file("../project.yml").readText())!!.groupValues[1]
 
-/** The ABIs the core is built for. `-Pabis=arm64-v8a` builds one, for a device or an emulator on Apple silicon. */
-val coreAbis = providers.gradleProperty("abis").orElse("arm64-v8a,x86_64").map { it.split(",") }
+/** The ABIs the core is built for, which are the ones the app can be installed on. `-Pabis=arm64-v8a` builds one, for a device or an emulator on Apple silicon. */
+val coreAbis = providers.gradleProperty("abis").orElse("armeabi-v7a,arm64-v8a,x86_64").map { it.split(",") }
 
 val uploadKeystore = setting("ANDROID_UPLOAD_KEYSTORE_FILE", "groglogUploadKeystoreFile")
 
@@ -32,7 +32,7 @@ android {
         // CI passes its run number, so each upload is higher than the last.
         versionCode = providers.gradleProperty("versionCode").orNull?.toInt() ?: 1
         versionName = marketingVersion
-        // Only what the core is built for: a device would otherwise pick a 32-bit ABI that JNA ships and the core does not.
+        // Only what the core is built for: a device would otherwise pick an ABI that JNA ships and the core does not.
         ndk { abiFilters += coreAbis.get() }
     }
 
@@ -91,6 +91,12 @@ kotlin {
  * groglog-core, built with cargo-ndk for each ABI into `jniLibs`, and the Kotlin bindings uniffi generates from the built
  * library. Always a release build, so a debug app is not slowed by an unoptimised core.
  */
+/** What the core is built from: the crates, their lockfile and the bindings generator. */
+val coreSources = rootProject.fileTree("..") {
+    include("core/**", "tools/**", "Cargo.toml", "Cargo.lock")
+    exclude("core/out/**", "**/target/**")
+}
+
 abstract class CoreAndroid @Inject constructor(private val exec: ExecOperations) : DefaultTask() {
     @get:Input
     abstract val abis: ListProperty<String>
@@ -103,6 +109,10 @@ abstract class CoreAndroid @Inject constructor(private val exec: ExecOperations)
 
     @get:Internal
     abstract val ndk: DirectoryProperty
+
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val sources: ConfigurableFileCollection
 
     @get:OutputDirectory
     abstract val jniLibs: DirectoryProperty
@@ -142,13 +152,14 @@ val coreAndroid = tasks.register<CoreAndroid>("coreAndroid") {
     ndk.set(androidComponents.sdkComponents.ndkDirectory)
     jniLibs.set(layout.buildDirectory.dir("core/jniLibs"))
     kotlin.set(layout.buildDirectory.dir("core/kotlin"))
-    // cargo knows what changed; Gradle cannot see the Rust sources.
-    outputs.upToDateWhen { false }
+    sources.from(coreSources)
 }
 
 /** The core built for this machine, which the JVM tests load. */
 val coreHost = tasks.register<Exec>("coreHost") {
     workingDir = rootProject.layout.projectDirectory.dir("..").asFile
+    inputs.files(coreSources).withPathSensitivity(PathSensitivity.RELATIVE)
+    outputs.dir(rootProject.layout.projectDirectory.dir("../target/release"))
     commandLine("cargo", "build", "--release", "-p", "groglog-core")
 }
 

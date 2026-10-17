@@ -1,5 +1,20 @@
 package cc.blit.groglog
 
+import cc.blit.groglog.core.dayCivil
+import cc.blit.groglog.core.dayDaysInMonth
+import cc.blit.groglog.core.dayDrinking
+import cc.blit.groglog.core.dayFormat
+import cc.blit.groglog.core.dayIsAfterMidnight
+import cc.blit.groglog.core.dayMonthStart
+import cc.blit.groglog.core.dayNumber
+import cc.blit.groglog.core.dayWeekStart
+import cc.blit.groglog.core.dayWeekday
+import cc.blit.groglog.core.unitsIsStrength
+import cc.blit.groglog.core.unitsKcal
+import cc.blit.groglog.core.unitsOf
+import cc.blit.groglog.core.unitsStandardDrinkMl
+import cc.blit.groglog.core.unitsUnitMl
+import cc.blit.groglog.core.unitsWeeklyGuideline
 import cc.blit.groglog.export.Exporter
 import cc.blit.groglog.data.Logbook
 import cc.blit.groglog.data.Seed
@@ -42,6 +57,56 @@ class UnitsTests {
     @Test fun caloriesLandNearDrinkawaresFigures() {
         assertTrue(near(Units.kcal(568.0, 4.0, DrinkCategory.BEER), 182.0, 10.0))
         assertTrue(near(Units.kcal(175.0, 13.0, DrinkCategory.RED_WINE), 159.0, 10.0))
+    }
+
+}
+
+/**
+ * Per-row arithmetic stays in Kotlin, because each call into the core costs microseconds through JNA. These hold it to
+ * the core's, which is the one the iOS app uses.
+ */
+class CoreParityTests {
+    @Test fun constantsMatch() {
+        assertEquals(unitsWeeklyGuideline(), Units.WEEKLY_GUIDELINE, 0.0)
+        assertEquals(unitsUnitMl(), Units.UNIT_ML, 0.0)
+        assertEquals(unitsStandardDrinkMl(), Units.STANDARD_DRINK_ML, 0.0)
+    }
+
+    @Test fun dayArithmeticMatches() {
+        for (number in -800..80_000 step 7) {
+            val key = DayKey(number)
+            val core = dayCivil(number.toLong())
+            assertEquals(DayKey.Components(core.year.toInt(), core.month.toInt(), core.day.toInt()), key.components)
+            assertEquals(number.toLong(), dayNumber(core.year, core.month, core.day))
+            assertEquals(DayKey.of(core.year.toInt(), core.month.toInt(), core.day.toInt()), key)
+            assertEquals(dayWeekday(number.toLong()).toInt(), key.weekday)
+            assertEquals(dayMonthStart(number.toLong()).toInt(), key.monthStart.number)
+            assertEquals(dayDaysInMonth(number.toLong()).toInt(), key.daysInMonth)
+            assertEquals(dayFormat(number.toLong()), key.toString())
+        }
+    }
+
+    @Test fun clockRulesMatch() {
+        val zone = java.time.ZoneId.of("Europe/London")
+        for (rollover in 0..12) for (firstWeekday in 1..2) {
+            val clock = DayClock(rollover, zone, firstWeekday)
+            for (number in 20_000..20_020) {
+                assertEquals(dayWeekStart(number.toLong(), firstWeekday.toLong()).toInt(), clock.weekStart(DayKey(number)).number)
+                for (hour in 0..23) {
+                    val instant = java.time.LocalDateTime.of(DayKey(number).localDate, java.time.LocalTime.of(hour, 30)).atZone(zone).toInstant()
+                    assertEquals(dayDrinking(number.toLong(), hour.toLong(), rollover.toLong()).toInt(), clock.day(instant).number)
+                }
+            }
+            for (hour in 0..23) assertEquals(dayIsAfterMidnight(hour.toLong(), rollover.toLong()), hour < rollover)
+        }
+    }
+
+    @Test fun unitsMatch() {
+        for (ml in listOf(25.0, 125.0, 330.0, 568.0, 750.0)) for (abv in listOf(0.5, 4.0, 5.2, 13.0, 40.0, 100.0)) {
+            assertEquals(unitsOf(ml, abv), Units.of(ml, abv), 1e-12)
+            assertEquals(unitsKcal(ml, abv, 0.12), Units.kcal(ml, abv, DrinkCategory.STOUT), 1e-9)
+        }
+        for (abv in listOf(-1.0, 0.0, 0.1, 100.0, 100.1)) assertEquals(unitsIsStrength(abv), Units.isStrength(abv))
     }
 }
 

@@ -9,9 +9,20 @@ export PATH="$HOME/.cargo/bin:$PATH"
 
 PACKAGE=core/out/GrogLogCore
 GENERATED=core/out/generated
+STAMP=core/out/.built
+
+# A release build with LTO is slow, and a fresh package makes Xcode resolve it again, so nothing is rebuilt while the
+# sources are older than the last build.
+if [ -f "$STAMP" ] && [ -d "$PACKAGE" ] && [ -z "$(find core/src core/Cargo.toml core/uniffi.toml Cargo.toml Cargo.lock \
+  rust-toolchain.toml tools scripts/core-apple.sh -type f -newer "$STAMP" -not -path '*/target/*' | head -1)" ]; then
+  exit 0
+fi
+
+rm -f "$STAMP"
 rm -rf "$PACKAGE" "$GENERATED"
 mkdir -p "$PACKAGE/Sources/GrogLogCore" "$GENERATED/headers"
 
+# Apple silicon only: there is no x86_64 simulator slice. The targets come from rust-toolchain.toml.
 rustup target add aarch64-apple-ios aarch64-apple-ios-sim >/dev/null
 cargo build --release -p groglog-core --target aarch64-apple-ios --target aarch64-apple-ios-sim
 
@@ -41,3 +52,5 @@ let package = Package(
     ]
 )
 SWIFT
+
+touch "$STAMP"

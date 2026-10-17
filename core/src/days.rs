@@ -63,8 +63,10 @@ pub fn day_format(number: i64) -> String {
 /// than rolled over into another day.
 #[uniffi::export]
 pub fn day_parse(text: String) -> Option<i64> {
-    let parts: Vec<i64> = text.split('-').filter_map(|part| part.parse().ok()).collect();
+    let parts: Vec<&str> = text.split('-').collect();
     let [year, month, day] = parts[..] else { return None };
+    let number = |part: &str| if part.bytes().all(|b| b.is_ascii_digit()) { part.parse::<i64>().ok() } else { None };
+    let (year, month, day) = (number(year)?, number(month)?, number(day)?);
     if !(1900..=2200).contains(&year) || !(1..=12).contains(&month) || !(1..=31).contains(&day) {
         return None;
     }
@@ -109,7 +111,7 @@ mod tests {
         assert_eq!(day_format(day_parse("2026-09-19".into()).unwrap()), "2026-09-19");
         assert_eq!(day_format(day_parse("2026-9-3".into()).unwrap()), "2026-09-03");
         assert!(day_parse("2024-02-29".into()).is_some());
-        for bad in ["2025-02-29", "2026-13-01", "19-09-2026", "2026-09", "nonsense", "", "1899-12-31"] {
+        for bad in ["2025-02-29", "2026-13-01", "19-09-2026", "2026-09", "nonsense", "", "1899-12-31", "-2026-09-19", "2026-09-19-", "+2026-09-19", "2026--09-19", "2026-+9-19", "2026-09-19-01"] {
             assert_eq!(day_parse(bad.into()), None, "{bad}");
         }
     }

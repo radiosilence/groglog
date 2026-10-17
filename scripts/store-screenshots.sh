@@ -14,6 +14,7 @@ xcrun simctl ui "$SIM" appearance "$APPEARANCE"
 xcrun simctl status_bar "$SIM" override --time "9:41" --dataNetwork wifi --wifiMode active --wifiBars 3 \
   --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100
 
+scripts/core-apple.sh
 xcodegen generate --quiet
 xcodebuild -project GrogLog.xcodeproj -scheme GrogLog -destination "id=$SIM" -derivedDataPath build build -quiet
 xcrun simctl install "$SIM" build/Build/Products/Debug-iphonesimulator/GrogLog.app

@@ -14,12 +14,12 @@ nonisolated enum Units {
     }
 
     /// UK Chief Medical Officers' low-risk weekly guideline.
-    static let weeklyGuideline = unitsWeeklyGuideline()
+    static let weeklyGuideline = 14.0
 
-    static let unitMl = unitsUnitMl()
+    static let unitMl = 10.0
 
     /// Health's standard drink: 14 g of alcohol, which at 0.789 g/ml is 17.7 ml, nearly two UK units.
-    static let standardDrinkMl = unitsStandardDrinkMl()
+    static let standardDrinkMl = 14 / 0.789
 }
 
 nonisolated enum DrinkCategory: String, CaseIterable, Codable, Identifiable {

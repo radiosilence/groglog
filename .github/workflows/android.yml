@@ -61,10 +61,14 @@ jobs:
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
 
       # The shared Rust core: Gradle builds it for each ABI with cargo-ndk, and the tests load a build for this machine.
-      - name: Rust toolchain and NDK
+      # cargo-ndk is the version mise.toml pins, installed once and cached; the Rust toolchain is rust-toolchain.toml's.
+      - name: cargo-ndk
+        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
+        with:
+          install_args: cargo:cargo-ndk
+
+      - name: NDK
         run: |
-          rustup target add aarch64-linux-android x86_64-linux-android
-          cargo install cargo-ndk --locked --version 4.1.2
           ndk=$(sed -n 's/.*ndkVersion = "\(.*\)"/\1/p' app/build.gradle.kts)
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$ndk" > /dev/null
 
@@ -136,10 +140,14 @@ jobs:
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
 
       # The shared Rust core: Gradle builds it for each ABI with cargo-ndk, and the tests load a build for this machine.
-      - name: Rust toolchain and NDK
+      # cargo-ndk is the version mise.toml pins, installed once and cached; the Rust toolchain is rust-toolchain.toml's.
+      - name: cargo-ndk
+        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
+        with:
+          install_args: cargo:cargo-ndk
+
+      - name: NDK
         run: |
-          rustup target add aarch64-linux-android x86_64-linux-android
-          cargo install cargo-ndk --locked --version 4.1.2
           ndk=$(sed -n 's/.*ndkVersion = "\(.*\)"/\1/p' app/build.gradle.kts)
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$ndk" > /dev/null
 
