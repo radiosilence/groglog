@@ -20,6 +20,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import cc.blit.groglog.core.ReadingKind
 import cc.blit.groglog.model.DayKey
 import cc.blit.groglog.ui.calendar.differentiateWithoutColour
 import cc.blit.groglog.model.DayStatus
@@ -109,11 +110,11 @@ data class Progress(
             val noon = { day: DayKey -> day.number + 0.5 }
             val hearts = when (heart) {
                 HeartLines.NIGHTLY -> HeartReading.entries.flatMap { reading ->
-                    HeartPoint.line(reading, nightsShown, nights.last(reading.value, start), noon) { nights[it]?.let(reading.value) }
+                    HeartPoint.line(reading, nightsShown, nights.last(reading.kind, start), noon) { nights[it]?.let(reading.value) }
                 }
                 // The anchor is averaged the same way, so a lone old reading with no week around it is not used.
                 HeartLines.AVERAGED -> listOf(HeartReading.HRV, HeartReading.RESTING).flatMap { reading ->
-                    HeartPoint.line(reading, nightsShown, nights.last(reading.value, start), noon) { nights.mean(reading.value, (it - 6)..it) }
+                    HeartPoint.line(reading, nightsShown, nights.last(reading.kind, start), noon) { nights.mean(reading.kind, (it - 6)..it) }
                 }
             }
             return Progress(
@@ -283,7 +284,7 @@ fun heartSummary(nights: Nights, heart: HeartLines, lastNight: DayKey): List<Ann
     return when (heart) {
         HeartLines.NIGHTLY -> HeartReading.entries.mapNotNull { reading ->
             val value = nights[lastNight]?.let(reading.value) ?: return@mapNotNull null
-            val change = nights.mean(reading.value, week)?.let { value - it } ?: 0.0
+            val change = nights.mean(reading.kind, week)?.let { value - it } ?: 0.0
             buildAnnotatedString {
                 append("${reading.short} last night ${value.roundToInt()} ${reading.unit}")
                 if (abs(change) >= 1) {
@@ -294,8 +295,8 @@ fun heartSummary(nights: Nights, heart: HeartLines, lastNight: DayKey): List<Ann
             }
         }
         HeartLines.AVERAGED -> {
-            val hrv = nights.mean({ it.hrv }, (lastNight - 6)..lastNight)
-            val resting = nights.mean({ it.restingHR }, (lastNight - 6)..lastNight)
+            val hrv = nights.mean(ReadingKind.HRV, (lastNight - 6)..lastNight)
+            val resting = nights.mean(ReadingKind.RESTING_HR, (lastNight - 6)..lastNight)
             if (hrv == null && resting == null) {
                 emptyList()
             } else {

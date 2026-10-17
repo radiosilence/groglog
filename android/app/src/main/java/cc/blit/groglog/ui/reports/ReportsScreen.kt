@@ -24,18 +24,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cc.blit.groglog.ui.containerViewModel
-import androidx.compose.ui.tooling.preview.Preview
-import cc.blit.groglog.model.Day
-import cc.blit.groglog.model.DayClock
 import cc.blit.groglog.model.DayKey
 import cc.blit.groglog.model.Goal
-import cc.blit.groglog.model.Ledger
-import cc.blit.groglog.model.Night
-import cc.blit.groglog.model.Nights
-import cc.blit.groglog.model.Sleep
-import cc.blit.groglog.ui.theme.GrogLogTheme
-import java.time.Instant
-import java.time.temporal.ChronoUnit
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.LaunchedEffect
@@ -133,29 +123,4 @@ fun ReportsContent(
             item("weekdays") { WeekdayCard(ledger, days) }
         }
     }
-}
-
-/** A month of steady drinking with a taper begun a fortnight ago, and a watch's readings. */
-private fun previewState(): ReportsState {
-    val clock = DayClock(5)
-    val today = clock.today
-    val days = (1..40).map { offset ->
-        val day = today - offset
-        if (offset % 6 == 0) Day(day.number, isAlcoholFree = true) else Day(day.number, units = 8.0 + (offset * 7) % 9, kcal = 600.0, cost = 18.0, count = 4)
-    }
-    val nights = Nights((1..40).associate { (today - it) to Night(hrv = 50.0 + it % 7, restingHR = 56.0 - it % 4, sleepingHR = 52.0, sleep = Sleep(deep = 5000.0, core = 14000.0, rem = 6000.0, awake = 1500.0)) })
-    val goal = Goal(isEnabled = true, baselineWeekly = 84.0, start = Instant.now().minus(14, ChronoUnit.DAYS))
-    return ReportsState(Ledger(days, clock), goal, "GBP", nights, emptyList())
-}
-
-@Preview
-@Composable
-private fun ReportsPreview() {
-    GrogLogTheme { ReportsContent(previewState(), 12, {}, HeartReading.HRV, {}, {}) }
-}
-
-@Preview
-@Composable
-private fun ReportsDarkPreview() {
-    GrogLogTheme(darkTheme = true) { ReportsContent(previewState(), 12, {}, HeartReading.RESTING, {}, {}) }
 }

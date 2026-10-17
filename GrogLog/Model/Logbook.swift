@@ -1,5 +1,6 @@
 import Foundation
 import GRDB
+import GrogLogCore
 import GRDBQuery
 import WidgetKit
 import os
@@ -19,7 +20,7 @@ nonisolated struct Logbook: Sendable {
     /// `abv` logs these at a strength of their own, leaving the drink as it is.
     func log(_ serve: Serve, at times: [Date], abv: Double? = nil) {
         defer { mirror(Set(times.map { clock.day(for: $0) })) }
-        let abvOverride = abv == serve.drink.abv ? nil : abv
+        let abvOverride = logbookAbvOverride(drinkAbv: serve.drink.abv, abv: abv)
         write { db in
             for time in times {
                 try Pour(drinkId: serve.drink.id, timestamp: time, day: clock.day(for: time).number, vessel: serve.vessel, volumeMl: serve.volumeMl, price: serve.price, abvOverride: abvOverride).insert(db)
@@ -101,7 +102,7 @@ nonisolated struct Logbook: Sendable {
         let touched = write { db -> Set<DayKey> in
             let before = try Drink.fetchOne(db, key: drink.id)
             try drink.save(db)
-            guard let before, before.abv != drink.abv || before.category != drink.category else { return [] }
+            guard let before, logbookDrinkEditRetotals(beforeAbv: before.abv, beforeCategory: before.category.kind, afterAbv: drink.abv, afterCategory: drink.category.kind) else { return [] }
             let days = try Pour.select(Column("day"), as: Int.self).filter(Column("drinkId") == drink.id).distinct().fetchAll(db)
             let touched = Set(days.map(DayKey.init(number:)))
             try retotal(touched, db)
@@ -142,18 +143,24 @@ nonisolated struct Logbook: Sendable {
     @discardableResult
     func resetPrices() -> Int {
         write { db in
+            let drinks = try Drink.fetchAll(db)
+            let favourites = try Favourite.fetchAll(db)
+            let changes = logbookPriceResets(
+                drinks: drinks.map { DrinkPriceIn(id: $0.id.uuidString, name: $0.name, category: $0.category.kind, vessel: $0.vessel.kind, volumeMl: $0.volumeMl, price: $0.price) },
+                favourites: favourites.map { FavouritePriceIn(id: $0.id.uuidString, drinkId: $0.drinkId.uuidString, vessel: $0.vessel.kind, volumeMl: $0.volumeMl, price: $0.price) },
+                currency: Catalog.currency
+            )
+            let drinkPrices = Dictionary(uniqueKeysWithValues: changes.drinks.map { ($0.id, $0.price) })
+            let favouritePrices = Dictionary(uniqueKeysWithValues: changes.favourites.map { ($0.id, $0.price) })
             var changed = 0
-            for var drink in try Drink.fetchAll(db) {
-                guard let price = Catalog.price(name: drink.name, category: drink.category, vessel: drink.vessel, ml: drink.volumeMl),
-                      price != drink.price else { continue }
+            for var drink in drinks {
+                guard let price = drinkPrices[drink.id.uuidString] else { continue }
                 drink.price = price
                 try drink.update(db)
                 changed += 1
             }
-            for var favourite in try Favourite.fetchAll(db) {
-                guard let drink = try Drink.fetchOne(db, key: favourite.drinkId),
-                      let price = Catalog.price(name: drink.name, category: drink.category, vessel: favourite.vessel, ml: favourite.volumeMl),
-                      price != favourite.price else { continue }
+            for var favourite in favourites {
+                guard let price = favouritePrices[favourite.id.uuidString] else { continue }
                 favourite.price = price
                 try favourite.update(db)
                 changed += 1
@@ -178,20 +185,15 @@ nonisolated struct Logbook: Sendable {
                     }
                 }
             }
-            let totals = Dictionary(grouping: try entries(in: nil, db), by: \.day).mapValues { DayTotals($0) }
             // Rewritten in place: deleting and reinserting days would fire the sync triggers for every dry mark
             // and manual spend, resending them all from every device.
-            for var row in try Day.fetchAll(db) {
-                row.set(totals[row.number] ?? DayTotals())
-                if row.count == 0 && !row.isAlcoholFree && row.costOverride == nil {
-                    try row.delete(db)
-                } else {
-                    try row.update(db)
-                }
-            }
-            for (number, dayTotals) in totals where try !Day.exists(db, key: number) {
-                try Day(number: number, totals: dayTotals).insert(db)
-            }
+            let plan = logbookRebuild(
+                existing: try Day.fetchAll(db).map(DayRow.init),
+                pours: try entries(in: nil, db).map { DayPour(day: Int64($0.day), units: $0.units, kcal: $0.kcal, price: $0.price) }
+            )
+            for row in plan.updates { try Day(row).update(db) }
+            for number in plan.deletes { _ = try Day.deleteOne(db, key: Int(number)) }
+            for row in plan.inserts { try Day(row).insert(db) }
         }
     }
 
@@ -210,11 +212,17 @@ nonisolated struct Logbook: Sendable {
     /// Recomputes days from their entries. Logging a drink clears a dry mark; a day left with neither is deleted.
     func retotal(_ days: Set<DayKey>, _ db: Database) throws {
         for day in days {
-            var row = try Day.fetchOne(db, key: day.number) ?? Day(number: day.number)
-            let entries = try entries(in: day...day, db)
-            row.set(DayTotals(entries))
-            if !entries.isEmpty { row.isAlcoholFree = false }
-            try save(row, db)
+            let existing = try Day.fetchOne(db, key: day.number)
+            let result = logbookRetotal(
+                existing: existing.map(DayRow.init),
+                day: Int64(day.number),
+                pours: try entries(in: day...day, db).map { PourTotals(units: $0.units, kcal: $0.kcal, price: $0.price) }
+            )
+            if result.delete {
+                _ = try Day(result.row).delete(db)
+            } else {
+                try Day(result.row).save(db)
+            }
         }
     }
 
@@ -239,7 +247,7 @@ nonisolated struct Logbook: Sendable {
     }
 
     private func save(_ row: Day, _ db: Database) throws {
-        if row.count == 0 && !row.isAlcoholFree && row.costOverride == nil {
+        if logbookDayAfterEdit(row: DayRow(row)).delete {
             _ = try row.delete(db)
         } else {
             try row.save(db)
@@ -269,16 +277,8 @@ nonisolated struct Logbook: Sendable {
 }
 
 nonisolated extension Day {
-    init(number: Int, totals: DayTotals) {
-        self.init(number: number)
-        set(totals)
-    }
-
-    mutating func set(_ totals: DayTotals) {
-        units = totals.units
-        kcal = totals.kcal
-        cost = totals.cost
-        count = totals.count
+    init(_ row: DayRow) {
+        self.init(number: Int(row.number), isAlcoholFree: row.isAlcoholFree, units: row.units, kcal: row.kcal, cost: row.cost, count: Int(row.count), costOverride: row.costOverride)
     }
 }
 

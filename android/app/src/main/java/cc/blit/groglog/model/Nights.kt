@@ -1,5 +1,15 @@
 package cc.blit.groglog.model
 
+import cc.blit.groglog.core.CoreNights
+import cc.blit.groglog.core.NightRow
+import cc.blit.groglog.core.ReadingIn
+import cc.blit.groglog.core.ReadingKind
+import cc.blit.groglog.core.SampleIn
+import cc.blit.groglog.core.SleepIn
+import cc.blit.groglog.core.SleepRow
+import cc.blit.groglog.core.StageKind
+import cc.blit.groglog.core.nightsBuild
+import cc.blit.groglog.core.nightsNightSpans
 import java.time.Duration
 import java.time.Instant
 
@@ -45,29 +55,51 @@ data class SleepSpan(
     val source: String,
 )
 
-data class Nights(val byDay: Map<DayKey, Night> = emptyMap()) {
+class Nights(val byDay: Map<DayKey, Night> = emptyMap()) {
+    private val core by lazy {
+        CoreNights(
+            byDay.map { (day, night) ->
+                NightRow(
+                    day.number.toLong(), night.hrv, night.restingHR, night.sleepingHR,
+                    night.sleep?.let { SleepRow(it.deep, it.core, it.rem, it.unstaged, it.awake) },
+                )
+            },
+        )
+    }
+
+    override fun equals(other: Any?) = other is Nights && other.byDay == byDay
+
+    override fun hashCode() = byDay.hashCode()
+
     operator fun get(day: DayKey): Night? = byDay[day]
 
     val isEmpty: Boolean get() = byDay.isEmpty()
 
-    val first: DayKey? get() = byDay.keys.minOrNull()
+    val first: DayKey? get() = core.first()?.let { DayKey(it.toInt()) }
 
     /** The latest night before this one with a reading, however long ago. */
-    fun last(reading: (Night) -> Double?, before: DayKey): DayKey? =
-        byDay.filter { it.key < before && reading(it.value) != null }.keys.maxOrNull()
+    fun last(reading: ReadingKind, before: DayKey): DayKey? =
+        core.last(reading, before.number.toLong())?.let { DayKey(it.toInt()) }
 
     /** The mean over a range of nights, or null if fewer than `minimum` have a reading. */
-    fun mean(reading: (Night) -> Double?, days: DayRange, minimum: Int = 3): Double? {
-        val values = days.mapNotNull { byDay[it]?.let(reading) }
-        return if (values.size >= minimum) values.mean else null
-    }
+    fun mean(reading: ReadingKind, days: DayRange, minimum: Int = 3): Double? =
+        core.mean(reading, days.start.number.toLong(), days.endInclusive.number.toLong(), minimum.toLong())
 
     companion object {
+        /**
+         * How many hours earlier a moment is shifted before its drinking day is taken as its night: with a 5am day end, a
+         * night runs 8pm to 8pm. The core's, held here because every reading is filed with it.
+         */
+        const val SHIFT_HOURS = 15.0
+
+        /** How far into its shifted day a reading still counts as overnight: 8pm to noon, on a 5am day end. */
+        const val OVERNIGHT_HOURS = 16.0
+
         /**
          * Files readings under the night they followed. HRV is taken only overnight, since a daytime spot reading
          * reflects the day's activity, and a night with several readings uses their mean. Sleep is filed by when it
          * began, so a bedtime after midnight counts for the evening before. Sleeping rate uses only beats inside an
-         * asleep stage.
+         * asleep stage. Which night a moment belongs to is the calendar's to say; the filing is the shared core's.
          */
         fun of(
             hrv: List<Pair<Instant, Double>> = emptyList(),
@@ -76,58 +108,43 @@ data class Nights(val byDay: Map<DayKey, Night> = emptyMap()) {
             heartRate: List<Pair<Instant, Double>> = emptyList(),
             clock: DayClock,
         ): Nights {
-            val byDay = LinkedHashMap<DayKey, Night>()
-            fun edit(day: DayKey, change: (Night) -> Night) {
-                byDay[day] = change(byDay[day] ?: Night())
-            }
-            for ((day, values) in hrv.filter { clock.isOvernight(it.first) }.groupBy { clock.night(it.first) }) {
-                edit(day) { it.copy(hrv = values.map { v -> v.second }.mean) }
-            }
-            for ((day, values) in restingHR.groupBy { clock.night(it.first) }) {
-                edit(day) { it.copy(restingHR = values.map { v -> v.second }.mean) }
-            }
-            val asleep = mutableListOf<TimeSpan>()
-            for ((day, spans) in sleepByNight(sleep, clock)) {
-                var night = Sleep()
-                for (span in spans) {
-                    val seconds = span.span.seconds
-                    night = when (span.stage) {
-                        SleepStage.DEEP -> night.copy(deep = night.deep + seconds)
-                        SleepStage.CORE -> night.copy(core = night.core + seconds)
-                        SleepStage.REM -> night.copy(rem = night.rem + seconds)
-                        SleepStage.UNSTAGED -> night.copy(unstaged = night.unstaged + seconds)
-                        SleepStage.AWAKE -> night.copy(awake = night.awake + seconds)
-                    }
-                }
-                edit(day) { it.copy(sleep = night) }
-                asleep += spans.filter { it.stage != SleepStage.AWAKE }.map { it.span }
-            }
-            asleep.sortBy { it.start }
-            val sleeping = LinkedHashMap<DayKey, MutableList<Double>>()
-            var i = 0
-            for ((instant, value) in heartRate.sortedBy { it.first }) {
-                while (i < asleep.size && asleep[i].end <= instant) i += 1
-                if (i >= asleep.size || instant !in asleep[i]) continue
-                sleeping.getOrPut(clock.night(asleep[i].start)) { mutableListOf() } += value
-            }
-            for ((day, values) in sleeping) edit(day) { it.copy(sleepingHR = values.mean) }
-            return Nights(byDay)
+            val rows = nightsBuild(
+                hrv.filter { clock.isOvernight(it.first) }.map { ReadingIn(clock.night(it.first).number.toLong(), it.second) },
+                restingHR.map { ReadingIn(clock.night(it.first).number.toLong(), it.second) },
+                sleep.map { sleepIn(it, clock) },
+                heartRate.map { SampleIn(seconds(it.first), it.second) },
+            )
+            return Nights(
+                rows.associate { row ->
+                    DayKey(row.day.toInt()) to Night(
+                        row.hrv, row.restingHr, row.sleepingHr,
+                        row.sleep?.let { Sleep(it.deep, it.core, it.rem, it.unstaged, it.awake) },
+                    )
+                },
+            )
         }
-
-        /** Each night's spans from the one device that recorded the most sleep that night. */
-        fun sleepByNight(spans: List<SleepSpan>, clock: DayClock): Map<DayKey, List<SleepSpan>> =
-            spans.groupBy { clock.night(it.span.start) }.mapValues { (_, spans) ->
-                spans.groupBy { it.source }.values.maxBy { source ->
-                    source.filter { it.stage != SleepStage.AWAKE }.sumOf { it.span.seconds }
-                }
-            }
 
         /** Each night's first sleep to its last, one span per night, for fetching the heart rate inside them. */
         fun nightSpans(spans: List<SleepSpan>, clock: DayClock): List<TimeSpan> =
-            sleepByNight(spans, clock).values.map { night ->
-                val asleep = night.filter { it.stage != SleepStage.AWAKE }.map { it.span }
-                TimeSpan(asleep.minOfOrNull { it.start } ?: night[0].span.start, asleep.maxOfOrNull { it.end } ?: night[0].span.end)
-            }
+            nightsNightSpans(spans.map { sleepIn(it, clock) }).map { TimeSpan(instant(it.start), instant(it.end)) }
+
+        private fun sleepIn(span: SleepSpan, clock: DayClock) = SleepIn(
+            clock.night(span.span.start).number.toLong(),
+            seconds(span.span.start),
+            seconds(span.span.end),
+            when (span.stage) {
+                SleepStage.AWAKE -> StageKind.AWAKE
+                SleepStage.CORE -> StageKind.CORE
+                SleepStage.DEEP -> StageKind.DEEP
+                SleepStage.REM -> StageKind.REM
+                SleepStage.UNSTAGED -> StageKind.UNSTAGED
+            },
+            span.source,
+        )
+
+        private fun seconds(instant: Instant) = instant.toEpochMilli() / 1000.0
+
+        private fun instant(seconds: Double) = Instant.ofEpochMilli(Math.round(seconds * 1000))
     }
 }
 
@@ -135,12 +152,12 @@ data class Nights(val byDay: Map<DayKey, Night> = emptyMap()) {
  * The drinking day a reading belongs to. With a 5am day end a night runs 8pm to 8pm, so the 11pm reading, the 3am one
  * and the resting rate stamped on the next morning all belong to the preceding evening.
  */
-fun DayClock.night(instant: Instant): DayKey = day(instant.minusSeconds(15 * 3600))
+fun DayClock.night(instant: Instant): DayKey = day(instant.minusMillis((Nights.SHIFT_HOURS * 3_600_000).toLong()))
 
 /** 8pm to noon, on a 5am day end. */
 fun DayClock.isOvernight(instant: Instant): Boolean {
-    val shifted = instant.minusSeconds(15 * 3600)
-    return hours(shifted, day(shifted)) < 16
+    val shifted = instant.minusMillis((Nights.SHIFT_HOURS * 3_600_000).toLong())
+    return hours(shifted, day(shifted)) < Nights.OVERNIGHT_HOURS
 }
 
 val List<Double>.mean: Double? get() = if (isEmpty()) null else sum() / size

@@ -1,11 +1,11 @@
 package cc.blit.groglog
 
-import cc.blit.groglog.data.Seed
+import cc.blit.groglog.core.catalogGenericPrice
+import cc.blit.groglog.core.ratesPerPound
 import cc.blit.groglog.model.Catalog
 import cc.blit.groglog.model.CatalogBrand
 import cc.blit.groglog.model.DrinkCategory
 import cc.blit.groglog.model.Drink
-import cc.blit.groglog.model.Rates
 import cc.blit.groglog.model.Vessel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -16,23 +16,17 @@ import org.junit.Test
 
 /** A drink at £0.00 looks free rather than broken, and silently flattens the spend charts. */
 class PriceTests {
-    @Test fun everySizeOfEveryBrandCostsSomething() {
-        for (brand in Catalog.brands) {
-            for (serve in brand.prices.values.flatten()) {
-                assertTrue("${brand.name} ${serve.size.label}", serve.price > 0)
-            }
-        }
-    }
+    private fun genericPrice(name: String, vessel: Vessel, ml: Double) = catalogGenericPrice(name, vessel.kind, ml)
 
     @Test fun genericsKnowWhatTheirOwnServesCost() {
-        assertTrue((Seed.price("Beer", Vessel.PINT, 568.0) ?: 0.0) > 0)
-        assertTrue((Seed.price("Beer", Vessel.CAN, 440.0) ?: 0.0) > 0)
-        assertTrue((Seed.price("Red wine", Vessel.WINE_GLASS, 175.0) ?: 0.0) > 0)
+        assertTrue((genericPrice("Beer", Vessel.PINT, 568.0) ?: 0.0) > 0)
+        assertTrue((genericPrice("Beer", Vessel.CAN, 440.0) ?: 0.0) > 0)
+        assertTrue((genericPrice("Red wine", Vessel.WINE_GLASS, 175.0) ?: 0.0) > 0)
     }
 
     @Test fun nothingIsPricedAtZeroRatherThanUnknown() {
-        assertNull(Seed.price("Beer", Vessel.WINE_GLASS, 175.0))
-        assertNull(Seed.price("Not a drink", Vessel.PINT, 568.0))
+        assertNull(genericPrice("Beer", Vessel.WINE_GLASS, 175.0))
+        assertNull(genericPrice("Not a drink", Vessel.PINT, 568.0))
         assertNull(Catalog.price("Not a drink", DrinkCategory.BEER, Vessel.PINT, 568.0))
     }
 
@@ -40,7 +34,7 @@ class PriceTests {
     @Test fun aKnownBrandIsPricedAheadOfAnyGeneric() {
         val stella = Catalog.price("Stella Artois", DrinkCategory.BEER, Vessel.PINT, 568.0, "GBP")!!
         assertTrue(stella > 0)
-        assertNotEquals(Seed.price("Beer", Vessel.PINT, 568.0), stella)
+        assertNotEquals(genericPrice("Beer", Vessel.PINT, 568.0), stella)
     }
 
     @Test fun aBrandPricesASizeItIsntSoldInByVolume() {
@@ -109,7 +103,7 @@ class AdoptedDrinkTests {
         val pounds = Catalog.price(asahi, Vessel.PINT, 568.0, "GBP")
         val euros = Catalog.price(asahi, Vessel.PINT, 568.0, "EUR")
         assertEquals(asahi.prices["GBP"]?.first { it.size.vessel == Vessel.PINT }?.price!!, pounds, 0.0)
-        assertTrue(near(euros, pounds * Rates.perPound["EUR"]!!, 0.001))
+        assertTrue(near(euros, pounds * ratesPerPound().first { it.currency == "EUR" }.perPound, 0.001))
         assertEquals(0.0, Catalog.price(asahi, Vessel.PINT, 568.0, "XXX"), 0.0)
     }
 
@@ -123,15 +117,5 @@ class AdoptedDrinkTests {
     @Test fun anUnlistedSizeScalesFromItsOwnKindOfServe() {
         val asahi = asahi()
         assertTrue(near(Catalog.price(asahi, Vessel.BOTTLE, 660.0), Catalog.price(asahi, Vessel.BOTTLE, 330.0) * 2, 0.001))
-    }
-
-    @Test fun aGenericIsNotACatalogueBrand() {
-        assertFalse(Catalog.holds("Beer", DrinkCategory.BEER, DrinkCategory.BEER.defaultABV))
-    }
-
-    /** Lookups go by name and kind, so two brands sharing both would leave one of them unreachable. */
-    @Test fun noTwoBrandsShareANameAndKind() {
-        val keys = Catalog.brands.map { Catalog.key(it.name, it.category) }
-        assertEquals(keys.groupBy { it }.filter { it.value.size > 1 }.keys.sorted().toString(), keys.size, keys.toSet().size)
     }
 }

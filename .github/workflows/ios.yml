@@ -54,6 +54,12 @@ jobs:
           fi
           python3 scripts/changelog.py --lint
 
+      # The shared core's own suite, which both apps rely on; the app suites below exercise it only through the bindings.
+      - name: Core
+        run: |
+          cargo test --locked -p groglog-core
+          cargo clippy --locked -p groglog-core --all-targets -- -D warnings
+
       - name: Test
         run: scripts/ci-test.sh
 

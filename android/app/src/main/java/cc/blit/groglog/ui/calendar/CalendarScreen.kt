@@ -1,6 +1,5 @@
 package cc.blit.groglog.ui.calendar
 
-import android.content.res.Configuration
 import android.text.format.DateFormat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -75,6 +74,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import cc.blit.groglog.model.DayClock
 import cc.blit.groglog.model.DayKey
 import cc.blit.groglog.model.DayStatus
 import cc.blit.groglog.model.unitsText
@@ -368,22 +368,10 @@ internal fun sampleCalendarState(): CalendarState {
     return CalendarState(day.ledger, day.settings.goal)
 }
 
-@Preview(showBackground = true, heightDp = 900)
-@Composable
-private fun CalendarPreview() {
-    GrogLogTheme { CalendarContent(sampleCalendarState(), rememberLazyListState(), {}, { _, _ -> }) }
-}
-
-@Preview(showBackground = true, heightDp = 900, uiMode = Configuration.UI_MODE_NIGHT_YES)
-@Composable
-private fun CalendarDarkPreview() {
-    GrogLogTheme(darkTheme = true) { CalendarContent(sampleCalendarState(), rememberLazyListState(), {}, { _, _ -> }) }
-}
-
 @Preview(showBackground = true, widthDp = 380)
 @Composable
 private fun DayCellPreview() {
-    val today = sampleDayState().day
+    val today = DayClock(5).today
     val cells = listOf(
         DayCellState(today - 5, DayStatus.DRANK, 2.8, 4.0, false),
         DayCellState(today - 4, DayStatus.DRANK, 5.1, 4.0, false),

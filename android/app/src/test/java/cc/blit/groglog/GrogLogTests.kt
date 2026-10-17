@@ -1,5 +1,10 @@
 package cc.blit.groglog
 
+import cc.blit.groglog.core.CategoryKind
+import cc.blit.groglog.core.SleepRow
+import cc.blit.groglog.core.VesselKind
+import cc.blit.groglog.core.catalogBrands
+import cc.blit.groglog.core.catalogCategoryLabels
 import cc.blit.groglog.core.dayCivil
 import cc.blit.groglog.core.dayDaysInMonth
 import cc.blit.groglog.core.dayDrinking
@@ -9,10 +14,16 @@ import cc.blit.groglog.core.dayMonthStart
 import cc.blit.groglog.core.dayNumber
 import cc.blit.groglog.core.dayWeekStart
 import cc.blit.groglog.core.dayWeekday
+import cc.blit.groglog.core.goalStandards
+import cc.blit.groglog.core.nightsIsOvernight
+import cc.blit.groglog.core.nightsShiftHours
+import cc.blit.groglog.core.sleepAsleep
+import cc.blit.groglog.core.sleepRemShare
 import cc.blit.groglog.core.unitsIsStrength
 import cc.blit.groglog.core.unitsKcal
 import cc.blit.groglog.core.unitsOf
 import cc.blit.groglog.core.unitsStandardDrinkMl
+import cc.blit.groglog.core.unitsStandardDrinks
 import cc.blit.groglog.core.unitsUnitMl
 import cc.blit.groglog.core.unitsWeeklyGuideline
 import cc.blit.groglog.export.Exporter
@@ -30,9 +41,11 @@ import cc.blit.groglog.model.Entry
 import cc.blit.groglog.model.Goal
 import cc.blit.groglog.model.GoalSerializer
 import cc.blit.groglog.model.Ledger
+import cc.blit.groglog.model.Nights
 import cc.blit.groglog.model.Pour
 import cc.blit.groglog.model.Serve
 import cc.blit.groglog.model.ServeSize
+import cc.blit.groglog.model.Sleep
 import cc.blit.groglog.model.Taper
 import cc.blit.groglog.model.Units
 import cc.blit.groglog.model.Vessel
@@ -73,6 +86,18 @@ class CoreParityTests {
         assertEquals(unitsStandardDrinkMl(), Units.STANDARD_DRINK_ML, 0.0)
     }
 
+    @Test fun goalFiguresMatch() {
+        val core = goalStandards()
+        assertEquals(core.safeDailyCut, Goal.SAFE_DAILY_CUT, 0.0)
+        assertEquals(core.slowerAboveWeekly, Goal.SLOWER_ABOVE_WEEKLY, 0.0)
+        assertEquals(core.assistedWithdrawalWeekly, Goal.ASSISTED_WITHDRAWAL_WEEKLY, 0.0)
+        assertEquals(core.stopFrom, Goal.STOP_FROM, 0.0)
+        assertEquals(core.inpatientWeekly, Goal.INPATIENT_WEEKLY, 0.0)
+        assertEquals(core.standardCut, Goal.STANDARD_CUT, 0.0)
+        assertEquals(core.periods, Goal.periods.map { it.days.toLong() })
+        assertEquals(core.unitCuts, Goal.unitCuts)
+    }
+
     @Test fun dayArithmeticMatches() {
         for (number in -800..80_000 step 7) {
             val key = DayKey(number)
@@ -108,6 +133,32 @@ class CoreParityTests {
             assertEquals(unitsKcal(ml, abv, 0.12), Units.kcal(ml, abv, DrinkCategory.STOUT), 1e-9)
         }
         for (abv in listOf(-1.0, 0.0, 0.1, 100.0, 100.1)) assertEquals(unitsIsStrength(abv), Units.isStrength(abv))
+        for (units in listOf(0.0, 1.0, 2.84, 30.6)) {
+            assertEquals(unitsStandardDrinks(units), entryOf(units).standardDrinks, 1e-12)
+        }
+    }
+
+    @Test fun nightRulesMatch() {
+        assertEquals(nightsShiftHours(), Nights.SHIFT_HOURS, 0.0)
+        for (hours in listOf(0.0, 15.9, 16.0, 23.5)) assertEquals(nightsIsOvernight(hours), hours < Nights.OVERNIGHT_HOURS)
+        for (sleep in listOf(Sleep(), Sleep(deep = 3600.0, core = 7200.0, rem = 1800.0, awake = 600.0), Sleep(core = 7200.0, rem = 900.0, unstaged = 60.0))) {
+            val row = SleepRow(sleep.deep, sleep.core, sleep.rem, sleep.unstaged, sleep.awake)
+            assertEquals(sleepAsleep(row), sleep.asleep, 0.0)
+            assertEquals(sleepRemShare(row), sleep.remShare)
+        }
+    }
+
+    @Test fun kindsMapBothWays() {
+        for (category in DrinkCategory.entries) assertEquals(category, DrinkCategory.of(category.kind))
+        for (vessel in Vessel.entries) assertEquals(vessel, Vessel.of(vessel.kind))
+        assertEquals(CategoryKind.entries.size, DrinkCategory.entries.size)
+        assertEquals(VesselKind.entries.size, Vessel.entries.size)
+    }
+
+    /** An entry of a drink at 100%, so its volume in ml is ten times its units. */
+    private fun entryOf(units: Double): Entry {
+        val drink = Drink(name = "Units", category = DrinkCategory.UNITS, abv = 100.0, vessel = Vessel.SHOT, volumeMl = 10.0)
+        return Entry(Pour(drinkId = drink.id, timestamp = java.time.Instant.EPOCH, day = 0, vessel = Vessel.SHOT, volumeMl = units * 10, price = 0.0), drink)
     }
 }
 
@@ -809,50 +860,24 @@ class BackupTests {
 }
 
 /**
- * The catalogue is a hand-written table, so guard the mistakes hand-writing makes: a stray decimal point, a brand
- * listed twice, a serve with no size.
+ * The table, its prices and the lookups are the shared core's, and its own tests hold them to what they were. These
+ * check that this app maps what it gives onto its own types without dropping anything.
  */
 class CatalogTests {
-    /**
-     * What a strength can plausibly be for each kind of drink: wide enough for Żywiec Porter, Wray & Nephew and a 25 ml
-     * measure dropped in a glass of Monster, tight enough to catch 45% for 4.5%.
-     */
-    private fun band(category: DrinkCategory): ClosedFloatingPointRange<Double> = when (category) {
-        DrinkCategory.BEER, DrinkCategory.STOUT -> 2.0..13.0
-        DrinkCategory.CIDER -> 2.0..9.0
-        DrinkCategory.RED_WINE, DrinkCategory.WHITE_WINE, DrinkCategory.ROSE -> 8.0..16.0
-        DrinkCategory.BUBBLES -> 5.0..14.0
-        // Down to umeshu and Bulgarian pelin, the fruit and aromatised wines filed alongside vermouth and sake.
-        DrinkCategory.FORTIFIED -> 10.0..22.0
-        DrinkCategory.SPIRIT -> 10.0..85.0
-        DrinkCategory.ALCOPOP -> 3.0..9.0
-        DrinkCategory.COCKTAIL -> 2.0..35.0
-        DrinkCategory.UNITS -> 100.0..100.0
+    @Test fun everyBrandAndItemIsMapped() {
+        assertEquals(catalogBrands().size, Catalog.brands.size)
+        assertTrue(Catalog.brands.all { it.prices.isNotEmpty() && it.sizes.isNotEmpty() })
     }
 
-    @Test fun strengthsArePlausibleForTheirKind() {
-        for (brand in Catalog.brands) {
-            assertTrue("${brand.name} at ${brand.abv}%", brand.abv in band(brand.category))
-        }
-    }
-
-    @Test fun everyBrandIsListedOnceAndHasSizes() {
-        assertEquals(Catalog.brands.size, Catalog.brands.map { it.name }.toSet().size)
-        assertEquals(Catalog.items.size, Catalog.items.map { it.id }.toSet().size)
-        assertTrue(Catalog.brands.all { it.prices.isNotEmpty() && it.prices.values.all { serves -> serves.isNotEmpty() } })
-        // The ceiling is a white cider bottle, the one serve that isn't a glassful.
-        assertTrue(Catalog.items.all { it.volumeMl >= 10 && it.volumeMl <= 2500 })
+    @Test fun theCoresKindsAreTheAppsKinds() {
+        val labels = catalogCategoryLabels().associate { DrinkCategory.of(it.category) to it.label }
+        for (category in DrinkCategory.entries) assertEquals(category.name, category.label, labels[category])
     }
 
     @Test fun searchFindsBrandsAndKinds() {
         assertTrue(Catalog.search("stella").any { it.name == "Stella Artois" })
         assertTrue(Catalog.search("Red wine").all { it.category == DrinkCategory.RED_WINE })
         assertTrue(Catalog.search("  ").isEmpty())
-    }
-
-    /** Every brand of the iOS table made it across, accents and all, and a search without them still finds them. */
-    @Test fun theWholeTableIsHere() {
-        assertEquals(1168, Catalog.brands.size)
         assertTrue(Catalog.search("lowenbrau").any { it.name == "Löwenbräu Original" })
     }
 }

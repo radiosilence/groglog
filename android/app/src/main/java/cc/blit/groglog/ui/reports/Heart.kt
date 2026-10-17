@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import cc.blit.groglog.core.ReadingKind
 import cc.blit.groglog.model.DayKey
 import cc.blit.groglog.model.Night
 import cc.blit.groglog.ui.theme.GrogColors
@@ -24,10 +25,10 @@ import kotlin.math.max
 /** Which heart readings a progress chart carries: each night as it came, or the week around it. */
 enum class HeartLines { NIGHTLY, AVERAGED }
 
-enum class HeartReading(val label: String, val short: String, val unit: String, val color: Color, val value: (Night) -> Double?) {
-    HRV("HRV", "HRV", "ms", GrogColors.hrv, Night::hrv),
-    RESTING("Resting HR", "RHR", "bpm", GrogColors.pulse, Night::restingHR),
-    SLEEPING("Asleep HR", "Asleep", "bpm", GrogColors.sleeping, Night::sleepingHR);
+enum class HeartReading(val label: String, val short: String, val unit: String, val color: Color, val kind: ReadingKind, val value: (Night) -> Double?) {
+    HRV("HRV", "HRV", "ms", GrogColors.hrv, ReadingKind.HRV, Night::hrv),
+    RESTING("Resting HR", "RHR", "bpm", GrogColors.pulse, ReadingKind.RESTING_HR, Night::restingHR),
+    SLEEPING("Asleep HR", "Asleep", "bpm", GrogColors.sleeping, ReadingKind.SLEEPING_HR, Night::sleepingHR);
 
     /** HRV falls after a heavy night; heart rate rises. */
     fun isWorse(change: Double) = if (this == HRV) change < 0 else change > 0

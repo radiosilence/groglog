@@ -1,0 +1,1 @@
+- **Ledger and goals in the shared core.** Day totals, streaks, weekly figures, the budget tapers and their projections, and the running-total curves are computed once in Rust for both apps. What is stored and synced is unchanged.

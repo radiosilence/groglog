@@ -1,6 +1,7 @@
 [toolchain]
 # Every build, local and CI, uses this one. The crates' minimum is `rust-version` in Cargo.toml.
 channel = "1.99.1"
+components = ["clippy"]
 targets = [
   "aarch64-apple-ios",
   "aarch64-apple-ios-sim",

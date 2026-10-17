@@ -2,11 +2,20 @@ package cc.blit.groglog.data
 
 import android.util.Log
 import androidx.room.withTransaction
+import cc.blit.groglog.core.DayPour
+import cc.blit.groglog.core.DrinkPriceIn
+import cc.blit.groglog.core.FavouritePriceIn
+import cc.blit.groglog.core.PourTotals
+import cc.blit.groglog.core.logbookAbvOverride
+import cc.blit.groglog.core.logbookDayAfterEdit
+import cc.blit.groglog.core.logbookDrinkEditRetotals
+import cc.blit.groglog.core.logbookPriceResets
+import cc.blit.groglog.core.logbookRebuild
+import cc.blit.groglog.core.logbookRetotal
 import cc.blit.groglog.model.Catalog
 import cc.blit.groglog.model.Day
 import cc.blit.groglog.model.DayClock
 import cc.blit.groglog.model.DayKey
-import cc.blit.groglog.model.DayTotals
 import cc.blit.groglog.model.Drink
 import cc.blit.groglog.model.DrinkCategory
 import cc.blit.groglog.model.Favourite
@@ -36,7 +45,7 @@ class Logbook(val database: AppDatabase, val clock: DayClock) {
      * or null when the write failed and nothing was.
      */
     suspend fun log(serve: Serve, times: List<Instant>, abv: Double? = null): List<Pour>? {
-        val abvOverride = if (abv == serve.drink.abv) null else abv
+        val abvOverride = logbookAbvOverride(serve.drink.abv, abv)
         val pours = times.map {
             Pour(drinkId = serve.drink.id, timestamp = it, day = clock.day(it).number, vessel = serve.vessel, volumeMl = serve.volumeMl, price = serve.price, abvOverride = abvOverride)
         }
@@ -108,7 +117,7 @@ class Logbook(val database: AppDatabase, val clock: DayClock) {
         val retotalled = write {
             val before = rows.drink(drink.id)
             rows.save(drink)
-            if (before != null && (before.abv != drink.abv || before.category != drink.category)) {
+            if (before != null && logbookDrinkEditRetotals(before.abv, before.category.kind, drink.abv, drink.category.kind)) {
                 rows.days(drink.id).map(::DayKey).toSet().also { retotal(it) }
             } else {
                 emptySet()
@@ -148,21 +157,18 @@ class Logbook(val database: AppDatabase, val clock: DayClock) {
      * changed.
      */
     suspend fun resetPrices(): Int = write {
-        var changed = 0
-        for (drink in rows.drinks()) {
-            val price = Catalog.price(drink.name, drink.category, drink.vessel, drink.volumeMl) ?: continue
-            if (price == drink.price) continue
-            rows.update(drink.copy(price = price))
-            changed += 1
-        }
-        for (favourite in rows.favourites()) {
-            val drink = rows.drink(favourite.drinkId) ?: continue
-            val price = Catalog.price(drink.name, drink.category, favourite.vessel, favourite.volumeMl) ?: continue
-            if (price == favourite.price) continue
-            rows.update(favourite.copy(price = price))
-            changed += 1
-        }
-        changed
+        val drinks = rows.drinks()
+        val favourites = rows.favourites()
+        val resets = logbookPriceResets(
+            drinks.map { DrinkPriceIn(it.id.toString(), it.name, it.category.kind, it.vessel.kind, it.volumeMl, it.price) },
+            favourites.map { FavouritePriceIn(it.id.toString(), it.drinkId.toString(), it.vessel.kind, it.volumeMl, it.price) },
+            Catalog.currency,
+        )
+        val drinkPrices = resets.drinks.associate { it.id to it.price }
+        val favouritePrices = resets.favourites.associate { it.id to it.price }
+        for (drink in drinks) drinkPrices[drink.id.toString()]?.let { rows.update(drink.copy(price = it)) }
+        for (favourite in favourites) favouritePrices[favourite.id.toString()]?.let { rows.update(favourite.copy(price = it)) }
+        drinkPrices.size + favouritePrices.size
     } ?: 0
 
     // Rebuilding
@@ -179,20 +185,15 @@ class Logbook(val database: AppDatabase, val clock: DayClock) {
                     if (day != pour.day) rows.update(pour.copy(day = day))
                 }
             }
-            val totals = rows.entries().groupBy { it.day }.mapValues { DayTotals.of(it.value) }
             // Rewritten in place rather than deleted and reinserted, so a day's dry mark and manual spend are never
             // dropped along the way.
-            for (row in rows.days()) {
-                val updated = row.with(totals[row.number] ?: DayTotals())
-                if (updated.count == 0 && !updated.isAlcoholFree && updated.costOverride == null) {
-                    rows.delete(updated)
-                } else {
-                    rows.update(updated)
-                }
-            }
-            for ((number, dayTotals) in totals) {
-                if (rows.day(number) == null) rows.save(Day(number).with(dayTotals))
-            }
+            val plan = logbookRebuild(
+                rows.days().map { it.core },
+                rows.entries().map { DayPour(it.day.toLong(), it.units, it.kcal, it.price) },
+            )
+            for (row in plan.updates) rows.update(Day.of(row))
+            for (number in plan.deletes) rows.delete(Day(number.toInt()))
+            for (row in plan.inserts) rows.save(Day.of(row))
         }
 
     /** Runs a batch of writes, such as an import, as one transaction, retotalling the touched days at the end. */
@@ -217,10 +218,12 @@ class Logbook(val database: AppDatabase, val clock: DayClock) {
     /** Recomputes days from their entries. Logging a drink clears a dry mark; a day left with neither is deleted. */
     internal suspend fun retotal(days: Set<DayKey>) {
         for (day in days) {
-            val entries = rows.entries(day.number, day.number)
-            var row = (rows.day(day.number) ?: Day(day.number)).with(DayTotals.of(entries))
-            if (entries.isNotEmpty()) row = row.copy(isAlcoholFree = false)
-            save(row)
+            val result = logbookRetotal(
+                rows.day(day.number)?.core,
+                day.number.toLong(),
+                rows.entries(day.number, day.number).map { PourTotals(it.units, it.kcal, it.price) },
+            )
+            save(Day.of(result.row), result.delete)
         }
     }
 
@@ -239,11 +242,12 @@ class Logbook(val database: AppDatabase, val clock: DayClock) {
     }
 
     private suspend fun save(row: Day) {
-        if (row.count == 0 && !row.isAlcoholFree && row.costOverride == null) {
-            rows.delete(row)
-        } else {
-            rows.save(row)
-        }
+        val result = logbookDayAfterEdit(row.core)
+        save(Day.of(result.row), result.delete)
+    }
+
+    private suspend fun save(row: Day, delete: Boolean) {
+        if (delete) rows.delete(row) else rows.save(row)
     }
 
     /** Runs a write and, once it has committed, announces the days it touched. False when it failed and was rolled back. */

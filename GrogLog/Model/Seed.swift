@@ -1,27 +1,12 @@
 import Foundation
 import GRDB
+import GrogLogCore
 
 nonisolated enum Seed {
-    /// Generic drinks at Drinkaware's standard strengths, with the sizes that start out on the Log grid.
-    /// Prices follow the catalogue's convention: a pint, glass or measure at London bar prices, a can or bottle at
-    /// supermarket prices. All are editable estimates.
-    private static let generics: [(name: String, category: DrinkCategory, serves: [(Vessel, Double, Double)])] = [
-        ("Beer", .beer, [(.pint, 568, 6.40), (.half, 284, 3.20), (.can, 440, 2.10), (.can, 500, 2.40), (.bottle, 330, 1.95), (.bottle, 660, 3.15)]),
-        ("Stout", .stout, [(.pint, 568, 6.30)]),
-        ("Cider", .cider, [(.pint, 568, 6.50), (.bottle, 500, 3.10)]),
-        ("Red wine", .redWine, [(.wineGlass, 175, 8.50), (.wineGlass, 250, 12.00), (.wineBottle, 750, 9.50)]),
-        ("White wine", .whiteWine, [(.wineGlass, 175, 8.50), (.wineGlass, 125, 6.00)]),
-        ("Rosé", .rose, [(.wineGlass, 175, 8.50)]),
-        ("Fizz", .bubbles, [(.flute, 125, 8.50), (.wineBottle, 750, 12.50)]),
-        ("Spirits", .spirit, [(.shot, 25, 5.00)]),
-        ("Alcopop", .alcopop, [(.bottle, 275, 2.20)]),
-        ("Cocktail", .cocktail, [(.coupe, 150, 12.00)]),
-        ("Port or sherry", .fortified, [(.wineGlass, 50, 5.50)]),
-    ]
-
-    /// A generic serve's starting price, for repairing databases seeded before generics carried prices.
-    static func price(name: String, vessel: Vessel, ml: Double) -> Double? {
-        generics.first { $0.name == name }?.serves.first { $0.0 == vessel && $0.1 == ml }?.2
+    /// Generic drinks at Drinkaware's standard strengths, with the sizes that start out on the Log grid, from the
+    /// shared core.
+    private static let generics: [(name: String, category: DrinkCategory, serves: [(Vessel, Double, Double)])] = catalogGenerics().map { record in
+        (record.name, DrinkCategory(record.category), record.serves.map { (Vessel($0.vessel), $0.ml, $0.price) })
     }
 
     /// Generic drinks and their starting Log-grid tiles, on a fresh install.

@@ -51,8 +51,9 @@ does not exist; otherwise they use Homebrew's SDK.
 - `GrogLog/Model`: the database, `Logbook` (every write goes through it), `Ledger` (derived totals), goals, units and the
   catalogue. `GrogLog/Views` has a folder per tab; `GrogLog/Sync` is CloudKit; `GrogLogWidgets` the widgets.
 - `android/app/src/main/java/cc/blit/groglog`: `model`, `data`, `export`, `ui` (a package per tab), `widget`, `shortcut`.
-- `android/app/.../model/CatalogEntries.kt` is generated from `Catalog.swift` by `android/scripts/catalog.py`. Change the
-  Swift file and regenerate; never edit the Kotlin by hand.
+- The catalogue's table is `core/src/catalog_data.rs`, and its lookups and the exchange rates are in `core/src/catalog.rs`
+  and `rates.rs`. Both apps read them through the core; `Catalog.swift` and `Catalog.kt` only map its records onto their
+  own types. A brand's name and kind are the identity logged drinks refer to, so renaming one is a data change.
 
 ## Copy
 

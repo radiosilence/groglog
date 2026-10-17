@@ -40,6 +40,13 @@ pub fn units_standard_drink_ml() -> f64 {
     14.0 / ETHANOL_G_PER_ML
 }
 
+/// Health counts standard drinks (17.7 ml of alcohol), not UK units (10 ml). Passing units would overstate every reading by
+/// three quarters.
+#[uniffi::export]
+pub fn units_standard_drinks(units: f64) -> f64 {
+    units * UNIT_ML / units_standard_drink_ml()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -53,6 +60,13 @@ mod tests {
     fn calories_land_near_drinkaware() {
         assert!((units_kcal(568.0, 4.0, 0.10) - 182.0).abs() < 10.0);
         assert!((units_kcal(175.0, 13.0, 0.15) - 159.0).abs() < 10.0);
+    }
+
+    #[test]
+    fn health_counts_standard_drinks_not_units() {
+        assert!((units_standard_drinks(1.0) - 0.5636).abs() < 0.001);
+        assert!((units_standard_drinks(units_of(568.0, 5.0)) - 1.6).abs() < 0.01);
+        assert_eq!(units_standard_drinks(0.0), 0.0);
     }
 
     #[test]

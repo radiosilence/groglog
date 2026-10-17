@@ -85,7 +85,6 @@ nonisolated struct Day: Codable, Hashable, Sendable, FetchableRecord, Persistabl
     var costOverride: Double?
 
     var key: DayKey { DayKey(number: number) }
-    var spend: Double { costOverride ?? cost }
 }
 
 /// A log entry joined with its drink, as screens display it.

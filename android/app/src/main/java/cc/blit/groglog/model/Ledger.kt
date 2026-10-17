@@ -1,10 +1,14 @@
 package cc.blit.groglog.model
 
-import kotlin.math.ceil
-import kotlin.math.ln
-import kotlin.math.max
-import kotlin.math.min
-import kotlin.math.pow
+import cc.blit.groglog.core.CoreLedger
+import cc.blit.groglog.core.CurveInput
+import cc.blit.groglog.core.GoalSpec
+import cc.blit.groglog.core.PointRow
+import cc.blit.groglog.core.StatusKind
+import cc.blit.groglog.core.TimedUnits
+import cc.blit.groglog.core.TotalsRow
+import cc.blit.groglog.core.goalPaceOn
+import cc.blit.groglog.core.ledgerCumulative
 
 enum class DayStatus { DRANK, ALCOHOL_FREE, TODAY, UNLOGGED, FUTURE, UNTRACKED }
 
@@ -12,7 +16,7 @@ data class DayTotals(val units: Double = 0.0, val kcal: Double = 0.0, val cost: 
     operator fun plus(other: DayTotals) = DayTotals(units + other.units, kcal + other.kcal, cost + other.cost, count + other.count)
 
     companion object {
-        fun of(row: Day) = DayTotals(row.units, row.kcal, row.spend, row.count)
+        fun of(totals: TotalsRow) = DayTotals(totals.units, totals.kcal, totals.cost, totals.count.toInt())
 
         fun of(entries: Iterable<Entry>): DayTotals {
             var units = 0.0
@@ -33,6 +37,8 @@ data class DayTotals(val units: Double = 0.0, val kcal: Double = 0.0, val cost: 
 /** A point on a running total: `x` is hours into a day, or days into a week or month. */
 data class CurvePoint(val x: Double, val units: Double) {
     val id: Double get() = x
+
+    constructor(point: PointRow) : this(point.x, point.units)
 }
 
 data class WeekStat(
@@ -51,61 +57,49 @@ data class Projection(val target: DayKey?, val stoppable: DayKey?)
 /**
  * Read-only view over every drinking day, built from `Day` rows (a few hundred a year) so it is cheap to rebuild on each
  * change. The running-total curves need individual drinks and take them from the caller, fetched for only the days on
- * screen.
+ * screen. The maths is the shared core's; this works out what needs the calendar (which day a moment is in, how many
+ * hours into it) and hands over plain values.
  */
 class Ledger(rows: List<Day>, val clock: DayClock) {
     val today: DayKey = clock.today
     private val days: Map<Int, Day> = buildMap { for (row in rows) putIfAbsent(row.number, row) }
-    val firstDay: DayKey? = days.keys.minOrNull()?.let(::DayKey)
+    private val core = CoreLedger(
+        rows.map { it.core },
+        today.number.toLong(),
+        clock.firstWeekday.toLong(),
+    )
+    val firstDay: DayKey? = core.firstDay()?.let { DayKey(it.toInt()) }
 
     override fun equals(other: Any?) =
         other is Ledger && other.clock == clock && other.today == today && other.days == days
 
     override fun hashCode() = days.hashCode() * 31 + today.hashCode()
 
-    fun totals(day: DayKey): DayTotals = days[day.number]?.let(DayTotals::of) ?: DayTotals()
+    fun totals(day: DayKey): DayTotals = DayTotals.of(core.totals(day.number.toLong()))
 
     /** The manually set spend for a day, which replaces the drinks' prices while set. */
-    fun spendOverride(day: DayKey): Double? = days[day.number]?.costOverride
+    fun spendOverride(day: DayKey): Double? = core.spendOverride(day.number.toLong())
 
     /** The sum of the day's drink prices, ignoring any manual spend. */
-    fun derivedSpend(day: DayKey): Double = days[day.number]?.cost ?: 0.0
+    fun derivedSpend(day: DayKey): Double = core.derivedSpend(day.number.toLong())
 
-    fun status(day: DayKey): DayStatus {
-        days[day.number]?.let { row ->
-            if (row.count > 0) return DayStatus.DRANK
-            if (row.isAlcoholFree) return DayStatus.ALCOHOL_FREE
-        }
-        if (day > today) return DayStatus.FUTURE
-        if (day == today) return DayStatus.TODAY
-        val first = firstDay
-        if (first == null || day < first) return DayStatus.UNTRACKED
-        return DayStatus.UNLOGGED
+    fun status(day: DayKey): DayStatus = when (core.status(day.number.toLong())) {
+        StatusKind.DRANK -> DayStatus.DRANK
+        StatusKind.ALCOHOL_FREE -> DayStatus.ALCOHOL_FREE
+        StatusKind.TODAY -> DayStatus.TODAY
+        StatusKind.UNLOGGED -> DayStatus.UNLOGGED
+        StatusKind.FUTURE -> DayStatus.FUTURE
+        StatusKind.UNTRACKED -> DayStatus.UNTRACKED
     }
 
     /** Has drinks or a dry mark. A day with only a manual spend is not logged. */
-    fun isLogged(day: DayKey): Boolean = days[day.number]?.let { it.count > 0 || it.isAlcoholFree } ?: false
+    fun isLogged(day: DayKey): Boolean = core.isLogged(day.number.toLong())
 
     /** Consecutive alcohol-free days up to today. An empty today does not break the streak, since the day is not over. */
-    fun dryStreak(): Int {
-        var day = if (status(today) == DayStatus.TODAY) today - 1 else today
-        var count = 0
-        while (status(day) == DayStatus.ALCOHOL_FREE) {
-            count += 1
-            day -= 1
-        }
-        return count
-    }
+    fun dryStreak(): Int = core.dryStreak().toInt()
 
-    fun longestDryStreak(range: DayRange): Int {
-        var best = 0
-        var run = 0
-        for (day in range) {
-            run = if (status(day) == DayStatus.ALCOHOL_FREE) run + 1 else 0
-            best = max(best, run)
-        }
-        return best
-    }
+    fun longestDryStreak(range: DayRange): Int =
+        core.longestDryStreak(range.start.number.toLong(), range.endInclusive.number.toLong()).toInt()
 
     /** The week before `day`, which a day is compared against. */
     fun weekBefore(day: DayKey): DayRange = (day - 7)..(day - 1)
@@ -114,195 +108,75 @@ class Ledger(rows: List<Day>, val clock: DayClock) {
      * Running units total across `days`, stepping at each drink. x is in days, so a heavy night shows as a steep climb
      * rather than a single step.
      */
-    fun runningTotal(entries: List<Entry>, days: DayRange, through: DayKey? = null): List<CurvePoint> {
-        val last = through ?: days.endInclusive
-        var total = 0.0
-        val hours = HourCounter(clock)
-        val points = mutableListOf(CurvePoint(0.0, 0.0))
-        for (entry in entries.filter { it.dayKey in days && it.dayKey <= last }.sortedBy { it.timestamp }) {
-            total += entry.units
-            val into = days.start.distanceTo(entry.dayKey) + min(1.0, max(0.0, hours.hours(entry.timestamp, entry.dayKey) / 24))
-            points += CurvePoint(into, total)
-        }
-        return points
-    }
+    fun runningTotal(entries: List<Entry>, days: DayRange, through: DayKey? = null): List<CurvePoint> =
+        core.runningTotal(curveInputs(entries), days.start.number.toLong(), days.endInclusive.number.toLong(), through?.number?.toLong())
+            .map(::CurvePoint)
 
     /** The week's budget as a running total, for comparing with `runningTotal`. */
-    fun weekBudgetCurve(start: DayKey, goal: Goal): List<CurvePoint> {
-        var total = 0.0
-        val points = mutableListOf(CurvePoint(0.0, 0.0))
-        for (index in 0 until 7) {
-            val budget = dailyBudget(start + index, goal) ?: return if (points.size > 1) points else emptyList()
-            total += budget
-            points += CurvePoint((index + 1).toDouble(), total)
-        }
-        return points
-    }
+    fun weekBudgetCurve(start: DayKey, goal: Goal): List<CurvePoint> =
+        core.weekBudgetCurve(start.number.toLong(), spec(goal)).map(::CurvePoint)
 
     fun week(start: DayKey, goal: Goal): WeekStat {
-        val days = start..(start + 6)
-        val budgets = days.map { dailyBudget(it, goal) }
-        return WeekStat(
-            start = start,
-            totals = days.fold(DayTotals()) { sum, day -> sum + totals(day) },
-            dryDays = days.count { status(it) == DayStatus.ALCOHOL_FREE },
-            unloggedDays = days.count { status(it) == DayStatus.UNLOGGED },
-            budget = if (budgets.contains(null)) null else budgets.filterNotNull().sum(),
-        )
+        val week = core.week(start.number.toLong(), spec(goal))
+        return WeekStat(start, DayTotals.of(week.totals), week.dryDays.toInt(), week.unloggedDays.toInt(), week.budget)
     }
 
     /**
      * Units a week at the rate drunk on the logged days in `range`. Unlogged days are excluded rather than counted as
      * dry, so missing nights do not make a week look light. Null when nothing in the range was logged.
      */
-    fun weeklyAverage(range: DayRange): Double? {
-        val logged = range.filter(::isLogged)
-        if (logged.isEmpty()) return null
-        return logged.sumOf { totals(it).units } / logged.size * 7
-    }
+    fun weeklyAverage(range: DayRange): Double? = core.weeklyAverage(range.start.number.toLong(), range.endInclusive.number.toLong())
 
     /** The same over the last `weeks` complete weeks, used as the default baseline for a reduction plan. */
-    fun recentWeeklyAverage(weeks: Int = 4): Double? {
-        val thisWeek = clock.weekStart(today)
-        return weeklyAverage((thisWeek - 7 * weeks)..(thisWeek - 1))
-    }
+    fun recentWeeklyAverage(weeks: Int = 4): Double? = core.recentWeeklyAverage(weeks.toLong())
 
     // Budget
 
     /** The unit budget for `day`: the taper, held at the target once it gets there. */
-    fun dailyBudget(day: DayKey, goal: Goal): Double? =
-        taper(day, goal)?.let { (budget, reference) -> max(budget, min(goal.targetWeekly / 7, reference)) }
+    fun dailyBudget(day: DayKey, goal: Goal): Double? = core.dailyBudget(spec(goal), day.number.toLong())
 
     /**
-     * How many days the budget takes to lose a tenth on `day`: the chosen period, or for a stepped taper the pace of
-     * the rung its budget has reached (the baseline's rung before it starts).
+     * How many days the budget takes to lose a tenth on `day`: the chosen period, or for a stepped taper the pace of the
+     * rung its budget has reached (the baseline's rung before it starts).
      */
-    fun pace(day: DayKey, goal: Goal): Int {
-        if (goal.taper != Taper.DYNAMIC) return goal.periodDays
-        return Goal.pace((taper(day, goal)?.first ?: (goal.baselineWeekly / 7)) * 7)
-    }
+    fun pace(day: DayKey, goal: Goal): Int = goalPaceOn(spec(goal), day.number.toLong()).toInt()
 
-    /**
-     * When the taper, continued from today, reaches the target and the level at which drinking can stop
-     * (`Goal.STOP_FROM`).
-     */
+    /** When the taper, continued from today, reaches the target and the level at which drinking can stop (`Goal.STOP_FROM`). */
     fun projection(goal: Goal): Projection {
-        val now = taper(today, goal)?.first ?: return Projection(null, null)
-        val cutting = if (goal.taper == Taper.LINEAR) goal.dailyUnitCut > 0 else goal.dailyCut > 0
-        if (!cutting) return Projection(null, null)
-        fun day(level: Double): DayKey? {
-            // A proportional taper crosses a level on a day given by a logarithm and never reaches zero. A linear taper
-            // falls at a fixed rate and can reach zero, so only it answers for a level of zero.
-            if (if (goal.taper == Taper.LINEAR) level < 0 else level <= 0) return null
-            if (now <= level) return today
-            val days = if (goal.taper == Taper.LINEAR) (now - level) / goal.dailyUnitCut else ln(level / now) / ln(1 - goal.dailyCut)
-            return today + ceil(days).toInt()
-        }
-        return Projection(day(goal.targetWeekly / 7), day(Goal.STOP_FROM / 7))
-    }
-
-    /**
-     * The unfloored budget for `day` and the level it tapers from. All tapers run from the baseline on the start date:
-     * proportional takes a share off, linear a fixed number of units (so it can reach zero), and stepped takes the share
-     * its ladder gives for the level the budget has reached.
-     */
-    private fun taper(day: DayKey, goal: Goal): Pair<Double, Double>? {
-        if (!goal.isEnabled) return null
-        val elapsed = DayKey.of(goal.start, clock.zone).distanceTo(day)
-        if (elapsed < 0) return null
-        val reference = goal.baselineWeekly / 7
-        return when (goal.taper) {
-            Taper.LINEAR -> max(0.0, reference - goal.dailyUnitCut * elapsed) to reference
-            Taper.PROPORTIONAL -> reference * (1 - goal.dailyCut).pow(elapsed.toDouble()) to reference
-            Taper.DYNAMIC -> {
-                // Pace changes one rung at a time on the way down. Within a rung the decline is geometric, so the
-                // crossing into the next rung is solved with a logarithm rather than by stepping day by day: this runs
-                // for every calendar cell and chart point, and stepping a long-running goal would dominate those
-                // screens.
-                var budget = reference
-                var days = elapsed
-                for (rung in Goal.ladder) {
-                    if (days <= 0 || budget * 7 <= rung.aboveWeekly) continue
-                    val factor = 1 - Goal.rate(rung.pace)
-                    var steps = days
-                    if (rung.aboveWeekly > 0) {
-                        // The first count of cuts that leaves it no longer above the rung, adjusted either way so a
-                        // floating-point error in the logarithm cannot misplace the crossing by a day.
-                        steps = max(0, ceil(ln(rung.aboveWeekly / (budget * 7)) / ln(factor)).toInt())
-                        while (steps > 0 && budget * factor.pow(steps - 1) * 7 <= rung.aboveWeekly) steps -= 1
-                        while (budget * factor.pow(steps) * 7 > rung.aboveWeekly) steps += 1
-                        steps = min(steps, days)
-                    }
-                    budget *= factor.pow(steps)
-                    days -= steps
-                }
-                budget to reference
-            }
-        }
+        val projection = core.projection(spec(goal))
+        return Projection(projection.target?.let { DayKey(it.toInt()) }, projection.stoppable?.let { DayKey(it.toInt()) })
     }
 
     // Curves
 
     /** Running total of units through a day, as a step series from `from` to `through` hours after the day starts. */
     fun cumulative(pours: List<Entry>, day: DayKey, from: Double = 0.0, through: Double = 24.0): List<CurvePoint> {
-        val timed = pours.filter { it.day == day.number }.map { clock.hours(it.timestamp, day) to it.units }
-        var total = timed.filter { it.first <= from }.sumOf { it.second }
-        val points = mutableListOf(CurvePoint(from, total))
-        for ((hour, units) in timed) {
-            if (hour <= from || hour > through) continue
-            total += units
-            points += CurvePoint(hour, total)
-        }
-        points += CurvePoint(through, total)
-        return points
+        val timed = pours.filter { it.day == day.number }.map { TimedUnits(clock.hours(it.timestamp, day), it.units) }
+        return ledgerCumulative(timed, from, through).map(::CurvePoint)
     }
 
     /**
      * Mean running total across the logged days in `range`, smoothed over about half an hour. Unlogged days are excluded
-     * rather than counted as zero. The raw mean is a staircase of small steps; the line is meant to show where a typical
-     * day stands by a given hour, so it is smoothed. `smoothed = false` gives the unsmoothed mean, for reading off as a
-     * number.
+     * rather than counted as zero. `smoothed = false` gives the unsmoothed mean, for reading off as a number.
      */
-    fun averageCumulative(pours: List<Entry>, range: DayRange, from: Double = 0.0, smoothed: Boolean = true): List<CurvePoint> {
-        val logged = range.filter(::isLogged)
-        if (logged.isEmpty()) return emptyList()
+    fun averageCumulative(pours: List<Entry>, range: DayRange, from: Double = 0.0, smoothed: Boolean = true): List<CurvePoint> =
+        core.averageCumulative(curveInputs(pours), range.start.number.toLong(), range.endInclusive.number.toLong(), from, smoothed)
+            .map(::CurvePoint)
+
+    /** The last goal's spec, since a calendar or chart asks about the same goal once per day on screen. */
+    @Volatile
+    private var lastSpec: Pair<Goal, GoalSpec>? = null
+
+    private fun spec(goal: Goal): GoalSpec {
+        lastSpec?.let { (cached, spec) -> if (cached == goal) return spec }
+        return goal.spec(DayKey.of(goal.start, clock.zone)).also { lastSpec = goal to it }
+    }
+
+    /** The hours into a drink's day are the calendar's to work out, and a day's start is cached across a screen's drinks. */
+    private fun curveInputs(entries: List<Entry>): List<CurveInput> {
         val hours = HourCounter(clock)
-        val timed = pours
-            .filter { it.dayKey in range }
-            .map { hours.hours(it.timestamp, it.dayKey) to it.units }
-            .sortedBy { it.first }
-        var total = 0.0
-        var index = 0
-        val steps = ((24 - from) / 0.25).toInt()
-        val raw = (0..steps).map { i ->
-            val hour = from + i * 0.25
-            while (index < timed.size && timed[index].first <= hour) {
-                total += timed[index].second
-                index += 1
-            }
-            CurvePoint(hour, total / logged.size)
-        }
-        if (!smoothed) return raw
-        // The result must remain a running total: starting at zero, never falling, and ending on the mean. So the
-        // drinks are spread over a short window and re-accumulated, then scaled to preserve the total. Blurring the curve
-        // itself would drag its ends inwards.
-        var previous = 0.0
-        val poured = raw.map { point -> (point.units - previous).also { previous = point.units } }
-        val week = poured.sum()
-        if (week <= 0) return raw
-        // Two quarter-hours either side, applied twice, so the kernel tapers at the edges instead of cutting off as
-        // a single box pass would.
-        val span = 2
-        val blur = { xs: List<Double> ->
-            xs.indices.map { i -> (max(0, i - span)..min(xs.size - 1, i + span)).sumOf { xs[it] } / (2 * span + 1) }
-        }
-        val spread = blur(blur(poured))
-        // The blur pushes a little past the end of the day, where it is lost; scaling restores it.
-        val scale = week / spread.sum()
-        var running = 0.0
-        return raw.zip(spread) { point, amount ->
-            running += amount * scale
-            CurvePoint(point.x, running)
+        return entries.map {
+            CurveInput(it.day.toLong(), hours.hours(it.timestamp, it.dayKey), it.units, it.timestamp.toEpochMilli() / 1000.0)
         }
     }
 }

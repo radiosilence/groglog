@@ -33,6 +33,10 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -88,7 +92,8 @@ class SetupTests {
         val tomorrow = logbook.clock.today + 1
         logbook.log(Serve(drink), listOf(logbook.clock.start(tomorrow).plusSeconds(15 * 3600)))
         val bytes = setup(database, prefs).export(Exporter.Kind.JSON)
-        assertTrue(Exporter.decode(bytes).days.any { it.date == tomorrow.toString() && it.pours?.size == 1 })
+        val days = Json.parseToJsonElement(bytes.decodeToString()).jsonObject.getValue("days").jsonArray
+        assertTrue(days.any { it.jsonObject.getValue("date").jsonPrimitive.content == tomorrow.toString() && it.jsonObject.getValue("pours").jsonArray.size == 1 })
 
         val elsewhere = database()
         setup(elsewhere).import { ByteArrayInputStream(bytes) }

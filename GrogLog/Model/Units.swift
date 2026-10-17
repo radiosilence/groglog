@@ -81,30 +81,11 @@ nonisolated enum DrinkCategory: String, CaseIterable, Codable, Identifiable {
     var isFizzy: Bool { [.beer, .cider, .bubbles, .alcopop].contains(self) }
     var hasHead: Bool { [.beer, .stout, .cider].contains(self) }
 
-    var defaultVessel: Vessel {
-        switch self {
-        case .beer, .stout, .cider: .pint
-        case .redWine, .whiteWine, .rose, .fortified: .wineGlass
-        case .bubbles: .flute
-        case .spirit, .units: .shot
-        case .alcopop: .bottle
-        case .cocktail: .coupe
-        }
-    }
+    /// The core's, which a restore also uses for a pour that gives no vessel.
+    var defaultVessel: Vessel { Vessel(categoryDefaultVessel(category: kind)) }
 
-    /// Drinkaware's standard strengths, used for the generic drinks.
-    var defaultABV: Double {
-        switch self {
-        case .beer, .stout: 4
-        case .cider: 4.5
-        case .redWine, .whiteWine, .rose, .bubbles: 12
-        case .spirit: 40
-        case .alcopop: 5
-        case .cocktail: 15
-        case .fortified: 20
-        case .units: 100
-        }
-    }
+    /// Drinkaware's standard strengths, used for the generic drinks and for a restored pour that gives no strength.
+    var defaultABV: Double { categoryDefaultAbv(category: kind) }
 
     /// The sizes this kind of drink usually comes in.
     var serves: [ServeSize] {
@@ -189,6 +170,74 @@ nonisolated enum Vessel: String, CaseIterable, Codable, Identifiable {
         case .shot: [25, 35, 50]
         case .tumbler: [25, 50, 200]
         case .coupe: [100, 150, 200]
+        }
+    }
+}
+
+nonisolated extension DrinkCategory {
+    init(_ kind: CategoryKind) {
+        self = switch kind {
+        case .beer: .beer
+        case .stout: .stout
+        case .cider: .cider
+        case .redWine: .redWine
+        case .whiteWine: .whiteWine
+        case .rose: .rose
+        case .bubbles: .bubbles
+        case .spirit: .spirit
+        case .alcopop: .alcopop
+        case .cocktail: .cocktail
+        case .fortified: .fortified
+        case .units: .units
+        }
+    }
+
+    var kind: CategoryKind {
+        switch self {
+        case .beer: .beer
+        case .stout: .stout
+        case .cider: .cider
+        case .redWine: .redWine
+        case .whiteWine: .whiteWine
+        case .rose: .rose
+        case .bubbles: .bubbles
+        case .spirit: .spirit
+        case .alcopop: .alcopop
+        case .cocktail: .cocktail
+        case .fortified: .fortified
+        case .units: .units
+        }
+    }
+}
+
+nonisolated extension Vessel {
+    init(_ kind: VesselKind) {
+        self = switch kind {
+        case .pint: .pint
+        case .half: .half
+        case .can: .can
+        case .bottle: .bottle
+        case .wineBottle: .wineBottle
+        case .wineGlass: .wineGlass
+        case .flute: .flute
+        case .shot: .shot
+        case .tumbler: .tumbler
+        case .coupe: .coupe
+        }
+    }
+
+    var kind: VesselKind {
+        switch self {
+        case .pint: .pint
+        case .half: .half
+        case .can: .can
+        case .bottle: .bottle
+        case .wineBottle: .wineBottle
+        case .wineGlass: .wineGlass
+        case .flute: .flute
+        case .shot: .shot
+        case .tumbler: .tumbler
+        case .coupe: .coupe
         }
     }
 }

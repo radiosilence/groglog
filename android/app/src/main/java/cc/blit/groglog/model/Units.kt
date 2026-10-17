@@ -1,5 +1,9 @@
 package cc.blit.groglog.model
 
+import cc.blit.groglog.core.CategoryKind
+import cc.blit.groglog.core.VesselKind
+import cc.blit.groglog.core.categoryDefaultAbv
+import cc.blit.groglog.core.categoryDefaultVessel
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -93,27 +97,27 @@ enum class DrinkCategory(val raw: String) {
     val isFizzy: Boolean get() = this in setOf(BEER, CIDER, BUBBLES, ALCOPOP)
     val hasHead: Boolean get() = this in setOf(BEER, STOUT, CIDER)
 
-    val defaultVessel: Vessel
-        get() = when (this) {
-            BEER, STOUT, CIDER -> Vessel.PINT
-            RED_WINE, WHITE_WINE, ROSE, FORTIFIED -> Vessel.WINE_GLASS
-            BUBBLES -> Vessel.FLUTE
-            SPIRIT, UNITS -> Vessel.SHOT
-            ALCOPOP -> Vessel.BOTTLE
-            COCKTAIL -> Vessel.COUPE
-        }
+    /** The core's, which a restore also uses for a pour that gives no vessel. */
+    val defaultVessel: Vessel get() = Vessel.of(categoryDefaultVessel(kind))
 
-    /** Drinkaware's standard strengths, used for the generic drinks. */
-    val defaultABV: Double
+    /** Drinkaware's standard strengths, used for the generic drinks and for a restored pour that gives no strength. */
+    val defaultABV: Double get() = categoryDefaultAbv(kind)
+
+    /** The same kind as the shared core names it. */
+    val kind: CategoryKind
         get() = when (this) {
-            BEER, STOUT -> 4.0
-            CIDER -> 4.5
-            RED_WINE, WHITE_WINE, ROSE, BUBBLES -> 12.0
-            SPIRIT -> 40.0
-            ALCOPOP -> 5.0
-            COCKTAIL -> 15.0
-            FORTIFIED -> 20.0
-            UNITS -> 100.0
+            BEER -> CategoryKind.BEER
+            STOUT -> CategoryKind.STOUT
+            CIDER -> CategoryKind.CIDER
+            RED_WINE -> CategoryKind.RED_WINE
+            WHITE_WINE -> CategoryKind.WHITE_WINE
+            ROSE -> CategoryKind.ROSE
+            BUBBLES -> CategoryKind.BUBBLES
+            SPIRIT -> CategoryKind.SPIRIT
+            ALCOPOP -> CategoryKind.ALCOPOP
+            COCKTAIL -> CategoryKind.COCKTAIL
+            FORTIFIED -> CategoryKind.FORTIFIED
+            UNITS -> CategoryKind.UNITS
         }
 
     /** The sizes this kind of drink usually comes in. */
@@ -140,6 +144,21 @@ enum class DrinkCategory(val raw: String) {
 
     companion object {
         fun fromRaw(raw: String) = entries.firstOrNull { it.raw == raw }
+
+        fun of(kind: CategoryKind) = when (kind) {
+            CategoryKind.BEER -> BEER
+            CategoryKind.STOUT -> STOUT
+            CategoryKind.CIDER -> CIDER
+            CategoryKind.RED_WINE -> RED_WINE
+            CategoryKind.WHITE_WINE -> WHITE_WINE
+            CategoryKind.ROSE -> ROSE
+            CategoryKind.BUBBLES -> BUBBLES
+            CategoryKind.SPIRIT -> SPIRIT
+            CategoryKind.ALCOPOP -> ALCOPOP
+            CategoryKind.COCKTAIL -> COCKTAIL
+            CategoryKind.FORTIFIED -> FORTIFIED
+            CategoryKind.UNITS -> UNITS
+        }
     }
 }
 
@@ -203,7 +222,35 @@ enum class Vessel(val raw: String) {
             COUPE -> listOf(100.0, 150.0, 200.0)
         }
 
+    /** The same vessel as the shared core names it. */
+    val kind: VesselKind
+        get() = when (this) {
+            PINT -> VesselKind.PINT
+            HALF -> VesselKind.HALF
+            CAN -> VesselKind.CAN
+            BOTTLE -> VesselKind.BOTTLE
+            WINE_BOTTLE -> VesselKind.WINE_BOTTLE
+            WINE_GLASS -> VesselKind.WINE_GLASS
+            FLUTE -> VesselKind.FLUTE
+            SHOT -> VesselKind.SHOT
+            TUMBLER -> VesselKind.TUMBLER
+            COUPE -> VesselKind.COUPE
+        }
+
     companion object {
         fun fromRaw(raw: String) = entries.firstOrNull { it.raw == raw }
+
+        fun of(kind: VesselKind) = when (kind) {
+            VesselKind.PINT -> PINT
+            VesselKind.HALF -> HALF
+            VesselKind.CAN -> CAN
+            VesselKind.BOTTLE -> BOTTLE
+            VesselKind.WINE_BOTTLE -> WINE_BOTTLE
+            VesselKind.WINE_GLASS -> WINE_GLASS
+            VesselKind.FLUTE -> FLUTE
+            VesselKind.SHOT -> SHOT
+            VesselKind.TUMBLER -> TUMBLER
+            VesselKind.COUPE -> COUPE
+        }
     }
 }

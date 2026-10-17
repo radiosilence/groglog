@@ -1,0 +1,12 @@
+{
+  "days": [
+    {
+      "date": "2026-09-13",
+      "status": "drank",
+      "pours": [
+        { "name": "Stella Artois", "category": "beer", "vessel": "can", "volumeMl": 440, "abv": 4.6, "time": "2026-09-13T19:05:00+01:00" },
+        { "name": "Henry Westons Vintage", "category": "cider", "vessel": "bottle", "volumeMl": 500, "abv": 8.2 }
+      ]
+    }
+  ]
+}

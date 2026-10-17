@@ -1,7 +1,6 @@
 package cc.blit.groglog
 
 import cc.blit.groglog.export.Exporter
-import cc.blit.groglog.export.SwiftJson
 import cc.blit.groglog.model.DayKey
 import cc.blit.groglog.model.DrinkCategory
 import cc.blit.groglog.model.Iso8601
@@ -17,8 +16,10 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * A backup is the way a log moves between an iPhone and an Android phone, so each must read the other's. The fixture
- * was written by the iOS app's own encoder (android/scripts/ios-backup-fixture.sh).
+ * A backup is the way a log moves between an iPhone and an Android phone, so each must read the other's. The fixture is a
+ * backup as iOS builds up to 1.2.1 write it, with the awkward cases in it: escapes, accents, a slash, whole and
+ * fractional numbers, exponents, empty lists and absent fields. Phones on those builds keep writing files like it, so it
+ * is kept as it is. The core's tests read the same file, and hold its number and layout rules.
  */
 @RunWith(RobolectricTestRunner::class)
 class BackupCompatTests {
@@ -26,15 +27,6 @@ class BackupCompatTests {
 
     @Test fun anIOSBackupIsWrittenBackByteForByte() {
         assertArrayEquals(ios, Exporter.json(Exporter.decode(ios)))
-    }
-
-    @Test fun numbersAreWrittenAsSwiftWritesThem() {
-        val cases = mapOf(
-            30.0 to "30", 4.65 to "4.65", 0.1 + 0.2 to "0.30000000000000004", 1e15 to "1000000000000000", 1e16 to "1e+16",
-            1.5e16 to "1.5e+16", 1e-5 to "1e-05", 0.0001 to "0.0001", 5e-324 to "5e-324", -0.0 to "-0", 2.5e-7 to "2.5e-07",
-            -3.25 to "-3.25", 9007199254740993.0 to "9007199254740992", 123456789012345680.0 to "1.2345678901234568e+17",
-        )
-        for ((value, written) in cases) assertEquals("$value", written, SwiftJson.number(value))
     }
 
     @Test fun anIOSBackupImports() = runBlocking {

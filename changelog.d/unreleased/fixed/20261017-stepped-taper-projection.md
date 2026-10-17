@@ -1,0 +1,1 @@
+- **Stepped taper dates.** The dates a stepped taper reaches its target and a level low enough to stop from now follow the pace it quickens to as the budget falls. They were projected at one fixed pace, which from a heavy starting point could put them a fortnight or more out. Backups carry the corrected date as `projectedStop`.
