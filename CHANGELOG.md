@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.2.1
+
+### Changed
+
+- **Weekly average follows your days more closely.** The average line on the Day chart is smoothed over about half an hour instead of several hours, so it keeps the shape of when you usually drink.
+
+### Internal
+
+- **A manual Android run no longer cancels, or is cancelled by, a push's.** It has its own concurrency group, so checking the release APK cannot interrupt a Play upload.
+- **Merging a release PR publishes the GitHub release.** A push to `main` whose version is newer than the latest release builds the signed APK from the commit that raised it and publishes the release, with the changelog section as its notes.
+- **iOS workflow renamed.** The CI workflow that tests the iOS app and uploads it to TestFlight is now called iOS, matching the Android one.
+- **Shared core.** Date parsing, the day rules and unit maths now live in one Rust crate used by both apps, so they cannot drift apart. Other logic moves across in later changes.
+
 ## 1.2.0
 
 ### Added
