@@ -123,6 +123,12 @@ abstract class CoreAndroid @Inject constructor(private val exec: ExecOperations)
     @TaskAction
     fun build() {
         val root = workspace.get().asFile
+        // rust-toolchain.toml adds its targets only when it installs the toolchain, so an existing install may lack them.
+        val triples = mapOf("arm64-v8a" to "aarch64-linux-android", "x86_64" to "x86_64-linux-android")
+        exec.exec {
+            workingDir = root
+            commandLine(listOf("rustup", "target", "add") + abis.get().map { triples.getValue(it) })
+        }
         exec.exec {
             workingDir = root
             environment("ANDROID_NDK_HOME", ndk.get().asFile.path)
