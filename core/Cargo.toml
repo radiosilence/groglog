@@ -13,3 +13,7 @@ crate-type = ["staticlib", "cdylib", "lib"]
 
 [dependencies]
 uniffi = "0.32"
+unicode-normalization = "0.1"
+
+[dev-dependencies]
+serde_json = "1"

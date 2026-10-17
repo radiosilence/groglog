@@ -1,6 +1,8 @@
 package cc.blit.groglog.data
 
 import androidx.room.withTransaction
+import cc.blit.groglog.core.catalogGenericPrice
+import cc.blit.groglog.core.catalogGenerics
 import cc.blit.groglog.model.Day
 import cc.blit.groglog.model.DayKey
 import cc.blit.groglog.model.Drink
@@ -23,27 +25,18 @@ object Seed {
     private class Generic(val name: String, val category: DrinkCategory, val serves: List<Triple<Vessel, Double, Double>>)
 
     /**
-     * Generic drinks at Drinkaware's standard strengths, with the sizes that start out on the Log grid. Prices follow
-     * the catalogue's convention: a pint, glass or measure at London bar prices, a can or bottle at supermarket prices.
-     * All are editable estimates.
+     * Generic drinks at Drinkaware's standard strengths, with the sizes that start out on the Log grid, from the shared
+     * core.
      */
-    private val generics = listOf(
-        Generic("Beer", DrinkCategory.BEER, listOf(Triple(Vessel.PINT, 568.0, 6.40), Triple(Vessel.HALF, 284.0, 3.20), Triple(Vessel.CAN, 440.0, 2.10), Triple(Vessel.CAN, 500.0, 2.40), Triple(Vessel.BOTTLE, 330.0, 1.95), Triple(Vessel.BOTTLE, 660.0, 3.15))),
-        Generic("Stout", DrinkCategory.STOUT, listOf(Triple(Vessel.PINT, 568.0, 6.30))),
-        Generic("Cider", DrinkCategory.CIDER, listOf(Triple(Vessel.PINT, 568.0, 6.50), Triple(Vessel.BOTTLE, 500.0, 3.10))),
-        Generic("Red wine", DrinkCategory.RED_WINE, listOf(Triple(Vessel.WINE_GLASS, 175.0, 8.50), Triple(Vessel.WINE_GLASS, 250.0, 12.00), Triple(Vessel.WINE_BOTTLE, 750.0, 9.50))),
-        Generic("White wine", DrinkCategory.WHITE_WINE, listOf(Triple(Vessel.WINE_GLASS, 175.0, 8.50), Triple(Vessel.WINE_GLASS, 125.0, 6.00))),
-        Generic("Rosé", DrinkCategory.ROSE, listOf(Triple(Vessel.WINE_GLASS, 175.0, 8.50))),
-        Generic("Fizz", DrinkCategory.BUBBLES, listOf(Triple(Vessel.FLUTE, 125.0, 8.50), Triple(Vessel.WINE_BOTTLE, 750.0, 12.50))),
-        Generic("Spirits", DrinkCategory.SPIRIT, listOf(Triple(Vessel.SHOT, 25.0, 5.00))),
-        Generic("Alcopop", DrinkCategory.ALCOPOP, listOf(Triple(Vessel.BOTTLE, 275.0, 2.20))),
-        Generic("Cocktail", DrinkCategory.COCKTAIL, listOf(Triple(Vessel.COUPE, 150.0, 12.00))),
-        Generic("Port or sherry", DrinkCategory.FORTIFIED, listOf(Triple(Vessel.WINE_GLASS, 50.0, 5.50))),
-    )
+    private val generics: List<Generic> by lazy {
+        catalogGenerics().mapNotNull { record ->
+            val category = DrinkCategory.fromRaw(record.category) ?: return@mapNotNull null
+            Generic(record.name, category, record.serves.mapNotNull { serve -> Vessel.fromRaw(serve.vessel)?.let { Triple(it, serve.ml, serve.price) } })
+        }
+    }
 
     /** A generic serve's starting price, for repairing databases seeded before generics carried prices. */
-    fun price(name: String, vessel: Vessel, ml: Double): Double? =
-        generics.firstOrNull { it.name == name }?.serves?.firstOrNull { it.first == vessel && it.second == ml }?.third
+    fun price(name: String, vessel: Vessel, ml: Double): Double? = catalogGenericPrice(name, vessel.raw, ml)
 
     /** Generic drinks and their starting Log-grid tiles, on a fresh install. */
     suspend fun drinksIfNeeded(logbook: Logbook) {

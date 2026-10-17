@@ -758,42 +758,28 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
 
 /// The catalogue is a hand-written table, so guard the mistakes hand-writing makes: a stray decimal point,
 /// a brand listed twice, a serve with no size.
+/// The table, its prices and the lookups are the shared core's, and its own tests hold them to what they were. These
+/// check that this app maps what it gives onto its own types without dropping anything.
 @Suite struct CatalogTests {
-    /// What a strength can plausibly be for each kind of drink: wide enough for Żywiec Porter, Wray
-    /// & Nephew and a 25 ml measure dropped in a glass of Monster, tight enough to catch 45% for 4.5%.
-    private func band(_ category: DrinkCategory) -> ClosedRange<Double> {
-        switch category {
-        case .beer, .stout: 2...13
-        case .cider: 2...9
-        case .redWine, .whiteWine, .rose: 8...16
-        case .bubbles: 5...14
-        // Down to umeshu and Bulgarian pelin, the fruit and aromatised wines filed alongside vermouth and sake.
-        case .fortified: 10...22
-        case .spirit: 10...85
-        case .alcopop: 3...9
-        case .cocktail: 2...35
-        case .units: 100...100
-        }
+    @Test func everyBrandAndItemIsMapped() {
+        #expect(Catalog.brands.count == catalogBrands().count)
+        #expect(Catalog.items.count == catalogItems().count)
+        #expect(Catalog.brands.allSatisfy { !$0.prices.isEmpty && !$0.sizes.isEmpty })
     }
 
-    @Test func strengthsArePlausibleForTheirKind() {
-        for brand in Catalog.brands {
-            #expect(band(brand.category).contains(brand.abv), "\(brand.name) at \(brand.abv)%")
+    @Test func theCoresKindsAreTheAppsKinds() {
+        let labels = Dictionary(uniqueKeysWithValues: catalogCategoryLabels().map { ($0.category, $0.label) })
+        #expect(Set(labels.keys) == Set(DrinkCategory.allCases.map(\.rawValue)))
+        for category in DrinkCategory.allCases {
+            #expect(labels[category.rawValue] == category.label, "\(category)")
         }
-    }
-
-    @Test func everyBrandIsListedOnceAndHasSizes() {
-        #expect(Set(Catalog.brands.map(\.name)).count == Catalog.brands.count)
-        #expect(Set(Catalog.items.map(\.id)).count == Catalog.items.count)
-        #expect(Catalog.brands.allSatisfy { !$0.prices.isEmpty && $0.prices.values.allSatisfy { !$0.isEmpty } })
-        // The ceiling is a white cider bottle, the one serve that isn't a glassful.
-        #expect(Catalog.items.allSatisfy { $0.volumeMl >= 10 && $0.volumeMl <= 2500 })
     }
 
     @Test func searchFindsBrandsAndKinds() {
         #expect(Catalog.search("stella").contains { $0.name == "Stella Artois" })
         #expect(Catalog.search("Red wine").allSatisfy { $0.category == .redWine })
         #expect(Catalog.search("  ").isEmpty)
+        #expect(Catalog.search("lowenbrau").contains { $0.name == "Löwenbräu Original" })
     }
 }
 

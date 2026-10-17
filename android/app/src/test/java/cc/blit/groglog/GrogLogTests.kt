@@ -1,5 +1,8 @@
 package cc.blit.groglog
 
+import cc.blit.groglog.core.catalogBrands
+import cc.blit.groglog.core.catalogCategoryLabels
+import cc.blit.groglog.core.catalogItems
 import cc.blit.groglog.core.dayCivil
 import cc.blit.groglog.core.dayDaysInMonth
 import cc.blit.groglog.core.dayDrinking
@@ -812,47 +815,27 @@ class BackupTests {
  * The catalogue is a hand-written table, so guard the mistakes hand-writing makes: a stray decimal point, a brand
  * listed twice, a serve with no size.
  */
+/**
+ * The table, its prices and the lookups are the shared core's, and its own tests hold them to what they were. These
+ * check that this app maps what it gives onto its own types without dropping anything.
+ */
 class CatalogTests {
-    /**
-     * What a strength can plausibly be for each kind of drink: wide enough for Żywiec Porter, Wray & Nephew and a 25 ml
-     * measure dropped in a glass of Monster, tight enough to catch 45% for 4.5%.
-     */
-    private fun band(category: DrinkCategory): ClosedFloatingPointRange<Double> = when (category) {
-        DrinkCategory.BEER, DrinkCategory.STOUT -> 2.0..13.0
-        DrinkCategory.CIDER -> 2.0..9.0
-        DrinkCategory.RED_WINE, DrinkCategory.WHITE_WINE, DrinkCategory.ROSE -> 8.0..16.0
-        DrinkCategory.BUBBLES -> 5.0..14.0
-        // Down to umeshu and Bulgarian pelin, the fruit and aromatised wines filed alongside vermouth and sake.
-        DrinkCategory.FORTIFIED -> 10.0..22.0
-        DrinkCategory.SPIRIT -> 10.0..85.0
-        DrinkCategory.ALCOPOP -> 3.0..9.0
-        DrinkCategory.COCKTAIL -> 2.0..35.0
-        DrinkCategory.UNITS -> 100.0..100.0
+    @Test fun everyBrandAndItemIsMapped() {
+        assertEquals(catalogBrands().size, Catalog.brands.size)
+        assertEquals(catalogItems().size, Catalog.items.size)
+        assertTrue(Catalog.brands.all { it.prices.isNotEmpty() && it.sizes.isNotEmpty() })
     }
 
-    @Test fun strengthsArePlausibleForTheirKind() {
-        for (brand in Catalog.brands) {
-            assertTrue("${brand.name} at ${brand.abv}%", brand.abv in band(brand.category))
-        }
-    }
-
-    @Test fun everyBrandIsListedOnceAndHasSizes() {
-        assertEquals(Catalog.brands.size, Catalog.brands.map { it.name }.toSet().size)
-        assertEquals(Catalog.items.size, Catalog.items.map { it.id }.toSet().size)
-        assertTrue(Catalog.brands.all { it.prices.isNotEmpty() && it.prices.values.all { serves -> serves.isNotEmpty() } })
-        // The ceiling is a white cider bottle, the one serve that isn't a glassful.
-        assertTrue(Catalog.items.all { it.volumeMl >= 10 && it.volumeMl <= 2500 })
+    @Test fun theCoresKindsAreTheAppsKinds() {
+        val labels = catalogCategoryLabels().associate { it.category to it.label }
+        assertEquals(DrinkCategory.entries.map { it.raw }.toSet(), labels.keys)
+        for (category in DrinkCategory.entries) assertEquals(category.name, category.label, labels[category.raw])
     }
 
     @Test fun searchFindsBrandsAndKinds() {
         assertTrue(Catalog.search("stella").any { it.name == "Stella Artois" })
         assertTrue(Catalog.search("Red wine").all { it.category == DrinkCategory.RED_WINE })
         assertTrue(Catalog.search("  ").isEmpty())
-    }
-
-    /** Every brand of the iOS table made it across, accents and all, and a search without them still finds them. */
-    @Test fun theWholeTableIsHere() {
-        assertEquals(1168, Catalog.brands.size)
         assertTrue(Catalog.search("lowenbrau").any { it.name == "Löwenbräu Original" })
     }
 }
