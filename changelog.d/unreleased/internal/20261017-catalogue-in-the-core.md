@@ -1,0 +1,1 @@
+- **One catalogue.** The drink catalogue, its price lookups and the exchange rates now live in the shared Rust core, so both apps read one table and the Kotlin copy is no longer generated from the Swift one.

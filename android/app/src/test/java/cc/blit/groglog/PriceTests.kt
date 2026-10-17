@@ -16,14 +16,6 @@ import org.junit.Test
 
 /** A drink at £0.00 looks free rather than broken, and silently flattens the spend charts. */
 class PriceTests {
-    @Test fun everySizeOfEveryBrandCostsSomething() {
-        for (brand in Catalog.brands) {
-            for (serve in brand.prices.values.flatten()) {
-                assertTrue("${brand.name} ${serve.size.label}", serve.price > 0)
-            }
-        }
-    }
-
     @Test fun genericsKnowWhatTheirOwnServesCost() {
         assertTrue((Seed.price("Beer", Vessel.PINT, 568.0) ?: 0.0) > 0)
         assertTrue((Seed.price("Beer", Vessel.CAN, 440.0) ?: 0.0) > 0)
@@ -123,15 +115,5 @@ class AdoptedDrinkTests {
     @Test fun anUnlistedSizeScalesFromItsOwnKindOfServe() {
         val asahi = asahi()
         assertTrue(near(Catalog.price(asahi, Vessel.BOTTLE, 660.0), Catalog.price(asahi, Vessel.BOTTLE, 330.0) * 2, 0.001))
-    }
-
-    @Test fun aGenericIsNotACatalogueBrand() {
-        assertFalse(Catalog.holds("Beer", DrinkCategory.BEER, DrinkCategory.BEER.defaultABV))
-    }
-
-    /** Lookups go by name and kind, so two brands sharing both would leave one of them unreachable. */
-    @Test fun noTwoBrandsShareANameAndKind() {
-        val keys = Catalog.brands.map { Catalog.key(it.name, it.category) }
-        assertEquals(keys.groupBy { it }.filter { it.value.size > 1 }.keys.sorted().toString(), keys.size, keys.toSet().size)
     }
 }

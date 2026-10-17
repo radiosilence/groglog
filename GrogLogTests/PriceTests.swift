@@ -5,14 +5,6 @@ import Testing
 /// A drink at £0.00 looks free rather than broken, and silently flattens the spend charts.
 /// These are the lookups the backfill migration uses to repair old databases.
 @Suite struct PriceTests {
-    @Test func everySizeOfEveryBrandCostsSomething() {
-        for brand in Catalog.brands {
-            for serve in brand.prices.values.flatMap({ $0 }) {
-                #expect(serve.price > 0, "\(brand.name) \(serve.size.label)")
-            }
-        }
-    }
-
     @Test func genericsKnowWhatTheirOwnServesCost() {
         #expect(Seed.price(name: "Beer", vessel: .pint, ml: 568) ?? 0 > 0)
         #expect(Seed.price(name: "Beer", vessel: .can, ml: 440) ?? 0 > 0)
@@ -112,15 +104,5 @@ import Testing
         let asahi = try #require(Catalog.brands.first { $0.name == "Asahi Super Dry" })
         let bottle330 = Catalog.price(asahi, .bottle, 330)
         #expect(abs(Catalog.price(asahi, .bottle, 660) - bottle330 * 2) < 0.001)
-    }
-
-    @Test func aGenericIsNotACatalogueBrand() {
-        #expect(!Catalog.holds(name: "Beer", category: .beer, abv: DrinkCategory.beer.defaultABV))
-    }
-
-    /// Lookups go by name and kind, so two brands sharing both would leave one of them unreachable.
-    @Test func noTwoBrandsShareANameAndKind() {
-        let keys = Catalog.brands.map { Catalog.key($0.name, $0.category) }
-        #expect(Set(keys).count == keys.count, "\(Dictionary(grouping: keys, by: \.self).filter { $1.count > 1 }.keys.sorted())")
     }
 }
