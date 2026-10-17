@@ -1,4 +1,4 @@
-name: App
+name: iOS
 
 # Tests every push and pull request; every push to main is also archived, signed and uploaded to TestFlight. Submitting
 # a build for App Store review is left to App Store Connect, where the release notes and screenshots live.
@@ -20,7 +20,7 @@ on:
   pull_request:
 
 concurrency:
-  group: app-${{ github.ref }}
+  group: ios-${{ github.ref }}
   # A newer push supersedes a TestFlight upload that hasn't finished; on a PR it only saves runner time.
   cancel-in-progress: true
 

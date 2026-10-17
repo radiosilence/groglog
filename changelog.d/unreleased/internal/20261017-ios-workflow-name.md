@@ -1,0 +1,1 @@
+- **iOS workflow renamed.** The CI workflow that tests the iOS app and uploads it to TestFlight is now called iOS, matching the Android one.
