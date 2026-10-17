@@ -6,6 +6,8 @@ mod catalog_data;
 mod days;
 mod goal;
 mod ledger;
+mod logbook;
+mod nights;
 mod rates;
 mod units;
 

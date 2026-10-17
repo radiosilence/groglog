@@ -1,4 +1,5 @@
 import Foundation
+import GrogLogCore
 import HealthKit
 import os
 
@@ -179,13 +180,7 @@ import os
         }
     }
 
-    /// Each night's first sleep to its last, one span per night, for fetching the heart rate inside them.
-    nonisolated static func nightSpans(_ spans: [SleepSpan], clock: DayClock) -> [DateInterval] {
-        Nights.sleepByNight(spans, clock: clock).values.map { spans in
-            let asleep = spans.filter { $0.stage != .awake }.map(\.interval)
-            return DateInterval(start: asleep.map(\.start).min() ?? spans[0].interval.start, end: asleep.map(\.end).max() ?? spans[0].interval.end)
-        }
-    }
+    nonisolated static func nightSpans(_ spans: [SleepSpan], clock: DayClock) -> [DateInterval] { Nights.nightSpans(spans, clock: clock) }
 
     private func samples(for entry: Entry) -> [HKQuantitySample] {
         let at = entry.timestamp
@@ -199,5 +194,5 @@ import os
 nonisolated extension Entry {
     /// Health counts standard drinks (17.7 ml of alcohol), not UK units (10 ml). Passing units would overstate
     /// every reading by three quarters.
-    var standardDrinks: Double { units * Units.unitMl / Units.standardDrinkMl }
+    var standardDrinks: Double { unitsStandardDrinks(units: units) }
 }

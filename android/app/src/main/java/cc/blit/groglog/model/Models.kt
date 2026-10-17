@@ -6,6 +6,7 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.Relation
+import cc.blit.groglog.core.unitsStandardDrinks
 import java.time.Instant
 import java.util.Locale
 import java.util.UUID
@@ -139,7 +140,7 @@ data class Entry(
     val serveKey: String get() = Serve.key(drink.id, pour.vessel, pour.volumeMl)
 
     /** Standard drinks of 17.7 ml of alcohol, as other apps count them, rather than UK units of 10 ml. */
-    val standardDrinks: Double get() = units * Units.UNIT_ML / Units.STANDARD_DRINK_ML
+    val standardDrinks: Double get() = unitsStandardDrinks(units)
 }
 
 /** A favourite with its drink. */
