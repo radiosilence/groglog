@@ -60,14 +60,20 @@ private fun brand(record: BrandRecord): CatalogBrand? {
 object Catalog {
     val brands: List<CatalogBrand> by lazy { catalogBrands().mapNotNull(::brand) }
 
-    /** Every brand in every size; `search` answers with positions in this list. */
-    val items: List<CatalogItem> by lazy {
-        catalogItems().mapNotNull { record ->
-            val category = DrinkCategory.fromRaw(record.category) ?: return@mapNotNull null
-            val vessel = Vessel.fromRaw(record.vessel) ?: return@mapNotNull null
-            CatalogItem(record.name, category, vessel, record.ml, record.abv)
+    /**
+     * The core's items at the core's positions, which `search` answers with. A record the app cannot map stays a null in
+     * its place, so it cannot shift the positions after it.
+     */
+    private val positioned: List<CatalogItem?> by lazy {
+        catalogItems().map { record ->
+            val category = DrinkCategory.fromRaw(record.category)
+            val vessel = Vessel.fromRaw(record.vessel)
+            if (category == null || vessel == null) null else CatalogItem(record.name, category, vessel, record.ml, record.abv)
         }
     }
+
+    /** Every brand in every size. */
+    val items: List<CatalogItem> by lazy { positioned.filterNotNull() }
 
     /**
      * The currency for prices: the one set in Setup. `AppContainer` keeps it in step with `Prefs`, so lookups made
@@ -104,7 +110,7 @@ object Catalog {
     fun price(brand: CatalogBrand, vessel: Vessel, ml: Double, currency: String = this.currency): Double =
         catalogBrandPrice(brand.name, brand.category.raw, vessel.raw, ml, currency)
 
-    fun search(query: String): List<CatalogItem> = catalogSearch(query).map { items[it.toInt()] }
+    fun search(query: String): List<CatalogItem> = catalogSearch(query).mapNotNull { positioned.getOrNull(it.toInt()) }
 }
 
 /** Case and accents folded, so "stella" finds Stella and "kolsch" finds Kölsch. */

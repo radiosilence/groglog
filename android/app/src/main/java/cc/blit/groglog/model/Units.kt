@@ -1,5 +1,7 @@
 package cc.blit.groglog.model
 
+import cc.blit.groglog.core.categoryDefaultAbv
+import cc.blit.groglog.core.categoryDefaultVessel
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -93,28 +95,11 @@ enum class DrinkCategory(val raw: String) {
     val isFizzy: Boolean get() = this in setOf(BEER, CIDER, BUBBLES, ALCOPOP)
     val hasHead: Boolean get() = this in setOf(BEER, STOUT, CIDER)
 
-    val defaultVessel: Vessel
-        get() = when (this) {
-            BEER, STOUT, CIDER -> Vessel.PINT
-            RED_WINE, WHITE_WINE, ROSE, FORTIFIED -> Vessel.WINE_GLASS
-            BUBBLES -> Vessel.FLUTE
-            SPIRIT, UNITS -> Vessel.SHOT
-            ALCOPOP -> Vessel.BOTTLE
-            COCKTAIL -> Vessel.COUPE
-        }
+    /** The core's, which a restore also uses for a pour that gives no vessel. The core names only vessels the app has. */
+    val defaultVessel: Vessel get() = Vessel.fromRaw(categoryDefaultVessel(raw))!!
 
-    /** Drinkaware's standard strengths, used for the generic drinks. */
-    val defaultABV: Double
-        get() = when (this) {
-            BEER, STOUT -> 4.0
-            CIDER -> 4.5
-            RED_WINE, WHITE_WINE, ROSE, BUBBLES -> 12.0
-            SPIRIT -> 40.0
-            ALCOPOP -> 5.0
-            COCKTAIL -> 15.0
-            FORTIFIED -> 20.0
-            UNITS -> 100.0
-        }
+    /** Drinkaware's standard strengths, used for the generic drinks and for a restored pour that gives no strength. */
+    val defaultABV: Double get() = categoryDefaultAbv(raw)
 
     /** The sizes this kind of drink usually comes in. */
     val serves: List<ServeSize>

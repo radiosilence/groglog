@@ -16,9 +16,10 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * A backup is the way a log moves between an iPhone and an Android phone, so each must read the other's. The fixture
- * was written by the iOS app's own encoder, before the document moved into the shared core. The core's tests read the
- * same file, and hold its number and layout rules.
+ * A backup is the way a log moves between an iPhone and an Android phone, so each must read the other's. The fixture is a
+ * backup as iOS builds up to 1.2.1 write it, with the awkward cases in it: escapes, accents, a slash, whole and
+ * fractional numbers, exponents, empty lists and absent fields. Phones on those builds keep writing files like it, so it
+ * is kept as it is. The core's tests read the same file, and hold its number and layout rules.
  */
 @RunWith(RobolectricTestRunner::class)
 class BackupCompatTests {

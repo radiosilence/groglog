@@ -143,11 +143,6 @@ impl CoreLedger {
         }
     }
 
-    /// `status` for `count` consecutive days from `first`, for a calendar month in one call.
-    pub fn statuses(&self, first: i64, count: i64) -> Vec<StatusKind> {
-        (first..first + count.max(0)).map(|day| self.status(day)).collect()
-    }
-
     /// Has drinks or a dry mark. A day with only a manual spend is not logged.
     pub fn is_logged(&self, day: i64) -> bool {
         self.days.get(&day).is_some_and(|row| row.count > 0 || row.is_alcohol_free)
@@ -213,11 +208,6 @@ impl CoreLedger {
             unlogged_days: days.filter(|day| self.status(*day) == StatusKind::Unlogged).count() as i64,
             budget: if budgets.contains(&None) { None } else { Some(budgets.iter().flatten().sum()) },
         }
-    }
-
-    /// `week` for `count` consecutive weeks from `first`, `weeks` apart by seven days.
-    pub fn weeks(&self, first: i64, count: i64, goal: GoalSpec) -> Vec<WeekRow> {
-        (0..count.max(0)).map(|index| self.week(first + 7 * index, goal)).collect()
     }
 
     /// Units a week at the rate drunk on the logged days in the range. Unlogged days are excluded rather than counted
@@ -356,7 +346,6 @@ mod tests {
         assert_eq!(l.status(SATURDAY() - 9), StatusKind::Untracked);
         assert_eq!(l.status(SATURDAY()), StatusKind::Today);
         assert_eq!(l.status(SATURDAY() + 1), StatusKind::Future);
-        assert_eq!(l.statuses(SATURDAY() - 3, 2), vec![StatusKind::Drank, StatusKind::AlcoholFree]);
     }
 
     #[test]
@@ -398,7 +387,6 @@ mod tests {
         assert_eq!((week.dry_days, week.unlogged_days), (1, 3), "Sunday is still to come");
         assert!((week.budget.unwrap() - 70.0).abs() < 0.0001);
         assert_eq!(l.week(monday, goal()).budget, None, "no goal, no budget");
-        assert_eq!(l.weeks(monday - 7, 2, g).iter().map(|w| w.start).collect::<Vec<_>>(), vec![monday - 7, monday]);
     }
 
     #[test]

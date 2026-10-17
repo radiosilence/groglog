@@ -156,6 +156,10 @@ mod iso {
             b'Z' | b'z' if at + 1 == bytes.len() => 0,
             sign @ (b'+' | b'-') => {
                 let rest = &text[at + 1..];
+                // Sliced by byte below, so anything but ASCII digits and a colon is refused first.
+                if !rest.bytes().all(|b| b.is_ascii_digit() || b == b':') {
+                    return None;
+                }
                 let (h, m) = match rest.len() {
                     2 => (rest.parse::<i64>().ok()?, 0),
                     4 => (rest[..2].parse::<i64>().ok()?, rest[2..].parse::<i64>().ok()?),
@@ -901,7 +905,8 @@ mod tests {
         assert_eq!(iso::parse("2026-09-13T19:05:00+01:00").map(iso::format).as_deref(), Some("2026-09-13T18:05:00Z"));
         assert_eq!(iso::parse("2026-09-13T19:05:00.250Z").map(iso::format).as_deref(), Some("2026-09-13T19:05:00Z"));
         assert_eq!(iso::parse("1969-12-31T23:59:59Z"), Some(-1));
-        for bad in ["2026-09-13", "2026-09-13T19:05:00", "2026-13-13T19:05:00Z", "2026-02-30T19:05:00Z", "nonsense", ""] {
+        // A damaged offset is refused rather than sliced through a multi-byte character.
+        for bad in ["2026-09-13", "2026-09-13T19:05:00", "2026-13-13T19:05:00Z", "2026-02-30T19:05:00Z", "nonsense", "", "2026-09-13T19:05:00+0éa", "2026-09-13T19:05:00+é", "2026-09-13T19:05:00+01:0é"] {
             assert_eq!(iso::parse(bad), None, "{bad}");
         }
     }

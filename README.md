@@ -74,7 +74,7 @@ Settings that belong to the log (goal, currency, the hour the day ends) sync sep
 
 ## Shared core
 
-The logic both apps depend on lives in `core/`, a Rust crate that uniffi exposes to Swift and Kotlin. It holds what must not differ between platforms: what a day is, what a unit is, the ledger and goals, and the backup format with the planning of a restore. Each app keeps its own presentation and storage (SwiftUI and GRDB, Compose and Room) and passes the core plain values. Calls take and return whole records, so a screen asks once rather than once per row. Anything that needs a timezone stays native, which hands the core the wall-clock date and hour it sees.
+The logic both apps depend on lives in `core/`, a Rust crate that uniffi exposes to Swift and Kotlin. It holds what must not differ between platforms: what a day is, what a unit is, the ledger and goals, and the backup format with the planning of a restore. Each app keeps its own presentation and storage (SwiftUI and GRDB, Compose and Room) and passes the core plain values. Calls take and return whole records: curves, backups and restore plans cross the boundary once, not once per drink. Per-day questions such as a calendar cell's status are single calls, which measure well under a microsecond on iOS and a few microseconds on Android; `ScaleTests` times a screen's worth of them on both. Anything that needs a timezone stays native, which hands the core the wall-clock date and hour it sees.
 
 `scripts/core-apple.sh` builds it for iOS and wraps it in a Swift package under `core/out`; Gradle builds it for each Android ABI with cargo-ndk, and for the host so the JVM tests can load it. Neither output is committed. The Rust tests are `cargo test`.
 

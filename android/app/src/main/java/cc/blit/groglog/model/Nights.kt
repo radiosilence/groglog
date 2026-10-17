@@ -89,11 +89,17 @@ class Nights(val byDay: Map<DayKey, Night> = emptyMap()) {
     fun mean(reading: (Night) -> Double?, days: DayRange, minimum: Int = 3): Double? =
         core.mean(kind(reading), days.start.number.toLong(), days.endInclusive.number.toLong(), minimum.toLong())
 
-    /** Which reading a selector picks: the probe has only that one set. */
-    private fun kind(reading: (Night) -> Double?): ReadingKind = when {
-        reading(Night(hrv = 1.0)) != null -> ReadingKind.HRV
-        reading(Night(restingHR = 1.0)) != null -> ReadingKind.RESTING_HR
-        else -> ReadingKind.SLEEPING_HR
+    /**
+     * Which reading a selector picks, found by probing it with a night that has only that one set. The three readings are
+     * the only ones the core files, so a selector matching none, or more than one, is a programming error.
+     */
+    private fun kind(reading: (Night) -> Double?): ReadingKind {
+        val matches = listOf(
+            ReadingKind.HRV to Night(hrv = 1.0),
+            ReadingKind.RESTING_HR to Night(restingHR = 1.0),
+            ReadingKind.SLEEPING_HR to Night(sleepingHR = 1.0),
+        ).filter { (_, probe) -> reading(probe) != null }
+        return requireNotNull(matches.singleOrNull()?.first) { "The selector is not one of the nightly readings" }
     }
 
     companion object {

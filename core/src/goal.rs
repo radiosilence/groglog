@@ -253,12 +253,6 @@ pub fn goal_daily_budget(goal: GoalSpec, day: i64) -> Option<f64> {
     taper(&goal, day).map(|(budget, reference)| budget.max((goal.target_weekly / 7.0).min(reference)))
 }
 
-/// `goal_daily_budget` for `count` consecutive days from `first`.
-#[uniffi::export]
-pub fn goal_daily_budgets(goal: GoalSpec, first: i64, count: i64) -> Vec<Option<f64>> {
-    (first..first + count.max(0)).map(|day| goal_daily_budget(goal, day)).collect()
-}
-
 /// How many days the budget takes to lose a tenth on `day`: the chosen period, or for a stepped taper the pace of the
 /// rung its budget has reached (the baseline's rung before it starts).
 #[uniffi::export]
@@ -564,6 +558,5 @@ pub(crate) mod tests {
     fn a_stepped_budget_ignores_what_is_drunk_because_it_never_reads_the_log() {
         let g = GoalSpec { is_enabled: true, taper: TaperKind::Dynamic, baseline_weekly: 30.0 * 7.0, start_day: START(), ..goal() };
         assert_eq!(goal_daily_budget(g, START() + 10), goal_daily_budget(g, START() + 10));
-        assert_eq!(goal_daily_budgets(g, START(), 3), (0..3).map(|n| goal_daily_budget(g, START() + n)).collect::<Vec<_>>());
     }
 }

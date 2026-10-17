@@ -702,10 +702,10 @@ mod tests {
         (a - b).abs() < 1e-9
     }
 
-    /// The table was ported from the Swift catalogue it replaced; this holds every name, strength, size and price,
-    /// and the answers to the lookups, to what that code gave, because drinks logged on a phone refer to them.
+    /// Holds every name, strength, size and price, and the answers to the lookups, to the golden dump, because drinks
+    /// logged on a phone refer to them by name and kind.
     #[test]
-    fn the_core_gives_what_the_swift_catalogue_gave() {
+    fn the_table_matches_the_golden_dump() {
         let golden = golden();
         let brands = catalog_brands();
         let expected = golden["brands"].as_array().unwrap();
@@ -746,7 +746,7 @@ mod tests {
     }
 
     #[test]
-    fn lookups_and_searches_answer_as_the_swift_catalogue_did() {
+    fn lookups_and_searches_match_the_golden_dump() {
         let golden = golden();
         for lookup in golden["lookups"].as_array().unwrap() {
             let got = catalog_price(

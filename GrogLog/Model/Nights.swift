@@ -93,8 +93,14 @@ nonisolated struct Nights: Equatable {
         }).map { DateInterval(start: Date(timeIntervalSince1970: $0.start), end: Date(timeIntervalSince1970: $0.end)) }
     }
 
+    /// The three readings are the only ones the core files, so any other key path is a programming error.
     private static func kind(_ reading: KeyPath<Night, Double?>) -> ReadingKind {
-        if reading == \Night.restingHR { .restingHr } else if reading == \Night.sleepingHR { .sleepingHr } else { .hrv }
+        switch reading {
+        case \Night.hrv: .hrv
+        case \Night.restingHR: .restingHr
+        case \Night.sleepingHR: .sleepingHr
+        default: preconditionFailure("\(reading) is not a nightly reading")
+        }
     }
 }
 

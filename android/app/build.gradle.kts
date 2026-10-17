@@ -1,3 +1,4 @@
+import java.io.ByteArrayOutputStream
 import javax.inject.Inject
 
 plugins {
@@ -124,10 +125,25 @@ abstract class CoreAndroid @Inject constructor(private val exec: ExecOperations)
     fun build() {
         val root = workspace.get().asFile
         // rust-toolchain.toml adds its targets only when it installs the toolchain, so an existing install may lack them.
+        // Only missing ones are added, and only through rustup: CI installs them up front, and a Rust without rustup is
+        // left to report a missing target itself.
         val triples = mapOf("arm64-v8a" to "aarch64-linux-android", "x86_64" to "x86_64-linux-android")
-        exec.exec {
-            workingDir = root
-            commandLine(listOf("rustup", "target", "add") + abis.get().map { triples.getValue(it) })
+        val wanted = abis.get().map { triples[it] ?: throw GradleException("No Rust target is known for the ABI $it") }
+        val listed = ByteArrayOutputStream()
+        val listing = runCatching {
+            exec.exec {
+                workingDir = root
+                commandLine("rustup", "target", "list", "--installed")
+                standardOutput = listed
+                isIgnoreExitValue = true
+            }
+        }.getOrNull()
+        val missing = wanted - listed.toString().lines().map(String::trim).toSet()
+        if (listing?.exitValue == 0 && missing.isNotEmpty()) {
+            exec.exec {
+                workingDir = root
+                commandLine(listOf("rustup", "target", "add") + missing)
+            }
         }
         exec.exec {
             workingDir = root

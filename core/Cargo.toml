@@ -15,5 +15,6 @@ crate-type = ["staticlib", "cdylib", "lib"]
 uniffi = "0.32"
 unicode-normalization = "0.1"
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+# Swift writes doubles with up to 17 significant digits; the default parser can land one ULP off for those.
+serde_json = { version = "1", features = ["float_roundtrip"] }
 uuid = { version = "1", features = ["v4"] }

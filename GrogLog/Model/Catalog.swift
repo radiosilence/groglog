@@ -55,11 +55,15 @@ nonisolated extension ServeSize {
 nonisolated enum Catalog {
     static let brands: [CatalogBrand] = catalogBrands().compactMap(CatalogBrand.init)
 
-    /// Every brand in every size; `search` answers with positions in this list.
-    static let items: [CatalogItem] = catalogItems().compactMap { record in
+    /// The core's items at the core's positions, which `search` answers with. A record the app cannot map stays a nil
+    /// in its place, so it cannot shift the positions after it.
+    private static let positioned: [CatalogItem?] = catalogItems().map { record in
         guard let category = DrinkCategory(rawValue: record.category), let vessel = Vessel(rawValue: record.vessel) else { return nil }
         return CatalogItem(name: record.name, category: category, vessel: vessel, volumeMl: record.ml, abv: record.abv)
     }
+
+    /// Every brand in every size.
+    static let items: [CatalogItem] = positioned.compactMap(\.self)
 
     /// The currency for prices: the one set in Setup, stored in the shared defaults so widgets and intents price the
     /// same way as the app.
@@ -96,7 +100,7 @@ nonisolated enum Catalog {
     }
 
     static func search(_ query: String) -> [CatalogItem] {
-        catalogSearch(query: query).map { items[Int($0)] }
+        catalogSearch(query: query).compactMap { positioned.indices.contains(Int($0)) ? positioned[Int($0)] : nil }
     }
 }
 

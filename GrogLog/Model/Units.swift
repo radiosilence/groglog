@@ -81,30 +81,11 @@ nonisolated enum DrinkCategory: String, CaseIterable, Codable, Identifiable {
     var isFizzy: Bool { [.beer, .cider, .bubbles, .alcopop].contains(self) }
     var hasHead: Bool { [.beer, .stout, .cider].contains(self) }
 
-    var defaultVessel: Vessel {
-        switch self {
-        case .beer, .stout, .cider: .pint
-        case .redWine, .whiteWine, .rose, .fortified: .wineGlass
-        case .bubbles: .flute
-        case .spirit, .units: .shot
-        case .alcopop: .bottle
-        case .cocktail: .coupe
-        }
-    }
+    /// The core's, which a restore also uses for a pour that gives no vessel. The core names only vessels the app has.
+    var defaultVessel: Vessel { Vessel(rawValue: categoryDefaultVessel(category: rawValue))! }
 
-    /// Drinkaware's standard strengths, used for the generic drinks.
-    var defaultABV: Double {
-        switch self {
-        case .beer, .stout: 4
-        case .cider: 4.5
-        case .redWine, .whiteWine, .rose, .bubbles: 12
-        case .spirit: 40
-        case .alcopop: 5
-        case .cocktail: 15
-        case .fortified: 20
-        case .units: 100
-        }
-    }
+    /// Drinkaware's standard strengths, used for the generic drinks and for a restored pour that gives no strength.
+    var defaultABV: Double { categoryDefaultAbv(category: rawValue) }
 
     /// The sizes this kind of drink usually comes in.
     var serves: [ServeSize] {
