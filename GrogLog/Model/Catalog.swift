@@ -7,23 +7,15 @@ nonisolated struct CatalogBrand: Identifiable {
     let name: String
     let category: DrinkCategory
     let abv: Double
-    /// Each usual size with its typical cost, per market, keyed by currency code.
-    let prices: [String: [(size: ServeSize, price: Double)]]
     /// Every size any market lists it in, the UK's first.
     let sizes: [ServeSize]
     var id: String { name }
 
-    init?(_ record: BrandRecord) {
-        guard let category = DrinkCategory(rawValue: record.category) else { return nil }
+    init(_ record: BrandRecord) {
         name = record.name
-        self.category = category
+        category = DrinkCategory(record.category)
         abv = record.abv
-        prices = Dictionary(uniqueKeysWithValues: record.markets.map { market in
-            (market.currency, market.serves.compactMap { serve in
-                ServeSize(record: serve.vessel, serve.ml).map { (size: $0, price: serve.price) }
-            })
-        })
-        sizes = record.sizes.compactMap { ServeSize(record: $0.vessel, $0.ml) }
+        sizes = record.sizes.map(ServeSize.init)
     }
 }
 
@@ -46,24 +38,18 @@ nonisolated struct CatalogItem: Identifiable, Hashable {
 }
 
 nonisolated extension ServeSize {
-    fileprivate init?(record vessel: String, _ ml: Double) {
-        guard let vessel = Vessel(rawValue: vessel) else { return nil }
-        self.init(vessel, ml)
+    fileprivate init(_ record: SizeRecord) {
+        self.init(Vessel(record.vessel), record.ml)
     }
 }
 
 nonisolated enum Catalog {
-    static let brands: [CatalogBrand] = catalogBrands().compactMap(CatalogBrand.init)
+    static let brands: [CatalogBrand] = catalogBrands().map(CatalogBrand.init)
 
-    /// The core's items at the core's positions, which `search` answers with. A record the app cannot map stays a nil
-    /// in its place, so it cannot shift the positions after it.
-    private static let positioned: [CatalogItem?] = catalogItems().map { record in
-        guard let category = DrinkCategory(rawValue: record.category), let vessel = Vessel(rawValue: record.vessel) else { return nil }
-        return CatalogItem(name: record.name, category: category, vessel: vessel, volumeMl: record.ml, abv: record.abv)
+    /// Every brand in every size, in the core's order, which `search` answers with positions into.
+    static let items: [CatalogItem] = catalogItems().map { record in
+        CatalogItem(name: record.name, category: DrinkCategory(record.category), vessel: Vessel(record.vessel), volumeMl: record.ml, abv: record.abv)
     }
-
-    /// Every brand in every size.
-    static let items: [CatalogItem] = positioned.compactMap(\.self)
 
     /// The currency for prices: the one set in Setup, stored in the shared defaults so widgets and intents price the
     /// same way as the app.
@@ -79,32 +65,27 @@ nonisolated enum Catalog {
     /// Whether a drink still matches the catalogue exactly. Changing its name, kind or strength makes it the user's
     /// own.
     static func holds(name: String, category: DrinkCategory, abv: Double) -> Bool {
-        catalogHolds(name: name, category: category.rawValue, abv: abv)
+        catalogHolds(name: name, category: category.kind, abv: abv)
     }
 
     /// The sizes a drink of this name and kind is listed in, or none for a drink the catalogue does not know.
     static func sizes(name: String, category: DrinkCategory) -> [ServeSize] {
-        catalogSizes(name: name, category: category.rawValue).compactMap { ServeSize(record: $0.vessel, $0.ml) }
+        catalogSizes(name: name, category: category.kind).map(ServeSize.init)
     }
 
     /// The normal price of a drink of this name in this size: a brand's own price, else a generic's starting price.
     /// Nil when unknown, so callers can distinguish unpriced from free.
     static func price(name: String, category: DrinkCategory, vessel: Vessel, ml: Double, currency: String = currency) -> Double? {
-        catalogPrice(name: name, category: category.rawValue, vessel: vessel.rawValue, ml: ml, currency: currency)
+        catalogPrice(name: name, category: category.kind, vessel: vessel.kind, ml: ml, currency: currency)
     }
 
     /// A size the brand is not listed in scales from the nearest serve of the same vessel first, and a drink sold in
     /// another currency's market is converted at the bundled rates.
     static func price(_ brand: CatalogBrand, _ vessel: Vessel, _ ml: Double, currency: String = currency) -> Double {
-        catalogBrandPrice(name: brand.name, category: brand.category.rawValue, vessel: vessel.rawValue, ml: ml, currency: currency)
+        catalogBrandPrice(name: brand.name, category: brand.category.kind, vessel: vessel.kind, ml: ml, currency: currency)
     }
 
     static func search(_ query: String) -> [CatalogItem] {
-        catalogSearch(query: query).compactMap { positioned.indices.contains(Int($0)) ? positioned[Int($0)] : nil }
+        catalogSearch(query: query).map { items[Int($0)] }
     }
-}
-
-nonisolated extension String {
-    /// Case and accents folded, so "stella" finds Stella and "kolsch" finds Kölsch.
-    var searchFolded: String { folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current) }
 }

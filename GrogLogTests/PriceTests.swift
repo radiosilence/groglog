@@ -1,4 +1,5 @@
 import Foundation
+import GrogLogCore
 import Testing
 @testable import GrogLog
 
@@ -6,14 +7,14 @@ import Testing
 /// These are the lookups the backfill migration uses to repair old databases.
 @Suite struct PriceTests {
     @Test func genericsKnowWhatTheirOwnServesCost() {
-        #expect(Seed.price(name: "Beer", vessel: .pint, ml: 568) ?? 0 > 0)
-        #expect(Seed.price(name: "Beer", vessel: .can, ml: 440) ?? 0 > 0)
-        #expect(Seed.price(name: "Red wine", vessel: .wineGlass, ml: 175) ?? 0 > 0)
+        #expect(catalogGenericPrice(name: "Beer", vessel: .pint, ml: 568) ?? 0 > 0)
+        #expect(catalogGenericPrice(name: "Beer", vessel: .can, ml: 440) ?? 0 > 0)
+        #expect(catalogGenericPrice(name: "Red wine", vessel: .wineGlass, ml: 175) ?? 0 > 0)
     }
 
     @Test func nothingIsPricedAtZeroRatherThanUnknown() {
-        #expect(Seed.price(name: "Beer", vessel: .wineGlass, ml: 175) == nil)
-        #expect(Seed.price(name: "Not a drink", vessel: .pint, ml: 568) == nil)
+        #expect(catalogGenericPrice(name: "Beer", vessel: .wineGlass, ml: 175) == nil)
+        #expect(catalogGenericPrice(name: "Not a drink", vessel: .pint, ml: 568) == nil)
         #expect(Catalog.price(name: "Not a drink", category: .beer, vessel: .pint, ml: 568) == nil)
     }
 
@@ -21,7 +22,7 @@ import Testing
     @Test func aKnownBrandIsPricedAheadOfAnyGeneric() throws {
         let stella = try #require(Catalog.price(name: "Stella Artois", category: .beer, vessel: .pint, ml: 568))
         #expect(stella > 0)
-        #expect(stella != Seed.price(name: "Beer", vessel: .pint, ml: 568))
+        #expect(stella != catalogGenericPrice(name: "Beer", vessel: .pint, ml: 568))
     }
 
     @Test func aBrandPricesASizeItIsntSoldInByVolume() throws {
@@ -88,8 +89,10 @@ import Testing
         let asahi = try #require(Catalog.brands.first { $0.name == "Asahi Super Dry" })
         let pounds = Catalog.price(asahi, .pint, 568, currency: "GBP")
         let euros = Catalog.price(asahi, .pint, 568, currency: "EUR")
-        #expect(pounds == asahi.prices["GBP"]?.first { $0.size.vessel == .pint }?.price)
-        #expect(abs(euros - pounds * Rates.perPound["EUR"]!) < 0.001)
+        let listed = catalogBrands().first { $0.name == asahi.name }?.markets.first { $0.currency == "GBP" }?.serves.first { $0.vessel == .pint }
+        #expect(pounds == listed?.price)
+        let euro = try #require(ratesPerPound().first { $0.currency == "EUR" })
+        #expect(abs(euros - pounds * euro.perPound) < 0.001)
         #expect(Catalog.price(asahi, .pint, 568, currency: "XXX") == 0)
     }
 

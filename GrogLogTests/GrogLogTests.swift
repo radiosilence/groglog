@@ -703,7 +703,7 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         logbook.log(Serve(drink), at: [.now.addingTimeInterval(-3600 * 30)], abv: 5.2)
         logbook.setAlcoholFree(true, on: prefs.clock.today - 3)
         let settings = Exporter.Settings(prefs)
-        let data = try Exporter.json(try source.reader.read { try Exporter.backup($0, settings: settings) })
+        let data = Exporter.json(try source.reader.read { try Exporter.backup($0, settings: settings) })
 
         let target = try AppDatabase.inMemory()
         #expect(try Exporter.restore(data, writer: target.writer, prefs: prefs) == 1)
@@ -726,7 +726,7 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         let beer = try #require(try source.reader.read { try Drink.filter(Column("name") == "Beer").fetchOne($0) })
         logbook.log(Serve(beer), at: [.now])
         let settings = Exporter.Settings(prefs)
-        let data = try Exporter.json(try source.reader.read { try Exporter.backup($0, settings: settings) })
+        let data = Exporter.json(try source.reader.read { try Exporter.backup($0, settings: settings) })
 
         let (drinks, favourites) = try source.reader.read { (try Drink.fetchCount($0), try Favourite.fetchCount($0)) }
 
@@ -768,22 +768,27 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
     }
 }
 
-/// The catalogue is a hand-written table, so guard the mistakes hand-writing makes: a stray decimal point,
-/// a brand listed twice, a serve with no size.
 /// The table, its prices and the lookups are the shared core's, and its own tests hold them to what they were. These
 /// check that this app maps what it gives onto its own types without dropping anything.
 @Suite struct CatalogTests {
     @Test func everyBrandAndItemIsMapped() {
         #expect(Catalog.brands.count == catalogBrands().count)
         #expect(Catalog.items.count == catalogItems().count)
-        #expect(Catalog.brands.allSatisfy { !$0.prices.isEmpty && !$0.sizes.isEmpty })
+        #expect(Catalog.brands.allSatisfy { !$0.sizes.isEmpty })
     }
 
+    /// The mappings are exhaustive switches, so only a case mapped onto the wrong one can slip through.
     @Test func theCoresKindsAreTheAppsKinds() {
-        let labels = Dictionary(uniqueKeysWithValues: catalogCategoryLabels().map { ($0.category, $0.label) })
-        #expect(Set(labels.keys) == Set(DrinkCategory.allCases.map(\.rawValue)))
         for category in DrinkCategory.allCases {
-            #expect(labels[category.rawValue] == category.label, "\(category)")
+            #expect(DrinkCategory(category.kind) == category)
+        }
+        for vessel in Vessel.allCases {
+            #expect(Vessel(vessel.kind) == vessel)
+        }
+        let labels = catalogCategoryLabels()
+        #expect(labels.count == DrinkCategory.allCases.count)
+        for label in labels {
+            #expect(DrinkCategory(label.category).label == label.label, "\(label.category)")
         }
     }
 

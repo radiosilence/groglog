@@ -9,11 +9,7 @@ import cc.blit.groglog.core.SleepIn
 import cc.blit.groglog.core.SleepRow
 import cc.blit.groglog.core.StageKind
 import cc.blit.groglog.core.nightsBuild
-import cc.blit.groglog.core.nightsIsOvernight
 import cc.blit.groglog.core.nightsNightSpans
-import cc.blit.groglog.core.nightsShiftHours
-import cc.blit.groglog.core.sleepAsleep
-import cc.blit.groglog.core.sleepRemShare
 import java.time.Duration
 import java.time.Instant
 
@@ -38,12 +34,10 @@ data class Sleep(
     val unstaged: Double = 0.0,
     val awake: Double = 0.0,
 ) {
-    val asleep: Double get() = sleepAsleep(row)
+    val asleep: Double get() = deep + core + rem + unstaged
 
     /** Only for fully staged nights, since unstaged sleep would read as no REM. */
-    val remShare: Double? get() = sleepRemShare(row)
-
-    private val row get() = SleepRow(deep, core, rem, unstaged, awake)
+    val remShare: Double? get() = if (unstaged == 0.0 && asleep > 0) rem / asleep else null
 }
 
 enum class SleepStage { AWAKE, CORE, DEEP, REM, UNSTAGED }
@@ -62,14 +56,16 @@ data class SleepSpan(
 )
 
 class Nights(val byDay: Map<DayKey, Night> = emptyMap()) {
-    private val core = CoreNights(
-        byDay.map { (day, night) ->
-            NightRow(
-                day.number.toLong(), night.hrv, night.restingHR, night.sleepingHR,
-                night.sleep?.let { SleepRow(it.deep, it.core, it.rem, it.unstaged, it.awake) },
-            )
-        },
-    )
+    private val core by lazy {
+        CoreNights(
+            byDay.map { (day, night) ->
+                NightRow(
+                    day.number.toLong(), night.hrv, night.restingHR, night.sleepingHR,
+                    night.sleep?.let { SleepRow(it.deep, it.core, it.rem, it.unstaged, it.awake) },
+                )
+            },
+        )
+    }
 
     override fun equals(other: Any?) = other is Nights && other.byDay == byDay
 
@@ -82,27 +78,23 @@ class Nights(val byDay: Map<DayKey, Night> = emptyMap()) {
     val first: DayKey? get() = core.first()?.let { DayKey(it.toInt()) }
 
     /** The latest night before this one with a reading, however long ago. */
-    fun last(reading: (Night) -> Double?, before: DayKey): DayKey? =
-        core.last(kind(reading), before.number.toLong())?.let { DayKey(it.toInt()) }
+    fun last(reading: ReadingKind, before: DayKey): DayKey? =
+        core.last(reading, before.number.toLong())?.let { DayKey(it.toInt()) }
 
     /** The mean over a range of nights, or null if fewer than `minimum` have a reading. */
-    fun mean(reading: (Night) -> Double?, days: DayRange, minimum: Int = 3): Double? =
-        core.mean(kind(reading), days.start.number.toLong(), days.endInclusive.number.toLong(), minimum.toLong())
-
-    /**
-     * Which reading a selector picks, found by probing it with a night that has only that one set. The three readings are
-     * the only ones the core files, so a selector matching none, or more than one, is a programming error.
-     */
-    private fun kind(reading: (Night) -> Double?): ReadingKind {
-        val matches = listOf(
-            ReadingKind.HRV to Night(hrv = 1.0),
-            ReadingKind.RESTING_HR to Night(restingHR = 1.0),
-            ReadingKind.SLEEPING_HR to Night(sleepingHR = 1.0),
-        ).filter { (_, probe) -> reading(probe) != null }
-        return requireNotNull(matches.singleOrNull()?.first) { "The selector is not one of the nightly readings" }
-    }
+    fun mean(reading: ReadingKind, days: DayRange, minimum: Int = 3): Double? =
+        core.mean(reading, days.start.number.toLong(), days.endInclusive.number.toLong(), minimum.toLong())
 
     companion object {
+        /**
+         * How many hours earlier a moment is shifted before its drinking day is taken as its night: with a 5am day end, a
+         * night runs 8pm to 8pm. The core's, held here because every reading is filed with it.
+         */
+        const val SHIFT_HOURS = 15.0
+
+        /** How far into its shifted day a reading still counts as overnight: 8pm to noon, on a 5am day end. */
+        const val OVERNIGHT_HOURS = 16.0
+
         /**
          * Files readings under the night they followed. HRV is taken only overnight, since a daytime spot reading
          * reflects the day's activity, and a night with several readings uses their mean. Sleep is filed by when it
@@ -160,12 +152,12 @@ class Nights(val byDay: Map<DayKey, Night> = emptyMap()) {
  * The drinking day a reading belongs to. With a 5am day end a night runs 8pm to 8pm, so the 11pm reading, the 3am one
  * and the resting rate stamped on the next morning all belong to the preceding evening.
  */
-fun DayClock.night(instant: Instant): DayKey = day(instant.minusMillis((nightsShiftHours() * 3_600_000).toLong()))
+fun DayClock.night(instant: Instant): DayKey = day(instant.minusMillis((Nights.SHIFT_HOURS * 3_600_000).toLong()))
 
 /** 8pm to noon, on a 5am day end. */
 fun DayClock.isOvernight(instant: Instant): Boolean {
-    val shifted = instant.minusMillis((nightsShiftHours() * 3_600_000).toLong())
-    return nightsIsOvernight(hours(shifted, day(shifted)))
+    val shifted = instant.minusMillis((Nights.SHIFT_HOURS * 3_600_000).toLong())
+    return hours(shifted, day(shifted)) < Nights.OVERNIGHT_HOURS
 }
 
 val List<Double>.mean: Double? get() = if (isEmpty()) null else sum() / size

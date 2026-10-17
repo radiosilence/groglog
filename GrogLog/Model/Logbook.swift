@@ -102,7 +102,7 @@ nonisolated struct Logbook: Sendable {
         let touched = write { db -> Set<DayKey> in
             let before = try Drink.fetchOne(db, key: drink.id)
             try drink.save(db)
-            guard let before, logbookDrinkEditRetotals(beforeAbv: before.abv, beforeCategory: before.category.rawValue, afterAbv: drink.abv, afterCategory: drink.category.rawValue) else { return [] }
+            guard let before, logbookDrinkEditRetotals(beforeAbv: before.abv, beforeCategory: before.category.kind, afterAbv: drink.abv, afterCategory: drink.category.kind) else { return [] }
             let days = try Pour.select(Column("day"), as: Int.self).filter(Column("drinkId") == drink.id).distinct().fetchAll(db)
             let touched = Set(days.map(DayKey.init(number:)))
             try retotal(touched, db)
@@ -146,20 +146,21 @@ nonisolated struct Logbook: Sendable {
             let drinks = try Drink.fetchAll(db)
             let favourites = try Favourite.fetchAll(db)
             let changes = logbookPriceResets(
-                drinks: drinks.map { DrinkPriceIn(id: $0.id.uuidString, name: $0.name, category: $0.category.rawValue, vessel: $0.vessel.rawValue, volumeMl: $0.volumeMl, price: $0.price) },
-                favourites: favourites.map { FavouritePriceIn(id: $0.id.uuidString, drinkId: $0.drinkId.uuidString, vessel: $0.vessel.rawValue, volumeMl: $0.volumeMl, price: $0.price) },
+                drinks: drinks.map { DrinkPriceIn(id: $0.id.uuidString, name: $0.name, category: $0.category.kind, vessel: $0.vessel.kind, volumeMl: $0.volumeMl, price: $0.price) },
+                favourites: favourites.map { FavouritePriceIn(id: $0.id.uuidString, drinkId: $0.drinkId.uuidString, vessel: $0.vessel.kind, volumeMl: $0.volumeMl, price: $0.price) },
                 currency: Catalog.currency
             )
-            let prices = Dictionary(changes.map { ($0.id, $0.price) }, uniquingKeysWith: { first, _ in first })
+            let drinkPrices = Dictionary(uniqueKeysWithValues: changes.drinks.map { ($0.id, $0.price) })
+            let favouritePrices = Dictionary(uniqueKeysWithValues: changes.favourites.map { ($0.id, $0.price) })
             var changed = 0
             for var drink in drinks {
-                guard let price = prices[drink.id.uuidString] else { continue }
+                guard let price = drinkPrices[drink.id.uuidString] else { continue }
                 drink.price = price
                 try drink.update(db)
                 changed += 1
             }
             for var favourite in favourites {
-                guard let price = prices[favourite.id.uuidString] else { continue }
+                guard let price = favouritePrices[favourite.id.uuidString] else { continue }
                 favourite.price = price
                 try favourite.update(db)
                 changed += 1

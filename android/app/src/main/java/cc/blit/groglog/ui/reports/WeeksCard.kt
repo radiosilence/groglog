@@ -33,7 +33,7 @@ fun WeeksCard(stats: List<WeekStat>, nights: Nights, weeks: Int, onWeeks: (Int) 
     val differentiate = differentiateWithoutColour()
     val centre = { stat: WeekStat -> stat.start.number + 3.5 }
     val hearts = listOf(HeartReading.RESTING, HeartReading.HRV).flatMap { reading ->
-        HeartPoint.line(reading, stats.map { it.start }, at = { it.number + 3.5 }) { nights.mean(reading.value, it..(it + 6)) }
+        HeartPoint.line(reading, stats.map { it.start }, at = { it.number + 3.5 }) { nights.mean(reading.kind, it..(it + 6)) }
     }
     val drawn = HeartPoint.drawn(shownHeart, hearts)
     val heartPoints = hearts.filter { it.reading == drawn }

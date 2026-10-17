@@ -53,8 +53,8 @@ nonisolated struct Nights: Equatable {
     static func == (lhs: Nights, rhs: Nights) -> Bool { lhs.byDay == rhs.byDay }
 
     /// The latest night before this one with a reading, however long ago.
-    func last(_ reading: KeyPath<Night, Double?>, before day: DayKey) -> DayKey? {
-        core.last(kind: Self.kind(reading), before: Int64(day.number)).map { DayKey(number: Int($0)) }
+    func last(_ reading: ReadingKind, before day: DayKey) -> DayKey? {
+        core.last(kind: reading, before: Int64(day.number)).map { DayKey(number: Int($0)) }
     }
 
     /// Files readings under the night they followed. HRV is taken only overnight, since a daytime spot reading
@@ -82,8 +82,8 @@ nonisolated struct Nights: Equatable {
     }
 
     /// The mean over a range of nights, or nil if fewer than `minimum` have a reading.
-    func mean(_ reading: KeyPath<Night, Double?>, over days: ClosedRange<DayKey>, atLeast minimum: Int = 3) -> Double? {
-        core.mean(kind: Self.kind(reading), first: Int64(days.lowerBound.number), last: Int64(days.upperBound.number), minimum: Int64(minimum))
+    func mean(_ reading: ReadingKind, over days: ClosedRange<DayKey>, atLeast minimum: Int = 3) -> Double? {
+        core.mean(kind: reading, first: Int64(days.lowerBound.number), last: Int64(days.upperBound.number), minimum: Int64(minimum))
     }
 
     /// Each night's first sleep to its last, one span per night, for fetching the heart rate inside them.
@@ -93,15 +93,6 @@ nonisolated struct Nights: Equatable {
         }).map { DateInterval(start: Date(timeIntervalSince1970: $0.start), end: Date(timeIntervalSince1970: $0.end)) }
     }
 
-    /// The three readings are the only ones the core files, so any other key path is a programming error.
-    private static func kind(_ reading: KeyPath<Night, Double?>) -> ReadingKind {
-        switch reading {
-        case \Night.hrv: .hrv
-        case \Night.restingHR: .restingHr
-        case \Night.sleepingHR: .sleepingHr
-        default: preconditionFailure("\(reading) is not a nightly reading")
-        }
-    }
 }
 
 nonisolated extension SleepStage {

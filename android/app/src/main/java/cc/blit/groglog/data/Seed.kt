@@ -1,7 +1,6 @@
 package cc.blit.groglog.data
 
 import androidx.room.withTransaction
-import cc.blit.groglog.core.catalogGenericPrice
 import cc.blit.groglog.core.catalogGenerics
 import cc.blit.groglog.model.Day
 import cc.blit.groglog.model.DayKey
@@ -29,14 +28,10 @@ object Seed {
      * core.
      */
     private val generics: List<Generic> by lazy {
-        catalogGenerics().mapNotNull { record ->
-            val category = DrinkCategory.fromRaw(record.category) ?: return@mapNotNull null
-            Generic(record.name, category, record.serves.mapNotNull { serve -> Vessel.fromRaw(serve.vessel)?.let { Triple(it, serve.ml, serve.price) } })
+        catalogGenerics().map { record ->
+            Generic(record.name, DrinkCategory.of(record.category), record.serves.map { Triple(Vessel.of(it.vessel), it.ml, it.price) })
         }
     }
-
-    /** A generic serve's starting price, for repairing databases seeded before generics carried prices. */
-    fun price(name: String, vessel: Vessel, ml: Double): Double? = catalogGenericPrice(name, vessel.raw, ml)
 
     /** Generic drinks and their starting Log-grid tiles, on a fresh install. */
     suspend fun drinksIfNeeded(logbook: Logbook) {

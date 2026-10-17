@@ -88,16 +88,17 @@ kotlin {
     jvmToolchain(21)
 }
 
-/**
- * groglog-core, built with cargo-ndk for each ABI into `jniLibs`, and the Kotlin bindings uniffi generates from the built
- * library. Always a release build, so a debug app is not slowed by an unoptimised core.
- */
 /** What the core is built from: the crates, their lockfile and the bindings generator. */
 val coreSources = rootProject.fileTree("..") {
     include("core/**", "tools/**", "Cargo.toml", "Cargo.lock")
     exclude("core/out/**", "**/target/**")
 }
 
+/**
+ * groglog-core, built with cargo-ndk for each ABI into `jniLibs`, and the Kotlin bindings uniffi generates from the built
+ * library. Always a release build, so a debug app is not slowed by an unoptimised core. A missing Rust target is added
+ * with rustup first, which changes the toolchain outside the build directory.
+ */
 abstract class CoreAndroid @Inject constructor(private val exec: ExecOperations) : DefaultTask() {
     @get:Input
     abstract val abis: ListProperty<String>
@@ -181,7 +182,8 @@ val coreAndroid = tasks.register<CoreAndroid>("coreAndroid") {
 val coreHost = tasks.register<Exec>("coreHost") {
     workingDir = rootProject.layout.projectDirectory.dir("..").asFile
     inputs.files(coreSources).withPathSensitivity(PathSensitivity.RELATIVE)
-    outputs.dir(rootProject.layout.projectDirectory.dir("../target/release"))
+    // Only the library the tests load: the rest of target/release is cargo's, shared with every other build.
+    outputs.files(listOf("dylib", "so").map { rootProject.layout.projectDirectory.file("../target/release/libgroglog_core.$it") })
     commandLine("cargo", "build", "--release", "-p", "groglog-core")
 }
 

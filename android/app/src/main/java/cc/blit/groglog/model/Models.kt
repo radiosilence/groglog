@@ -6,7 +6,7 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.Relation
-import cc.blit.groglog.core.unitsStandardDrinks
+import cc.blit.groglog.core.DayRow
 import java.time.Instant
 import java.util.Locale
 import java.util.UUID
@@ -115,9 +115,15 @@ data class Day(
     val costOverride: Double? = null,
 ) {
     val key: DayKey get() = DayKey(number)
-    val spend: Double get() = costOverride ?: cost
+
+    /** The row as the shared core takes it. */
+    val core: DayRow get() = DayRow(number.toLong(), isAlcoholFree, units, kcal, cost, count.toLong(), costOverride)
 
     fun with(totals: DayTotals) = copy(units = totals.units, kcal = totals.kcal, cost = totals.cost, count = totals.count)
+
+    companion object {
+        fun of(row: DayRow) = Day(row.number.toInt(), row.isAlcoholFree, row.units, row.kcal, row.cost, row.count.toInt(), row.costOverride)
+    }
 }
 
 /** A log entry joined with its drink, as screens display it. */
@@ -140,7 +146,7 @@ data class Entry(
     val serveKey: String get() = Serve.key(drink.id, pour.vessel, pour.volumeMl)
 
     /** Standard drinks of 17.7 ml of alcohol, as other apps count them, rather than UK units of 10 ml. */
-    val standardDrinks: Double get() = unitsStandardDrinks(units)
+    val standardDrinks: Double get() = units * Units.UNIT_ML / Units.STANDARD_DRINK_ML
 }
 
 /** A favourite with its drink. */

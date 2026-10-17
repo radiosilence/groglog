@@ -49,7 +49,6 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -76,7 +75,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.core.content.pm.PackageInfoCompat
@@ -92,7 +90,6 @@ import cc.blit.groglog.model.DayClock
 import cc.blit.groglog.model.Goal
 import cc.blit.groglog.model.Ledger
 import cc.blit.groglog.model.Rates
-import cc.blit.groglog.model.Taper
 import cc.blit.groglog.ui.SetupRoute
 import cc.blit.groglog.ui.containerViewModel
 import cc.blit.groglog.ui.savedViewModel
@@ -101,8 +98,6 @@ import cc.blit.groglog.ui.shared.Section
 import cc.blit.groglog.ui.shared.launchSafely
 import cc.blit.groglog.ui.shared.rememberNotice
 import cc.blit.groglog.ui.shared.startSafely
-import cc.blit.groglog.ui.theme.GrogColors
-import cc.blit.groglog.ui.theme.GrogLogTheme
 import java.io.File
 import java.util.Currency
 import java.util.UUID
@@ -557,20 +552,4 @@ internal fun LinkRow(title: String, url: String, icon: ImageVector? = null) {
 @Composable
 internal fun RowDivider() {
     HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.surface)
-}
-
-@Preview(name = "Setup")
-@Composable
-private fun SetupPreview() {
-    GrogLogTheme {
-        Surface {
-            SetupHome(
-                settings = Settings(currency = "GBP", goal = Goal(isEnabled = true, taper = Taper.DYNAMIC, baselineWeekly = 210.0)),
-                ledger = Ledger(emptyList(), DayClock(5)),
-                version = "GrogLog 1.0 (1)",
-                developer = true,
-                isDemo = false,
-            )
-        }
-    }
 }

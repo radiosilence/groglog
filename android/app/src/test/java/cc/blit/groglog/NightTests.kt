@@ -1,5 +1,6 @@
 package cc.blit.groglog
 
+import cc.blit.groglog.core.ReadingKind
 import cc.blit.groglog.model.DayClock
 import cc.blit.groglog.model.DayKey
 import cc.blit.groglog.model.Drink
@@ -87,8 +88,8 @@ class NightTests {
 
     @Test fun tooFewNightsIsNoAverage() {
         val nights = Nights.of(hrv = listOf(at(15, 3) to 40.0, at(16, 3) to 50.0), clock = nightClock)
-        assertNull(nights.mean({ it.hrv }, (friday - 6)..friday))
-        assertEquals(45.0, nights.mean({ it.hrv }, (friday - 6)..friday, minimum = 2))
+        assertNull(nights.mean(ReadingKind.HRV, (friday - 6)..friday))
+        assertEquals(45.0, nights.mean(ReadingKind.HRV, (friday - 6)..friday, minimum = 2))
     }
 }
 

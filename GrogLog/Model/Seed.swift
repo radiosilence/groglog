@@ -5,14 +5,8 @@ import GrogLogCore
 nonisolated enum Seed {
     /// Generic drinks at Drinkaware's standard strengths, with the sizes that start out on the Log grid, from the
     /// shared core.
-    private static let generics: [(name: String, category: DrinkCategory, serves: [(Vessel, Double, Double)])] = catalogGenerics().compactMap { record in
-        guard let category = DrinkCategory(rawValue: record.category) else { return nil }
-        return (record.name, category, record.serves.compactMap { serve in Vessel(rawValue: serve.vessel).map { ($0, serve.ml, serve.price) } })
-    }
-
-    /// A generic serve's starting price, for repairing databases seeded before generics carried prices.
-    static func price(name: String, vessel: Vessel, ml: Double) -> Double? {
-        catalogGenericPrice(name: name, vessel: vessel.rawValue, ml: ml)
+    private static let generics: [(name: String, category: DrinkCategory, serves: [(Vessel, Double, Double)])] = catalogGenerics().map { record in
+        (record.name, DrinkCategory(record.category), record.serves.map { (Vessel($0.vessel), $0.ml, $0.price) })
     }
 
     /// Generic drinks and their starting Log-grid tiles, on a fresh install.

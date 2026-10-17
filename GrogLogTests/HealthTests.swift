@@ -1,4 +1,5 @@
 import Foundation
+import GrogLogCore
 import Testing
 @testable import GrogLog
 
@@ -70,8 +71,8 @@ import Testing
 
     @Test func tooFewNightsIsNoAverage() {
         let nights = Nights(hrv: [(at(15, 3), 40), (at(16, 3), 50)], clock: clock)
-        #expect(nights.mean(\.hrv, over: (friday - 6)...friday) == nil)
-        #expect(nights.mean(\.hrv, over: (friday - 6)...friday, atLeast: 2) == 45)
+        #expect(nights.mean(.hrv, over: (friday - 6)...friday) == nil)
+        #expect(nights.mean(.hrv, over: (friday - 6)...friday, atLeast: 2) == 45)
     }
 }
 

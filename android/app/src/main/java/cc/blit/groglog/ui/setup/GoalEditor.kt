@@ -60,7 +60,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import cc.blit.groglog.data.AppDatabase
 import cc.blit.groglog.data.Prefs
-import cc.blit.groglog.model.DayClock
 import cc.blit.groglog.model.DayKey
 import cc.blit.groglog.model.Goal
 import cc.blit.groglog.model.GoalSerializer
@@ -581,12 +580,19 @@ private fun Paragraph(text: String, secondary: Boolean = false) {
     )
 }
 
+/** A stepped taper from thirty a day drawn from fixed figures, since the preview renderer cannot load the core. */
 @Preview(name = "Burndown")
 @Composable
 private fun BurndownPreviewPreview() {
-    val goal = Goal(isEnabled = true, baselineWeekly = 30 * 7.0)
-    val ledger = Ledger(emptyList(), DayClock(5))
+    val points = (0..84).map { step ->
+        val units = when {
+            step < 7 -> 30 * Math.pow(0.974, step.toDouble())
+            step < 22 -> 25 * Math.pow(0.966, step - 7.0)
+            else -> 15 * Math.pow(0.9, step - 22.0)
+        }
+        BudgetPoint(step, units)
+    }
     GrogLogTheme {
-        Surface { BurndownPreview(goal, ledger) }
+        Surface { BurndownChart(points, listOf(PaceStep(7, 3), PaceStep(22, 1)), "1 Sept", "24 Nov") }
     }
 }

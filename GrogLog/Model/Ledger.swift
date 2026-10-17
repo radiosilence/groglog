@@ -13,27 +13,11 @@ nonisolated struct DayTotals: Equatable {
 
     init() {}
 
-    init(_ row: Day) {
-        units = row.units
-        kcal = row.kcal
-        cost = row.spend
-        count = row.count
-    }
-
     init(_ totals: TotalsRow) {
         units = totals.units
         kcal = totals.kcal
         cost = totals.cost
         count = Int(totals.count)
-    }
-
-    init(_ entries: some Sequence<Entry>) {
-        for entry in entries {
-            units += entry.units
-            kcal += entry.kcal
-            cost += entry.price
-            count += 1
-        }
     }
 
     static func + (lhs: DayTotals, rhs: DayTotals) -> DayTotals {
@@ -122,7 +106,7 @@ nonisolated struct Ledger: Equatable {
     /// climb rather than a single step.
     func runningTotal(_ entries: [Entry], over days: ClosedRange<DayKey>, through: DayKey? = nil) -> [CurvePoint] {
         core.runningTotal(
-            entries: curveInputs(entries),
+            entries: curveInputs(entries, over: days),
             first: Int64(days.lowerBound.number),
             last: Int64(days.upperBound.number),
             through: through.map { Int64($0.number) }
@@ -184,7 +168,7 @@ nonisolated struct Ledger: Equatable {
     /// number.
     func averageCumulative(_ pours: [Entry], over range: ClosedRange<DayKey>, from: Double = 0, smoothed: Bool = true) -> [CurvePoint] {
         core.averageCumulative(
-            entries: curveInputs(pours),
+            entries: curveInputs(pours, over: range),
             first: Int64(range.lowerBound.number),
             last: Int64(range.upperBound.number),
             from: from,
@@ -195,9 +179,10 @@ nonisolated struct Ledger: Equatable {
     private func spec(_ goal: Goal) -> GoalSpec { goal.spec(startDay: DayKey(goal.start, in: clock.calendar)) }
 
     /// The hours into its day are the calendar's to work out, and a day's start is cached across a screen's drinks.
-    private func curveInputs(_ entries: [Entry]) -> [CurveInput] {
+    /// Only the drinks in `days` are worked out and passed across.
+    private func curveInputs(_ entries: [Entry], over days: ClosedRange<DayKey>) -> [CurveInput] {
         var hours = HourCounter(clock)
-        return entries.map {
+        return entries.filter { days.contains($0.dayKey) }.map {
             CurveInput(day: Int64($0.day), hours: hours.hours($0.timestamp, into: $0.dayKey), units: $0.units, order: $0.timestamp.timeIntervalSince1970)
         }
     }

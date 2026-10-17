@@ -3,7 +3,6 @@ package cc.blit.groglog.export
 import androidx.room.withTransaction
 import cc.blit.groglog.core.BackupDoc
 import cc.blit.groglog.core.BackupException
-import cc.blit.groglog.core.DayRow
 import cc.blit.groglog.core.ExportDrink
 import cc.blit.groglog.core.ExportEntry
 import cc.blit.groglog.core.ExportFavourite
@@ -69,18 +68,18 @@ object Exporter {
                 goal = settings.goal.spec(DayKey.of(settings.goal.start, clock.zone)),
                 today = clock.today.number.toLong(),
                 firstWeekday = clock.firstWeekday.toLong(),
-                days = rows.days().map { DayRow(it.number.toLong(), it.isAlcoholFree, it.units, it.kcal, it.cost, it.count.toLong(), it.costOverride) },
+                days = rows.days().map { it.core },
                 entries = rows.entriesByTime().map {
                     ExportEntry(
-                        it.id.toString(), it.timestamp.epochSecond, it.day.toLong(), it.name, it.category.raw, it.vessel.raw,
+                        it.id.toString(), it.timestamp.epochSecond, it.day.toLong(), it.name, it.category.kind, it.vessel.kind,
                         it.volumeMl, it.abv, it.units, it.kcal, it.price, it.drink.id.toString(),
                     )
                 },
                 drinks = rows.drinksByName().map {
-                    ExportDrink(it.id.toString(), it.name, it.category.raw, it.abv, it.vessel.raw, it.volumeMl, it.price, it.isGeneric, it.isHidden)
+                    ExportDrink(it.id.toString(), it.name, it.category.kind, it.abv, it.vessel.kind, it.volumeMl, it.price, it.isGeneric, it.isHidden)
                 },
                 favourites = rows.favouritesInOrder().map {
-                    ExportFavourite(it.drinkId.toString(), it.vessel.raw, it.volumeMl, it.price, it.sortOrder.toLong())
+                    ExportFavourite(it.drinkId.toString(), it.vessel.kind, it.volumeMl, it.price, it.sortOrder.toLong())
                 },
             ),
         )
@@ -140,8 +139,8 @@ object Exporter {
             val plan = backup.plan(
                 RestoreSnapshot(
                     today = clock.today.number.toLong(),
-                    drinks = rows.drinks().map { SnapshotDrink(it.id.toString(), it.name, it.category.raw, it.abv) },
-                    favourites = rows.favourites().map { SnapshotFavourite(it.drinkId.toString(), it.vessel.raw, it.volumeMl) },
+                    drinks = rows.drinks().map { SnapshotDrink(it.id.toString(), it.name, it.category.kind, it.abv) },
+                    favourites = rows.favourites().map { SnapshotFavourite(it.drinkId.toString(), it.vessel.kind, it.volumeMl) },
                     pourIds = rows.pourIds().map { it.toString() },
                     daysWithPours = rows.daysWithPours().map { it.toLong() },
                 ),
@@ -151,12 +150,12 @@ object Exporter {
                 when (op) {
                     is RestoreOp.InsertDrink -> rows.insert(
                         Drink(
-                            UUID.fromString(op.id), op.name, DrinkCategory.fromRaw(op.category)!!, op.abv, Vessel.fromRaw(op.vessel)!!,
+                            UUID.fromString(op.id), op.name, DrinkCategory.of(op.category), op.abv, Vessel.of(op.vessel),
                             op.volumeMl, op.price, op.isGeneric, op.isHidden, op.sortOrder.toInt(),
                         ),
                     )
                     is RestoreOp.InsertFavourite -> rows.insert(
-                        Favourite(drinkId = UUID.fromString(op.drinkId), vessel = Vessel.fromRaw(op.vessel)!!, volumeMl = op.volumeMl, price = op.price, sortOrder = op.sortOrder.toInt()),
+                        Favourite(drinkId = UUID.fromString(op.drinkId), vessel = Vessel.of(op.vessel), volumeMl = op.volumeMl, price = op.price, sortOrder = op.sortOrder.toInt()),
                     )
                     is RestoreOp.MarkAlcoholFree -> rows.save((rows.day(op.day.toInt()) ?: Day(op.day.toInt())).copy(isAlcoholFree = true))
                     is RestoreOp.SetSpend -> rows.save((rows.day(op.day.toInt()) ?: Day(op.day.toInt())).copy(costOverride = op.amount))
@@ -165,7 +164,7 @@ object Exporter {
                             ?: evenings.getOrPut(op.day.toInt()) { clock.suggestedTime(DayKey(op.day.toInt()), null) }.plusSeconds(op.eveningOffsetMinutes * 60)
                         rows.insert(
                             Pour(
-                                UUID.fromString(op.id), UUID.fromString(op.drinkId), timestamp, op.day.toInt(), Vessel.fromRaw(op.vessel)!!,
+                                UUID.fromString(op.id), UUID.fromString(op.drinkId), timestamp, op.day.toInt(), Vessel.of(op.vessel),
                                 op.volumeMl, op.price, op.kcalOverride, op.abvOverride,
                             ),
                         )

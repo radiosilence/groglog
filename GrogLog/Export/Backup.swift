@@ -48,7 +48,7 @@ nonisolated enum Exporter {
         ))
     }
 
-    static func json(_ backup: Backup) throws -> Data { backup.json() }
+    static func json(_ backup: Backup) -> Data { backup.json() }
 
     /// A compact, readable log meant for pasting into a chat with an LLM.
     static func markdown(_ backup: Backup) -> String {
@@ -56,15 +56,15 @@ nonisolated enum Exporter {
     }
 
     enum ImportError: LocalizedError {
+        case dayEndsAtImpossibleHour(Int)
         case tooLarge
         case unreadable(String)
-        case dayEndsAtImpossibleHour(Int)
 
         var errorDescription: String? {
             switch self {
+            case .dayEndsAtImpossibleHour(let hour): "The file sets the day to end at hour \(hour), which is not an hour of the day."
             case .tooLarge: "The file is too large to be a GrogLog backup."
             case .unreadable(let reason): "The file is not a GrogLog backup: \(reason)"
-            case .dayEndsAtImpossibleHour(let hour): "The file sets the day to end at hour \(hour), which is not an hour of the day."
             }
         }
     }
@@ -81,6 +81,7 @@ nonisolated enum Exporter {
             switch error {
             case .Unreadable(let reason): throw ImportError.unreadable(reason)
             case .DayEndsAtImpossibleHour(let hour): throw ImportError.dayEndsAtImpossibleHour(Int(hour))
+            case .Unexportable: throw error
             }
         }
         let goal = try backup.goalJson().map(decodeGoal)
@@ -97,9 +98,9 @@ nonisolated enum Exporter {
             for op in plan.ops {
                 switch op {
                 case let .insertDrink(id, name, category, abv, vessel, volumeMl, price, isGeneric, isHidden, sortOrder):
-                    try Drink(id: UUID(uuidString: id)!, name: name, category: DrinkCategory(rawValue: category)!, abv: abv, vessel: Vessel(rawValue: vessel)!, volumeMl: volumeMl, price: price, isGeneric: isGeneric, isHidden: isHidden, sortOrder: Int(sortOrder)).insert(db)
+                    try Drink(id: uuid(id), name: name, category: DrinkCategory(category), abv: abv, vessel: Vessel(vessel), volumeMl: volumeMl, price: price, isGeneric: isGeneric, isHidden: isHidden, sortOrder: Int(sortOrder)).insert(db)
                 case let .insertFavourite(drinkId, vessel, volumeMl, price, sortOrder):
-                    try Favourite(drinkId: UUID(uuidString: drinkId)!, vessel: Vessel(rawValue: vessel)!, volumeMl: volumeMl, price: price, sortOrder: Int(sortOrder)).insert(db)
+                    try Favourite(drinkId: uuid(drinkId), vessel: Vessel(vessel), volumeMl: volumeMl, price: price, sortOrder: Int(sortOrder)).insert(db)
                 case let .markAlcoholFree(day):
                     var row = try Day.fetchOne(db, key: Int(day)) ?? Day(number: Int(day))
                     row.isAlcoholFree = true
@@ -117,7 +118,7 @@ nonisolated enum Exporter {
                         evenings[Int(day)] = evening
                         timestamp = evening.addingTimeInterval(Double(offset) * 60)
                     }
-                    try Pour(id: UUID(uuidString: id)!, drinkId: UUID(uuidString: drinkId)!, timestamp: timestamp, day: Int(day), vessel: Vessel(rawValue: vessel)!, volumeMl: volumeMl, price: price, kcalOverride: kcalOverride, abvOverride: abvOverride).insert(db)
+                    try Pour(id: uuid(id), drinkId: uuid(drinkId), timestamp: timestamp, day: Int(day), vessel: Vessel(vessel), volumeMl: volumeMl, price: price, kcalOverride: kcalOverride, abvOverride: abvOverride).insert(db)
                 }
             }
             added = Int(plan.added)
@@ -142,14 +143,20 @@ nonisolated enum Exporter {
         return try decoder.decode(Goal.self, from: Data(json.utf8))
     }
 
+    /// The core plans only UUIDs: the file's own, which it checks, the log's, and ones it makes.
+    private static func uuid(_ text: String) throws -> UUID {
+        guard let id = UUID(uuidString: text) else { throw ImportError.unreadable("not an id: \(text)") }
+        return id
+    }
+
     /// Whole seconds, which is all a backup keeps of a moment.
     fileprivate static func seconds(_ date: Date) -> Int64 { Int64(date.timeIntervalSince1970.rounded(.down)) }
 
     private static func snapshot(_ db: Database, today: DayKey) throws -> RestoreSnapshot {
         RestoreSnapshot(
             today: Int64(today.number),
-            drinks: try Drink.fetchAll(db).map { SnapshotDrink(id: $0.id.uuidString, name: $0.name, category: $0.category.rawValue, abv: $0.abv) },
-            favourites: try Favourite.fetchAll(db).map { SnapshotFavourite(drinkId: $0.drinkId.uuidString, vessel: $0.vessel.rawValue, volumeMl: $0.volumeMl) },
+            drinks: try Drink.fetchAll(db).map { SnapshotDrink(id: $0.id.uuidString, name: $0.name, category: $0.category.kind, abv: $0.abv) },
+            favourites: try Favourite.fetchAll(db).map { SnapshotFavourite(drinkId: $0.drinkId.uuidString, vessel: $0.vessel.kind, volumeMl: $0.volumeMl) },
             pourIds: try Pour.select(Column("id"), as: UUID.self).fetchAll(db).map(\.uuidString),
             daysWithPours: try Pour.select(Column("day"), as: Int.self).distinct().fetchAll(db).map { Int64($0) }
         )
@@ -174,8 +181,8 @@ nonisolated private extension ExportEntry {
             time: Exporter.seconds(entry.timestamp),
             day: Int64(entry.day),
             name: entry.name,
-            category: entry.category.rawValue,
-            vessel: entry.vessel.rawValue,
+            category: entry.category.kind,
+            vessel: entry.vessel.kind,
             volumeMl: entry.volumeMl,
             abv: entry.abv,
             units: entry.units,
@@ -188,13 +195,13 @@ nonisolated private extension ExportEntry {
 
 nonisolated private extension ExportDrink {
     init(_ drink: Drink) {
-        self.init(id: drink.id.uuidString, name: drink.name, category: drink.category.rawValue, abv: drink.abv, vessel: drink.vessel.rawValue, volumeMl: drink.volumeMl, price: drink.price, isGeneric: drink.isGeneric, isHidden: drink.isHidden)
+        self.init(id: drink.id.uuidString, name: drink.name, category: drink.category.kind, abv: drink.abv, vessel: drink.vessel.kind, volumeMl: drink.volumeMl, price: drink.price, isGeneric: drink.isGeneric, isHidden: drink.isHidden)
     }
 }
 
 nonisolated private extension ExportFavourite {
     init(_ favourite: Favourite) {
-        self.init(drinkId: favourite.drinkId.uuidString, vessel: favourite.vessel.rawValue, volumeMl: favourite.volumeMl, price: favourite.price, sortOrder: Int64(favourite.sortOrder))
+        self.init(drinkId: favourite.drinkId.uuidString, vessel: favourite.vessel.kind, volumeMl: favourite.volumeMl, price: favourite.price, sortOrder: Int64(favourite.sortOrder))
     }
 }
 
@@ -247,7 +254,7 @@ nonisolated struct ExportFile: Transferable {
     private func contents() async throws -> Data {
         let settings = settings
         let backup = try await reader.read { try Exporter.backup($0, settings: settings) }
-        return kind == .json ? try Exporter.json(backup) : Data(Exporter.markdown(backup).utf8)
+        return kind == .json ? Exporter.json(backup) : Data(Exporter.markdown(backup).utf8)
     }
 
     private func write() async throws -> SentTransferredFile {

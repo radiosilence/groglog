@@ -1,6 +1,5 @@
 package cc.blit.groglog.ui.day
 
-import android.content.res.Configuration
 import android.text.format.DateFormat
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateFloatAsState
@@ -15,10 +14,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -498,18 +495,6 @@ internal fun sampleDayState(day: DayKey? = null, dry: Boolean = false): DayState
     val days = entries.groupBy { it.day }.map { (number, list) -> Day(number).with(DayTotals.of(list)) } +
         listOfNotNull(if (dry) Day(shown.number, isAlcoholFree = true) else null) + Day((shown - 3).number, isAlcoholFree = true)
     return DayState(shown, Ledger(days, clock), settings, entries, clock.start(shown).plusSeconds(3600L * 15))
-}
-
-@Preview(showBackground = true, heightDp = 1100)
-@Composable
-private fun DayPagePreview() {
-    GrogLogTheme { DayPage(sampleDayState()) }
-}
-
-@Preview(showBackground = true, heightDp = 900, uiMode = Configuration.UI_MODE_NIGHT_YES)
-@Composable
-private fun DryDayPreview() {
-    GrogLogTheme(darkTheme = true) { DayPage(sampleDayState(dry = true)) }
 }
 
 @Preview(showBackground = true)

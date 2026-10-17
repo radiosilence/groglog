@@ -111,7 +111,7 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
 
     /// What this takes off the budget on its first day: the steepest step of a proportional taper, and every
     /// step of a linear one.
-    func openingDrop(from weekly: Double) -> Double { goalOpeningDrop(goal: spec(), weekly: weekly) }
+    func openingDrop(from weekly: Double) -> Double { goalOpeningDrop(goal: undated, weekly: weekly) }
 
     /// The pace a dynamic taper runs at once the budget reaches this level: the quickest offered there, taken
     /// from the same list as the picker so the two cannot disagree.
@@ -133,25 +133,25 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
     static func rate(forPace days: Int) -> Double { goalRateForPace(days: Int64(days)) }
 
     /// The equivalent share per day, for comparing proportional plans on the same footing.
-    var dailyCut: Double { goalDailyCut(goal: spec()) }
+    var dailyCut: Double { goalDailyCut(goal: undated) }
 
     /// Units off the daily budget per day, for a linear plan.
-    var dailyUnitCut: Double { goalDailyUnitCut(goal: spec()) }
+    var dailyUnitCut: Double { goalDailyUnitCut(goal: undated) }
 
     /// A linear taper takes the same units off whatever the budget, so the share it takes climbs as the
     /// budget falls: it passes the safe rate at this daily budget and is sharper than it from there down.
-    var sharpensBelow: Double { goalSharpensBelow(goal: spec()) }
+    var sharpensBelow: Double { goalSharpensBelow(goal: undated) }
 
     /// Whether to warn about it. The 10%-a-day limit concerns withdrawal from heavy drinking and has no meaning
     /// near the guideline, where warning would contradict the advice on the same screen. The warning applies
     /// only when the taper sharpens while intake is still high.
-    func sharpensWhileItMatters(from weekly: Double) -> Bool { goalSharpensWhileItMatters(goal: spec(), weekly: weekly) }
+    func sharpensWhileItMatters(from weekly: Double) -> Bool { goalSharpensWhileItMatters(goal: undated, weekly: weekly) }
 
-    var isFasterThanSafe: Bool { goalIsFasterThanSafe(goal: spec()) }
+    var isFasterThanSafe: Bool { goalIsFasterThanSafe(goal: undated) }
 
     /// The goal as the shared maths sees it. `startDay` is the day the taper begins, which depends on the calendar
-    /// the caller reads the start time in; the figures that do not involve a date leave it at zero.
-    func spec(startDay: DayKey = DayKey(number: 0)) -> GoalSpec {
+    /// the caller reads the start time in.
+    func spec(startDay: DayKey) -> GoalSpec {
         GoalSpec(
             isEnabled: isEnabled,
             taper: taper.kind,
@@ -163,6 +163,9 @@ nonisolated struct Goal: Codable, Equatable, Sendable {
             targetWeekly: targetWeekly
         )
     }
+
+    /// For the figures that depend only on the taper's shape, never on when it started, so no start day is read.
+    private var undated: GoalSpec { spec(startDay: DayKey(number: 0)) }
 
     init(isEnabled: Bool = false, taper: Taper = .dynamic, baselineWeekly: Double = 28,
          reductionPercent: Double = Goal.standardCut, reductionUnits: Double = 1, periodDays: Int = 4,

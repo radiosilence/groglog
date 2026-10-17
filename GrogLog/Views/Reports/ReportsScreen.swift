@@ -1,5 +1,6 @@
-import GRDBQuery
 import Charts
+import GRDBQuery
+import GrogLogCore
 import SwiftUI
 
 struct ReportsScreen: View {
@@ -75,6 +76,14 @@ private enum HeartReading: String, CaseIterable {
         case .hrv: \.hrv
         case .resting: \.restingHR
         case .sleeping: \.sleepingHR
+        }
+    }
+
+    var kind: ReadingKind {
+        switch self {
+        case .hrv: .hrv
+        case .resting: .restingHr
+        case .sleeping: .sleepingHr
         }
     }
 
@@ -291,12 +300,12 @@ private struct ProgressCard: View {
         let hearts = switch heart {
         case .nightly:
             HeartReading.allCases.flatMap { reading in
-                HeartPoint.line(reading, nightsShown, before: nights.last(reading.value, before: start), at: noon) { nights[$0]?[keyPath: reading.value] }
+                HeartPoint.line(reading, nightsShown, before: nights.last(reading.kind, before: start), at: noon) { nights[$0]?[keyPath: reading.value] }
             }
         case .averaged:
             // The anchor is averaged the same way, so a lone old reading with no week around it is not used.
             [HeartReading.hrv, .resting].flatMap { reading in
-                HeartPoint.line(reading, nightsShown, before: nights.last(reading.value, before: start), at: noon) { nights.mean(reading.value, over: ($0 - 6)...$0) }
+                HeartPoint.line(reading, nightsShown, before: nights.last(reading.kind, before: start), at: noon) { nights.mean(reading.kind, over: ($0 - 6)...$0) }
             }
         }
 
@@ -348,7 +357,7 @@ private struct ProgressCard: View {
         case .nightly:
             let lines = HeartReading.allCases.compactMap { reading -> Text? in
                 guard let value = nights[lastNight]?[keyPath: reading.value] else { return nil }
-                let change = nights.mean(reading.value, over: week).map { value - $0 } ?? 0
+                let change = nights.mean(reading.kind, over: week).map { value - $0 } ?? 0
                 let worse = reading.isWorse(change)
                 let against = Text(abs(change) < 1 ? "" : ", \(Int(abs(change).rounded())) \(change < 0 ? "under" : "over") the week before")
                     .foregroundStyle(worse ? Color.over : Color.dry)
@@ -356,8 +365,8 @@ private struct ProgressCard: View {
             }
             ForEach(lines.indices, id: \.self) { lines[$0] }
         case .averaged:
-            let hrv = nights.mean(\.hrv, over: (lastNight - 6)...lastNight)
-            let resting = nights.mean(\.restingHR, over: (lastNight - 6)...lastNight)
+            let hrv = nights.mean(.hrv, over: (lastNight - 6)...lastNight)
+            let resting = nights.mean(.restingHr, over: (lastNight - 6)...lastNight)
             if hrv != nil || resting != nil {
                 Text([hrv.map { "HRV \(Int($0.rounded())) ms" }, resting.map { "RHR \(Int($0.rounded())) bpm" }].compactMap(\.self).joined(separator: " · ") + " over the last week")
             }
@@ -883,7 +892,7 @@ private struct WeeksCard: View {
         let calendar = prefs.clock.calendar
         let starts = stats.map(\.start)
         let hearts = [HeartReading.resting, .hrv].flatMap { reading in
-            HeartPoint.line(reading, starts, at: { $0.date(in: calendar) }) { nights.mean(reading.value, over: $0...($0 + 6)) }
+            HeartPoint.line(reading, starts, at: { $0.date(in: calendar) }) { nights.mean(reading.kind, over: $0...($0 + 6)) }
         }
         Card(title: "Weekly") {
             Picker("Range", selection: $weeks) {

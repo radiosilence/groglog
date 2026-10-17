@@ -2,7 +2,7 @@ package cc.blit.groglog.model
 
 import cc.blit.groglog.core.CoreLedger
 import cc.blit.groglog.core.CurveInput
-import cc.blit.groglog.core.DayRow
+import cc.blit.groglog.core.GoalSpec
 import cc.blit.groglog.core.PointRow
 import cc.blit.groglog.core.StatusKind
 import cc.blit.groglog.core.TimedUnits
@@ -16,8 +16,6 @@ data class DayTotals(val units: Double = 0.0, val kcal: Double = 0.0, val cost: 
     operator fun plus(other: DayTotals) = DayTotals(units + other.units, kcal + other.kcal, cost + other.cost, count + other.count)
 
     companion object {
-        fun of(row: Day) = DayTotals(row.units, row.kcal, row.spend, row.count)
-
         fun of(totals: TotalsRow) = DayTotals(totals.units, totals.kcal, totals.cost, totals.count.toInt())
 
         fun of(entries: Iterable<Entry>): DayTotals {
@@ -66,7 +64,7 @@ class Ledger(rows: List<Day>, val clock: DayClock) {
     val today: DayKey = clock.today
     private val days: Map<Int, Day> = buildMap { for (row in rows) putIfAbsent(row.number, row) }
     private val core = CoreLedger(
-        rows.map { DayRow(it.number.toLong(), it.isAlcoholFree, it.units, it.kcal, it.cost, it.count.toLong(), it.costOverride) },
+        rows.map { it.core },
         today.number.toLong(),
         clock.firstWeekday.toLong(),
     )
@@ -165,7 +163,14 @@ class Ledger(rows: List<Day>, val clock: DayClock) {
         core.averageCumulative(curveInputs(pours), range.start.number.toLong(), range.endInclusive.number.toLong(), from, smoothed)
             .map(::CurvePoint)
 
-    private fun spec(goal: Goal) = goal.spec(DayKey.of(goal.start, clock.zone))
+    /** The last goal's spec, since a calendar or chart asks about the same goal once per day on screen. */
+    @Volatile
+    private var lastSpec: Pair<Goal, GoalSpec>? = null
+
+    private fun spec(goal: Goal): GoalSpec {
+        lastSpec?.let { (cached, spec) -> if (cached == goal) return spec }
+        return goal.spec(DayKey.of(goal.start, clock.zone)).also { lastSpec = goal to it }
+    }
 
     /** The hours into a drink's day are the calendar's to work out, and a day's start is cached across a screen's drinks. */
     private fun curveInputs(entries: List<Entry>): List<CurveInput> {
