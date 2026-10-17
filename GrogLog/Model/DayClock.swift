@@ -1,4 +1,5 @@
 import Foundation
+import GrogLogCore
 
 /// Maps moments onto drinking days. A day runs from `rolloverHour` to `rolloverHour` the next morning,
 /// so the 1am pint counts towards the night it belongs to.
@@ -10,8 +11,9 @@ nonisolated struct DayClock: Equatable {
 
     /// Decided on the wall clock, so it agrees with `start(of:)` on the nights the clocks change.
     func day(for date: Date) -> DayKey {
+        let local = DayKey(date, in: calendar)
         let hour = calendar.component(.hour, from: date)
-        return DayKey(date, in: calendar) - (hour < rolloverHour ? 1 : 0)
+        return DayKey(number: Int(dayDrinking(localDay: Int64(local.number), localHour: Int64(hour), rolloverHour: Int64(rolloverHour))))
     }
 
     func start(of day: DayKey) -> Date {
@@ -22,7 +24,7 @@ nonisolated struct DayClock: Equatable {
     func end(of day: DayKey) -> Date { start(of: day + 1) }
 
     func weekStart(of day: DayKey) -> DayKey {
-        day - (day.weekday - calendar.firstWeekday + 7) % 7
+        DayKey(number: Int(dayWeekStart(day: Int64(day.number), firstWeekday: Int64(calendar.firstWeekday))))
     }
 
     func hours(_ date: Date, into day: DayKey) -> Double {
@@ -33,7 +35,7 @@ nonisolated struct DayClock: Equatable {
     func resolve(_ time: Date, into day: DayKey) -> Date {
         let parts = calendar.dateComponents([.hour, .minute], from: time)
         let hour = parts.hour ?? 0
-        let c = (hour < rolloverHour ? day + 1 : day).components
+        let c = (dayIsAfterMidnight(hour: Int64(hour), rolloverHour: Int64(rolloverHour)) ? day + 1 : day).components
         return calendar.date(from: DateComponents(year: c.year, month: c.month, day: c.day, hour: hour, minute: parts.minute ?? 0))!
     }
 

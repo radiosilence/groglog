@@ -1,5 +1,6 @@
 import Foundation
 import GRDB
+import GrogLogCore
 import Testing
 import UniformTypeIdentifiers
 @testable import GrogLog
@@ -45,6 +46,13 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
     @Test func caloriesLandNearDrinkawaresFigures() {
         #expect(abs(Units.kcal(ml: 568, abv: 4, category: .beer) - 182) < 10)
         #expect(abs(Units.kcal(ml: 175, abv: 13, category: .redWine) - 159) < 10)
+    }
+
+    /// The constants are plain literals so they need no library to read; the core's values are what they must match.
+    @Test func constantsMatchTheCore() {
+        #expect(Units.weeklyGuideline == unitsWeeklyGuideline())
+        #expect(Units.unitMl == unitsUnitMl())
+        #expect(Units.standardDrinkMl == unitsStandardDrinkMl())
     }
 }
 

@@ -1,5 +1,6 @@
 package cc.blit.groglog.model
 
+import cc.blit.groglog.core.dayParse
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -69,7 +70,8 @@ value class DayKey(val number: Int) : Comparable<DayKey> {
     }
 
     companion object {
-        /** Days from civil date (Howard Hinnant's algorithm), valid for the proleptic Gregorian calendar. */
+        /** Days from civil date (Howard Hinnant's algorithm), valid for the proleptic Gregorian calendar. Kept in Kotlin because
+         * it runs per row and a call into the core costs microseconds; `CoreParityTests` holds it to the core's. */
         fun of(year: Int, month: Int, day: Int): DayKey {
             val y = if (month <= 2) year - 1 else year
             val era = (if (y >= 0) y else y - 399) / 400
@@ -89,12 +91,7 @@ value class DayKey(val number: Int) : Comparable<DayKey> {
          * A valid `yyyy-MM-dd` date. Imported files are parsed with this, so impossible or day-first dates are refused
          * rather than rolled over into another day.
          */
-        fun parse(string: String): DayKey? {
-            val parts = string.split("-").filter { it.isNotEmpty() }.mapNotNull { it.toIntOrNull() }
-            if (parts.size != 3 || parts[0] !in 1900..2200 || parts[1] !in 1..12 || parts[2] !in 1..31) return null
-            val key = of(parts[0], parts[1], parts[2])
-            return if (key.components == Components(parts[0], parts[1], parts[2])) key else null
-        }
+        fun parse(string: String): DayKey? = dayParse(string)?.let { DayKey(it.toInt()) }
     }
 }
 

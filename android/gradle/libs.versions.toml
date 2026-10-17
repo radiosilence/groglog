@@ -1,4 +1,5 @@
 [versions]
+jna = "5.19.1"
 agp = "9.4.1"
 kotlin = "2.4.21"
 ksp = "2.3.12"
@@ -46,6 +47,7 @@ compose-material-icons-core = { module = "androidx.compose.material:material-ico
 compose-material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
 room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
+jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
 room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
 glance-appwidget = { module = "androidx.glance:glance-appwidget", version.ref = "glance" }

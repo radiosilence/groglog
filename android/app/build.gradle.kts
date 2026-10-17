@@ -1,3 +1,5 @@
+import javax.inject.Inject
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -13,11 +15,15 @@ fun setting(env: String, property: String) =
 /** The version both apps carry, from MARKETING_VERSION in project.yml. */
 val marketingVersion = Regex("""MARKETING_VERSION: (\S+)""").find(rootProject.file("../project.yml").readText())!!.groupValues[1]
 
+/** The ABIs the core is built for, which are the ones the app is offered on: 64-bit ARM and x86_64, with no 32-bit support. `-Pabis=arm64-v8a` builds one, for a device or an emulator on Apple silicon. */
+val coreAbis = providers.gradleProperty("abis").orElse("arm64-v8a,x86_64").map { it.split(",") }
+
 val uploadKeystore = setting("ANDROID_UPLOAD_KEYSTORE_FILE", "groglogUploadKeystoreFile")
 
 android {
     namespace = "cc.blit.groglog"
     compileSdk = 37
+    ndkVersion = "30.0.16248370"
 
     defaultConfig {
         applicationId = "cc.blit.groglog"
@@ -26,6 +32,8 @@ android {
         // CI passes its run number, so each upload is higher than the last.
         versionCode = providers.gradleProperty("versionCode").orNull?.toInt() ?: 1
         versionName = marketingVersion
+        // Only what the core is built for: a device would otherwise pick an ABI that JNA ships and the core does not.
+        ndk { abiFilters += coreAbis.get() }
     }
 
     signingConfigs {
@@ -69,6 +77,8 @@ android {
             it.jvmArgs("--add-opens=java.base/jdk.internal.access=ALL-UNNAMED")
             // `-Pshots=DIR` renders the screenshot tests into DIR; without it they are skipped.
             it.systemProperty("groglog.shots", providers.gradleProperty("shots").getOrElse(""))
+            // The model calls into the Rust core, which the tests load as a library built for this machine.
+            it.systemProperty("jna.library.path", rootProject.file("../target/release").path)
         }
     }
 }
@@ -76,6 +86,84 @@ android {
 kotlin {
     jvmToolchain(21)
 }
+
+/**
+ * groglog-core, built with cargo-ndk for each ABI into `jniLibs`, and the Kotlin bindings uniffi generates from the built
+ * library. Always a release build, so a debug app is not slowed by an unoptimised core.
+ */
+/** What the core is built from: the crates, their lockfile and the bindings generator. */
+val coreSources = rootProject.fileTree("..") {
+    include("core/**", "tools/**", "Cargo.toml", "Cargo.lock")
+    exclude("core/out/**", "**/target/**")
+}
+
+abstract class CoreAndroid @Inject constructor(private val exec: ExecOperations) : DefaultTask() {
+    @get:Input
+    abstract val abis: ListProperty<String>
+
+    @get:Input
+    abstract val minSdk: Property<Int>
+
+    @get:Internal
+    abstract val workspace: DirectoryProperty
+
+    @get:Internal
+    abstract val ndk: DirectoryProperty
+
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val sources: ConfigurableFileCollection
+
+    @get:OutputDirectory
+    abstract val jniLibs: DirectoryProperty
+
+    @get:OutputDirectory
+    abstract val kotlin: DirectoryProperty
+
+    @TaskAction
+    fun build() {
+        val root = workspace.get().asFile
+        exec.exec {
+            workingDir = root
+            environment("ANDROID_NDK_HOME", ndk.get().asFile.path)
+            commandLine(
+                listOf("cargo", "ndk", "--platform", minSdk.get().toString(), "-o", jniLibs.get().asFile.path) +
+                    abis.get().flatMap { listOf("-t", it) } +
+                    listOf("build", "--release", "-p", "groglog-core"),
+            )
+        }
+        val lib = jniLibs.get().dir(abis.get().first()).file("libgroglog_core.so").asFile
+        kotlin.get().asFile.deleteRecursively()
+        exec.exec {
+            workingDir = root
+            commandLine(
+                "cargo", "run", "-q", "-p", "uniffi-bindgen", "--",
+                "generate", "--library", lib.path, "--language", "kotlin", "--no-format",
+                "--out-dir", kotlin.get().asFile.path,
+            )
+        }
+    }
+}
+
+val coreAndroid = tasks.register<CoreAndroid>("coreAndroid") {
+    abis.set(coreAbis)
+    minSdk.set(android.defaultConfig.minSdk!!)
+    workspace.set(rootProject.layout.projectDirectory.dir(".."))
+    ndk.set(androidComponents.sdkComponents.ndkDirectory)
+    jniLibs.set(layout.buildDirectory.dir("core/jniLibs"))
+    kotlin.set(layout.buildDirectory.dir("core/kotlin"))
+    sources.from(coreSources)
+}
+
+/** The core built for this machine, which the JVM tests load. */
+val coreHost = tasks.register<Exec>("coreHost") {
+    workingDir = rootProject.layout.projectDirectory.dir("..").asFile
+    inputs.files(coreSources).withPathSensitivity(PathSensitivity.RELATIVE)
+    outputs.dir(rootProject.layout.projectDirectory.dir("../target/release"))
+    commandLine("cargo", "build", "--release", "-p", "groglog-core")
+}
+
+tasks.withType<Test>().configureEach { dependsOn(coreHost) }
 
 /** The website's privacy policy, packaged so the Health Connect rationale shows the same text offline. */
 abstract class PrivacyPolicy : DefaultTask() {
@@ -98,6 +186,8 @@ val privacyPolicy = tasks.register<PrivacyPolicy>("privacyPolicy") {
 androidComponents {
     onVariants { variant ->
         variant.sources.assets?.addGeneratedSourceDirectory(privacyPolicy, PrivacyPolicy::output)
+        variant.sources.jniLibs?.addGeneratedSourceDirectory(coreAndroid, CoreAndroid::jniLibs)
+        variant.sources.kotlin?.addGeneratedSourceDirectory(coreAndroid, CoreAndroid::kotlin)
     }
 }
 
@@ -133,8 +223,11 @@ dependencies {
     implementation(libs.glance.appwidget)
     implementation(libs.glance.material3)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.jna) { artifact { type = "aar" } }
 
     testImplementation(libs.junit)
+    // The host build of JNA, which carries the native dispatcher the JVM needs; the AAR above carries Android's.
+    testImplementation(libs.jna)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.kotlinx.coroutines.test)

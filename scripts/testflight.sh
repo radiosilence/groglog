@@ -16,6 +16,7 @@ AUTH="-allowProvisioningUpdates -authenticationKeyPath $KEY -authenticationKeyID
 # Offset by 1000 so a CI build number cannot collide with one uploaded by hand.
 BUILD=$((1000 + BUILD_NUMBER))
 
+scripts/core-apple.sh
 xcodegen generate --quiet
 # shellcheck disable=SC2086
 xcodebuild archive -scheme GrogLog -destination 'generic/platform=iOS' -archivePath "$WORK/GrogLog.xcarchive" \

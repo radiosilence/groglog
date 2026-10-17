@@ -6,3 +6,9 @@
 -keep class * implements androidx.glance.appwidget.action.ActionCallback {
     <init>();
 }
+
+# JNA reaches the generated bindings' structures and callbacks by reflection.
+-keep class com.sun.jna.** { *; }
+-keep class * extends com.sun.jna.** { *; }
+-keep class cc.blit.groglog.core.** { *; }
+-dontwarn java.awt.**

@@ -5,6 +5,7 @@ java = "temurin-21.0.12+8.0.LTS"
 just = "1.58.0"
 uv = "0.12.19"
 xcodegen = "2.46.0"
+"cargo:cargo-ndk" = "4.1.2"
 
 [env]
 # App Store Connect API key for scripts/app-store.py and scripts/testflight.sh. Identifiers only: the key itself lives in
