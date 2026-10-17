@@ -72,10 +72,17 @@ Settings that belong to the log (goal, currency, the hour the day ends) sync sep
 
 `SyncTests` plays iCloud by passing one in-memory log's records to another.
 
+## Shared core
+
+The logic both apps depend on lives in `core/`, a Rust crate that uniffi exposes to Swift and Kotlin. It holds what must not differ between platforms: what a day is, what a unit is and, as more moves across, the ledger and goals. Each app keeps its own presentation and storage (SwiftUI and GRDB, Compose and Room) and passes the core plain values. Calls take and return whole records, so a screen asks once rather than once per row. Anything that needs a timezone stays native, which hands the core the wall-clock date and hour it sees.
+
+`scripts/core-apple.sh` builds it for iOS and wraps it in a Swift package under `core/out`; Gradle builds it for each Android ABI with cargo-ndk, and for the host so the JVM tests can load it. Neither output is committed. The Rust tests are `cargo test`.
+
 ## Building
 
 ```sh
-mise install            # xcodegen
+mise install            # xcodegen, cargo-ndk
+scripts/core-apple.sh   # the Rust core, which the project links
 xcodegen generate
 open GrogLog.xcodeproj
 ```

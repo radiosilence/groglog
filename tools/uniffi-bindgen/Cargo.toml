@@ -1,0 +1,10 @@
+[package]
+name = "uniffi-bindgen"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "Generates the Swift and Kotlin bindings from a built groglog-core library."
+
+[dependencies]
+uniffi = { version = "0.32", features = ["cli"] }

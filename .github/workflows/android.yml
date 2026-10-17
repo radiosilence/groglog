@@ -18,12 +18,18 @@ on:
     branches: [main]
     paths:
       - "android/**"
+      - "core/**"
+      - "tools/**"
+      - "Cargo.*"
       - "project.yml"
       - "scripts/play.py"
       - ".github/workflows/android.yml"
   pull_request:
     paths:
       - "android/**"
+      - "core/**"
+      - "tools/**"
+      - "Cargo.*"
       - "project.yml"
       - "scripts/play.py"
       - ".github/workflows/android.yml"
@@ -88,6 +94,21 @@ jobs:
           java-version: "21"
 
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      # The shared Rust core: Gradle builds it for each ABI with cargo-ndk, and the tests load a build for this machine.
+      # cargo-ndk is the version mise.toml pins, installed once and cached; the Rust toolchain is rust-toolchain.toml's.
+      - name: cargo-ndk
+        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
+        with:
+          install_args: cargo:cargo-ndk
+
+      # The toolchain is installed here, once: left to the two Gradle tasks that run cargo in parallel, each would try to
+      # install it at the same moment.
+      - name: Rust toolchain and NDK
+        run: |
+          rustup toolchain install
+          ndk=$(sed -n 's/.*ndkVersion = "\(.*\)"/\1/p' app/build.gradle.kts)
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$ndk" > /dev/null
 
       # Only on main, and only once the secrets exist: without them the bundle is built unsigned, which tests that it
       # builds and can't be uploaded.
@@ -164,6 +185,21 @@ jobs:
           java-version: "21"
 
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      # The shared Rust core: Gradle builds it for each ABI with cargo-ndk, and the tests load a build for this machine.
+      # cargo-ndk is the version mise.toml pins, installed once and cached; the Rust toolchain is rust-toolchain.toml's.
+      - name: cargo-ndk
+        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
+        with:
+          install_args: cargo:cargo-ndk
+
+      # The toolchain is installed here, once: left to the two Gradle tasks that run cargo in parallel, each would try to
+      # install it at the same moment.
+      - name: Rust toolchain and NDK
+        run: |
+          rustup toolchain install
+          ndk=$(sed -n 's/.*ndkVersion = "\(.*\)"/\1/p' app/build.gradle.kts)
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$ndk" > /dev/null
 
       - name: Build the signed APK
         env:

@@ -11,6 +11,9 @@ packages:
   GRDBQuery:
     url: https://github.com/groue/GRDBQuery
     from: 0.11.0
+  # The shared Rust core, built and wrapped by scripts/core-apple.sh.
+  GrogLogCore:
+    path: core/out/GrogLogCore
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -27,6 +30,7 @@ targets:
     dependencies:
       - package: GRDB
       - package: GRDBQuery
+      - package: GrogLogCore
       - target: GrogLogWidgets
     entitlements:
       path: GrogLog/GrogLog.entitlements
@@ -74,6 +78,7 @@ targets:
     dependencies:
       - package: GRDB
       - package: GRDBQuery
+      - package: GrogLogCore
     entitlements:
       path: GrogLogWidgets/GrogLogWidgets.entitlements
       properties:
