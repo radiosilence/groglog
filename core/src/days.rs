@@ -100,7 +100,7 @@ mod tests {
     #[test]
     fn day_numbers_count_from_the_epoch_and_round_trip() {
         assert_eq!(day_number(1970, 1, 1), 0);
-        for number in (-800..60_000).step_by(37) {
+        for number in (-800_000..800_000).step_by(997) {
             let c = day_civil(number);
             assert_eq!(day_number(c.year, c.month, c.day), number);
         }
@@ -111,7 +111,7 @@ mod tests {
         assert_eq!(day_format(day_parse("2026-09-19".into()).unwrap()), "2026-09-19");
         assert_eq!(day_format(day_parse("2026-9-3".into()).unwrap()), "2026-09-03");
         assert!(day_parse("2024-02-29".into()).is_some());
-        for bad in ["2025-02-29", "2026-13-01", "19-09-2026", "2026-09", "nonsense", "", "1899-12-31", "-2026-09-19", "2026-09-19-", "+2026-09-19", "2026--09-19", "2026-+9-19", "2026-09-19-01"] {
+        for bad in ["2025-02-29", "2026-06-31", "0001-01-01", "999999999999999999-01-01", "30-09-2026", "2026-13-01", "19-09-2026", "2026-09", "nonsense", "", "1899-12-31", "-2026-09-19", "2026-09-19-", "+2026-09-19", "2026--09-19", "2026-+9-19", "2026-09-19-01"] {
             assert_eq!(day_parse(bad.into()), None, "{bad}");
         }
     }
