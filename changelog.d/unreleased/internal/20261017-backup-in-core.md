@@ -1,0 +1,1 @@
+- **Backups in the shared core.** Reading, writing and merging a backup is done once, in Rust, for both apps; the file format is unchanged. On iOS an entry timed after today is now exported and imported, as it already was on Android.
