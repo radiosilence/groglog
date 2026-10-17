@@ -67,8 +67,11 @@ jobs:
         with:
           install_args: cargo:cargo-ndk
 
-      - name: NDK
+      # The toolchain is installed here, once: left to the two Gradle tasks that run cargo in parallel, each would try to
+      # install it at the same moment.
+      - name: Rust toolchain and NDK
         run: |
+          rustup toolchain install
           ndk=$(sed -n 's/.*ndkVersion = "\(.*\)"/\1/p' app/build.gradle.kts)
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$ndk" > /dev/null
 
@@ -146,8 +149,11 @@ jobs:
         with:
           install_args: cargo:cargo-ndk
 
-      - name: NDK
+      # The toolchain is installed here, once: left to the two Gradle tasks that run cargo in parallel, each would try to
+      # install it at the same moment.
+      - name: Rust toolchain and NDK
         run: |
+          rustup toolchain install
           ndk=$(sed -n 's/.*ndkVersion = "\(.*\)"/\1/p' app/build.gradle.kts)
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$ndk" > /dev/null
 
