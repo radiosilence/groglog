@@ -21,6 +21,7 @@ import cc.blit.groglog.data.Seed
 import cc.blit.groglog.data.Settings
 import cc.blit.groglog.model.Catalog
 import cc.blit.groglog.model.Day
+import cc.blit.groglog.model.DayClock
 import cc.blit.groglog.model.DayKey
 import cc.blit.groglog.model.DayStatus
 import cc.blit.groglog.model.Drink
