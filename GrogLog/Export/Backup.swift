@@ -8,16 +8,7 @@ import UniformTypeIdentifiers
 /// file reads the database into what the core asks for, and applies the plan it gives back. Days are listed
 /// explicitly, including unlogged ones, so a reader (human or LLM) can tell a dry day from a gap. Import is lenient:
 /// only `days[].date` and `days[].status` are required, so other apps' data can be hand-converted (see docs/IMPORT.md).
-nonisolated typealias Backup = BackupDoc
-
-nonisolated extension BackupError: LocalizedError {
-    public var errorDescription: String? {
-        switch self {
-        case .unreadable(let reason): "The file is not a GrogLog backup: \(reason)"
-        case .dayEndsAtImpossibleHour(let hour): "The file sets the day to end at hour \(hour), which is not an hour of the day."
-        }
-    }
-}
+typealias Backup = BackupDoc
 
 nonisolated enum Exporter {
     /// What an export needs from settings, captured so the export can run off the main actor.
@@ -66,10 +57,14 @@ nonisolated enum Exporter {
 
     enum ImportError: LocalizedError {
         case tooLarge
+        case unreadable(String)
+        case dayEndsAtImpossibleHour(Int)
 
         var errorDescription: String? {
             switch self {
             case .tooLarge: "The file is too large to be a GrogLog backup."
+            case .unreadable(let reason): "The file is not a GrogLog backup: \(reason)"
+            case .dayEndsAtImpossibleHour(let hour): "The file sets the day to end at hour \(hour), which is not an hour of the day."
             }
         }
     }
@@ -79,7 +74,15 @@ nonisolated enum Exporter {
     /// the correct days. Totals are recomputed for only the touched days.
     @MainActor @discardableResult
     static func restore(_ data: Data, writer: any DatabaseWriter, prefs: Prefs) throws -> Int {
-        let backup = try BackupDoc.parse(data: data)
+        let backup: Backup
+        do {
+            backup = try BackupDoc.parse(data: data)
+        } catch let error as GrogLogCore.BackupError {
+            switch error {
+            case .Unreadable(let reason): throw ImportError.unreadable(reason)
+            case .DayEndsAtImpossibleHour(let hour): throw ImportError.dayEndsAtImpossibleHour(Int(hour))
+            }
+        }
         let goal = try backup.goalJson().map(decodeGoal)
         let movesDayEnd = backup.dayStartsAtHour().map { Int($0) != prefs.rolloverHour } ?? false
         if let hour = backup.dayStartsAtHour() { prefs.rolloverHour = Int(hour) }
