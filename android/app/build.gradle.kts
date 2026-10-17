@@ -15,8 +15,8 @@ fun setting(env: String, property: String) =
 /** The version both apps carry, from MARKETING_VERSION in project.yml. */
 val marketingVersion = Regex("""MARKETING_VERSION: (\S+)""").find(rootProject.file("../project.yml").readText())!!.groupValues[1]
 
-/** The ABIs the core is built for, which are the ones the app can be installed on. `-Pabis=arm64-v8a` builds one, for a device or an emulator on Apple silicon. */
-val coreAbis = providers.gradleProperty("abis").orElse("armeabi-v7a,arm64-v8a,x86_64").map { it.split(",") }
+/** The ABIs the core is built for, which are the ones the app is offered on: 64-bit ARM and x86_64, with no 32-bit support. `-Pabis=arm64-v8a` builds one, for a device or an emulator on Apple silicon. */
+val coreAbis = providers.gradleProperty("abis").orElse("arm64-v8a,x86_64").map { it.split(",") }
 
 val uploadKeystore = setting("ANDROID_UPLOAD_KEYSTORE_FILE", "groglogUploadKeystoreFile")
 
