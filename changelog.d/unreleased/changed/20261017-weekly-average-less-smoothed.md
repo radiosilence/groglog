@@ -1,0 +1,1 @@
+- **Weekly average follows your days more closely.** The average line on the Day chart is smoothed over about half an hour instead of several hours, so it keeps the shape of when you usually drink.

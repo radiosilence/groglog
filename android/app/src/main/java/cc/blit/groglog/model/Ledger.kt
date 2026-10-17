@@ -258,7 +258,7 @@ class Ledger(rows: List<Day>, val clock: DayClock) {
     }
 
     /**
-     * Mean running total across the logged days in `range`, smoothed over about three hours. Unlogged days are excluded
+     * Mean running total across the logged days in `range`, smoothed over about half an hour. Unlogged days are excluded
      * rather than counted as zero. The raw mean is a staircase of small steps; the line is meant to show where a typical
      * day stands by a given hour, so it is smoothed. `smoothed = false` gives the unsmoothed mean, for reading off as a
      * number.
@@ -284,15 +284,15 @@ class Ledger(rows: List<Day>, val clock: DayClock) {
         }
         if (!smoothed) return raw
         // The result must remain a running total: starting at zero, never falling, and ending on the mean. So the
-        // drinks are spread over a few hours and re-accumulated, then scaled to preserve the total. Blurring the curve
+        // drinks are spread over a short window and re-accumulated, then scaled to preserve the total. Blurring the curve
         // itself would drag its ends inwards.
         var previous = 0.0
         val poured = raw.map { point -> (point.units - previous).also { previous = point.units } }
         val week = poured.sum()
         if (week <= 0) return raw
-        // Twelve quarter-hours either side, applied twice, so the kernel tapers at the edges instead of cutting off as
+        // Two quarter-hours either side, applied twice, so the kernel tapers at the edges instead of cutting off as
         // a single box pass would.
-        val span = 12
+        val span = 2
         val blur = { xs: List<Double> ->
             xs.indices.map { i -> (max(0, i - span)..min(xs.size - 1, i + span)).sumOf { xs[it] } / (2 * span + 1) }
         }

@@ -257,7 +257,7 @@ nonisolated struct Ledger: Equatable {
         return points
     }
 
-    /// Mean running total across the logged days in `range`, smoothed over about three hours. Unlogged days are
+    /// Mean running total across the logged days in `range`, smoothed over about half an hour. Unlogged days are
     /// excluded rather than counted as zero. The raw mean is a staircase of small steps; the line is meant to show
     /// where a typical day stands by a given hour, so it is smoothed. `smoothed: false` gives the unsmoothed mean,
     /// for reading off as a number.
@@ -280,7 +280,7 @@ nonisolated struct Ledger: Equatable {
         }
         guard smoothed else { return raw }
         // The result must remain a running total: starting at zero, never falling, and ending on the mean.
-        // So the drinks are spread over a few hours and re-accumulated, then scaled to preserve the total.
+        // So the drinks are spread over a short window and re-accumulated, then scaled to preserve the total.
         // Blurring the curve itself would drag its ends inwards.
         var previous = 0.0
         let pours = raw.map { point -> Double in
@@ -289,9 +289,9 @@ nonisolated struct Ledger: Equatable {
         }
         let week = pours.reduce(0, +)
         guard week > 0 else { return raw }
-        // Twelve quarter-hours either side, applied twice, so the kernel tapers at the edges instead of
+        // Two quarter-hours either side, applied twice, so the kernel tapers at the edges instead of
         // cutting off as a single box pass would.
-        let span = 12
+        let span = 2
         let blur = { (xs: [Double]) in
             xs.indices.map { i in
                 (max(0, i - span)...min(xs.count - 1, i + span)).reduce(0) { $0 + xs[$1] } / Double(2 * span + 1)

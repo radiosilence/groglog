@@ -628,7 +628,7 @@ class CurveTests {
     }
 
     /**
-     * The week line is rolled flat over three hours, which must not cost it the two things that make it a running
+     * The week line is smoothed only lightly, which must not cost it the two things that make it a running
      * total: it only ever rises, and it ends on the week's mean.
      */
     @Test fun theWeekAverageIsSmoothedButStillARunningTotal() {

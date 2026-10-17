@@ -628,7 +628,7 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(abs(points.last!.units - 2 * Units.of(ml: 568, abv: 5)) < 0.001)
     }
 
-    /// The week line is rolled flat over three hours, which must not cost it the two things that make it a
+    /// The week line is smoothed only lightly, which must not cost it the two things that make it a
     /// running total: it only ever rises, and it ends on the week's mean.
     @Test func theWeekAverageIsSmoothedButStillARunningTotal() {
         let day = DayKey(year: 2026, month: 9, day: 20)
