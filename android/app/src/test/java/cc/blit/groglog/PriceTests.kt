@@ -1,5 +1,7 @@
 package cc.blit.groglog
 
+import cc.blit.groglog.core.VesselKind
+import cc.blit.groglog.core.catalogBrands
 import cc.blit.groglog.core.catalogGenericPrice
 import cc.blit.groglog.core.ratesPerPound
 import cc.blit.groglog.model.Catalog
@@ -102,7 +104,8 @@ class AdoptedDrinkTests {
         val asahi = asahi()
         val pounds = Catalog.price(asahi, Vessel.PINT, 568.0, "GBP")
         val euros = Catalog.price(asahi, Vessel.PINT, 568.0, "EUR")
-        assertEquals(asahi.prices["GBP"]?.first { it.size.vessel == Vessel.PINT }?.price!!, pounds, 0.0)
+        val listed = catalogBrands().first { it.name == asahi.name }.markets.first { it.currency == "GBP" }.serves.first { it.vessel == VesselKind.PINT }
+        assertEquals(listed.price, pounds, 0.0)
         assertTrue(near(euros, pounds * ratesPerPound().first { it.currency == "EUR" }.perPound, 0.001))
         assertEquals(0.0, Catalog.price(asahi, Vessel.PINT, 568.0, "XXX"), 0.0)
     }

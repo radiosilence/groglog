@@ -14,19 +14,14 @@ import java.util.Currency
 import java.util.concurrent.ConcurrentHashMap
 import java.util.Locale
 
-data class CatalogPrice(val size: ServeSize, val price: Double)
-
 /**
  * A catalogue brand: common UK drinks and their usual serves, so logging a specific brand is a search and a tap. The
  * table, the prices and the lookups live in the shared core, which both apps read.
- *
- * `prices` holds each usual size with its typical cost, per market, keyed by currency code.
  */
 data class CatalogBrand(
     val name: String,
     val category: DrinkCategory,
     val abv: Double,
-    val prices: Map<String, List<CatalogPrice>>,
     /** Every size any market lists it in, the UK's first. */
     val sizes: List<ServeSize>,
 ) {
@@ -50,13 +45,8 @@ data class CatalogItem(
 
 private fun serveSize(vessel: VesselKind, ml: Double) = ServeSize(Vessel.of(vessel), ml)
 
-private fun brand(record: BrandRecord): CatalogBrand {
-    val prices = LinkedHashMap<String, List<CatalogPrice>>()
-    for (market in record.markets) {
-        prices[market.currency] = market.serves.map { CatalogPrice(serveSize(it.vessel, it.ml), it.price) }
-    }
-    return CatalogBrand(record.name, DrinkCategory.of(record.category), record.abv, prices, record.sizes.map { serveSize(it.vessel, it.ml) })
-}
+private fun brand(record: BrandRecord) =
+    CatalogBrand(record.name, DrinkCategory.of(record.category), record.abv, record.sizes.map { serveSize(it.vessel, it.ml) })
 
 object Catalog {
     val brands: List<CatalogBrand> by lazy { catalogBrands().map(::brand) }
