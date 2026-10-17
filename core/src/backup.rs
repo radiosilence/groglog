@@ -7,7 +7,7 @@
 //! and apply it in one transaction. The goal is carried as an opaque JSON object, because each app keeps its own goal
 //! codec, with its migrations for goals saved by older builds.
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fmt;
 use std::sync::Arc;
 
@@ -15,11 +15,12 @@ use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 
-use crate::categories::{default_abv, default_vessel, is_category, is_vessel};
+use crate::categories::{CategoryKind, VesselKind};
 use crate::days::{day_format, day_parse};
-use crate::goal::{GoalSpec, STOP_FROM, goal_projection};
+use crate::goal::{GoalSpec, STOP_FROM, goal_daily_budget, goal_projection};
 use crate::ledger::{CoreLedger, DayRow, StatusKind};
 use crate::swift_json;
+use crate::units::units_unit_ml;
 
 const NOTES: &str = "UK units: 1 unit = 10 ml pure alcohol. Days run from dayStartsAtHour to the same hour next morning. status is drank, alcohol_free (explicitly marked), not_logged (unknown; do not assume dry) or in_progress (today).";
 
@@ -27,6 +28,8 @@ const NOTES: &str = "UK units: 1 unit = 10 ml pure alcohol. Days run from daySta
 pub enum BackupError {
     Unreadable { reason: String },
     DayEndsAtImpossibleHour { hour: i64 },
+    /// The app handed an export a record the format cannot hold, such as an id that is not a UUID.
+    Unexportable { reason: String },
 }
 
 impl fmt::Display for BackupError {
@@ -36,6 +39,7 @@ impl fmt::Display for BackupError {
             BackupError::DayEndsAtImpossibleHour { hour } => {
                 write!(f, "The file sets the day to end at hour {hour}, which is not an hour of the day.")
             }
+            BackupError::Unexportable { reason } => write!(f, "The log could not be exported: {reason}"),
         }
     }
 }
@@ -73,27 +77,6 @@ impl<'de> Deserialize<'de> for Id {
         Id::parse(&text).ok_or_else(|| D::Error::custom(format!("expected a UUID, got {text}")))
     }
 }
-
-/// A name from a closed list, which the file is refused for getting wrong.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct Named<const VESSEL: bool>(String);
-
-impl<const VESSEL: bool> Serialize for Named<VESSEL> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(&self.0)
-    }
-}
-
-impl<'de, const VESSEL: bool> Deserialize<'de> for Named<VESSEL> {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let text = String::deserialize(deserializer)?;
-        let known = if VESSEL { is_vessel(&text) } else { is_category(&text) };
-        if known { Ok(Named(text)) } else { Err(D::Error::custom(format!("unknown {} {text}", if VESSEL { "vessel" } else { "category" }))) }
-    }
-}
-
-type Category = Named<false>;
-type Vessel = Named<true>;
 
 /// Dates as iOS's `JSONEncoder` writes them with its `.iso8601` strategy: UTC, whole seconds, `Z`. Reading also takes an
 /// offset or fractional seconds, which hand-written imports use.
@@ -207,9 +190,9 @@ struct Doc {
 struct DrinkRec {
     id: Id,
     name: String,
-    category: Category,
+    category: CategoryKind,
     abv: f64,
-    vessel: Vessel,
+    vessel: VesselKind,
     volume_ml: f64,
     price: f64,
     is_generic: bool,
@@ -221,7 +204,7 @@ struct DrinkRec {
 struct FavouriteRec {
     #[serde(rename = "drinkID")]
     drink_id: Id,
-    vessel: Vessel,
+    vessel: VesselKind,
     volume_ml: f64,
     price: f64,
     order: i64,
@@ -256,9 +239,9 @@ struct PourRec {
     time: Option<i64>,
     name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    category: Option<Category>,
+    category: Option<CategoryKind>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    vessel: Option<Vessel>,
+    vessel: Option<VesselKind>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     volume_ml: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -279,9 +262,9 @@ struct PourRec {
 pub struct ExportDrink {
     pub id: String,
     pub name: String,
-    pub category: String,
+    pub category: CategoryKind,
     pub abv: f64,
-    pub vessel: String,
+    pub vessel: VesselKind,
     pub volume_ml: f64,
     pub price: f64,
     pub is_generic: bool,
@@ -291,7 +274,7 @@ pub struct ExportDrink {
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct ExportFavourite {
     pub drink_id: String,
-    pub vessel: String,
+    pub vessel: VesselKind,
     pub volume_ml: f64,
     pub price: f64,
     pub sort_order: i64,
@@ -305,8 +288,8 @@ pub struct ExportEntry {
     pub time: i64,
     pub day: i64,
     pub name: String,
-    pub category: String,
-    pub vessel: String,
+    pub category: CategoryKind,
+    pub vessel: VesselKind,
     pub volume_ml: f64,
     pub abv: f64,
     pub units: f64,
@@ -341,7 +324,7 @@ fn rounded2(value: f64) -> f64 {
 #[uniffi::export]
 pub fn backup_build(input: ExportInput) -> Result<Arc<BackupDoc>, BackupError> {
     let ledger = CoreLedger::new(input.days.clone(), input.today, input.first_weekday);
-    let mut by_day: std::collections::HashMap<i64, Vec<&ExportEntry>> = std::collections::HashMap::new();
+    let mut by_day: HashMap<i64, Vec<&ExportEntry>> = HashMap::new();
     for entry in &input.entries {
         by_day.entry(entry.day).or_default().push(entry);
     }
@@ -351,14 +334,11 @@ pub fn backup_build(input: ExportInput) -> Result<Arc<BackupDoc>, BackupError> {
         Some(first) => (first.min(input.today)..=last).collect(),
         None => Vec::new(),
     };
-    let invalid = |what: &str, value: &str| BackupError::Unreadable { reason: format!("{what} {value}") };
-    let id = |text: &str| Id::parse(text).ok_or_else(|| invalid("not an id:", text));
-    let named = |text: &str, vessel: bool| {
-        if if vessel { is_vessel(text) } else { is_category(text) } { Ok(text.to_string()) } else { Err(invalid("unknown name:", text)) }
-    };
+    let refuse = |what: &str, value: &str| BackupError::Unexportable { reason: format!("{what} {value}") };
+    let id = |text: &str| Id::parse(text).ok_or_else(|| refuse("not an id:", text));
 
     let goal = match &input.goal_json {
-        Some(text) => Some(serde_json::from_str::<Value>(text).map_err(|e| BackupError::Unreadable { reason: e.to_string() })?),
+        Some(text) => Some(serde_json::from_str::<Value>(text).map_err(|e| refuse("the goal is not JSON:", &e.to_string()))?),
         None => None,
     };
     let stoppable = goal_projection(input.goal, input.today).stoppable;
@@ -367,9 +347,9 @@ pub fn backup_build(input: ExportInput) -> Result<Arc<BackupDoc>, BackupError> {
         drinks.push(DrinkRec {
             id: id(&drink.id)?,
             name: drink.name.clone(),
-            category: Named(named(&drink.category, false)?),
+            category: drink.category,
             abv: drink.abv,
-            vessel: Named(named(&drink.vessel, true)?),
+            vessel: drink.vessel,
             volume_ml: drink.volume_ml,
             price: drink.price,
             is_generic: drink.is_generic,
@@ -380,7 +360,7 @@ pub fn backup_build(input: ExportInput) -> Result<Arc<BackupDoc>, BackupError> {
     for favourite in &input.favourites {
         favourites.push(FavouriteRec {
             drink_id: id(&favourite.drink_id)?,
-            vessel: Named(named(&favourite.vessel, true)?),
+            vessel: favourite.vessel,
             volume_ml: favourite.volume_ml,
             price: favourite.price,
             order: favourite.sort_order,
@@ -404,8 +384,8 @@ pub fn backup_build(input: ExportInput) -> Result<Arc<BackupDoc>, BackupError> {
                 id: Some(id(&entry.id)?),
                 time: Some(entry.time),
                 name: entry.name.clone(),
-                category: Some(Named(named(&entry.category, false)?)),
-                vessel: Some(Named(named(&entry.vessel, true)?)),
+                category: Some(entry.category),
+                vessel: Some(entry.vessel),
                 volume_ml: Some(entry.volume_ml),
                 abv: Some(entry.abv),
                 units: Some(rounded2(entry.units)),
@@ -421,7 +401,7 @@ pub fn backup_build(input: ExportInput) -> Result<Arc<BackupDoc>, BackupError> {
             kcal: Some(totals.kcal.round()),
             cost: Some(rounded2(totals.cost)),
             spent_by_hand: ledger.spend_override(day).map(rounded2),
-            budget: crate::goal::goal_daily_budget(input.goal, day).map(rounded2),
+            budget: goal_daily_budget(input.goal, day).map(rounded2),
             pours: Some(pours),
         });
     }
@@ -447,14 +427,14 @@ pub fn backup_build(input: ExportInput) -> Result<Arc<BackupDoc>, BackupError> {
 pub struct SnapshotDrink {
     pub id: String,
     pub name: String,
-    pub category: String,
+    pub category: CategoryKind,
     pub abv: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct SnapshotFavourite {
     pub drink_id: String,
-    pub vessel: String,
+    pub vessel: VesselKind,
     pub volume_ml: f64,
 }
 
@@ -474,16 +454,16 @@ pub enum RestoreOp {
     InsertDrink {
         id: String,
         name: String,
-        category: String,
+        category: CategoryKind,
         abv: f64,
-        vessel: String,
+        vessel: VesselKind,
         volume_ml: f64,
         price: f64,
         is_generic: bool,
         is_hidden: bool,
         sort_order: i64,
     },
-    InsertFavourite { drink_id: String, vessel: String, volume_ml: f64, price: f64, sort_order: i64 },
+    InsertFavourite { drink_id: String, vessel: VesselKind, volume_ml: f64, price: f64, sort_order: i64 },
     MarkAlcoholFree { day: i64 },
     SetSpend { day: i64, amount: f64 },
     /// `time` is absent for a drink the file gives no time for; it goes `evening_offset_minutes` after the evening of
@@ -494,7 +474,7 @@ pub enum RestoreOp {
         time: Option<i64>,
         evening_offset_minutes: i64,
         day: i64,
-        vessel: String,
+        vessel: VesselKind,
         volume_ml: f64,
         price: f64,
         kcal_override: Option<f64>,
@@ -511,59 +491,100 @@ pub struct RestorePlan {
     pub touched: Vec<i64>,
 }
 
-struct KnownDrink {
-    id: Id,
-    name: String,
-    category: String,
+struct Known {
+    category: CategoryKind,
     abv: f64,
 }
 
+/// A drink the plan adds.
+struct NewDrink<'a> {
+    id: Id,
+    name: &'a str,
+    category: CategoryKind,
+    abv: f64,
+    vessel: VesselKind,
+    volume_ml: f64,
+    price: f64,
+    is_generic: bool,
+    is_hidden: bool,
+    sort_order: i64,
+}
+
+/// The drinks a restore can log against, the log's own and those the plan adds, indexed both ways a file refers to
+/// them: by id, and by name and kind. Where two share a name and kind, the first is the one found.
+#[derive(Default)]
 struct Planner {
-    drinks: Vec<KnownDrink>,
+    drinks: HashMap<Id, Known>,
+    named: HashMap<(String, CategoryKind), Id>,
+    units: Option<Id>,
     ops: Vec<RestoreOp>,
 }
 
 impl Planner {
-    fn find(&self, name: &str, category: &str) -> Option<&KnownDrink> {
-        self.drinks.iter().find(|drink| drink.name == name && drink.category == category)
+    fn know(&mut self, id: Id, name: &str, category: CategoryKind, abv: f64) {
+        self.named.entry((name.to_string(), category)).or_insert_with(|| id.clone());
+        if category == CategoryKind::Units && self.units.is_none() {
+            self.units = Some(id.clone());
+        }
+        self.drinks.entry(id).or_insert(Known { category, abv });
     }
 
-    fn by_id(&self, id: &Id) -> Option<&KnownDrink> {
-        self.drinks.iter().find(|drink| drink.id == *id)
+    fn named(&self, name: &str, category: CategoryKind) -> Option<Id> {
+        self.named.get(&(name.to_string(), category)).cloned()
     }
 
-    fn create(&mut self, drink: KnownDrink, vessel: &str, volume_ml: f64, is_generic: bool, sort_order: i64) -> Id {
+    fn create(&mut self, drink: NewDrink) -> Id {
         self.ops.push(RestoreOp::InsertDrink {
             id: drink.id.0.clone(),
-            name: drink.name.clone(),
-            category: drink.category.clone(),
+            name: drink.name.to_string(),
+            category: drink.category,
             abv: drink.abv,
-            vessel: vessel.to_string(),
-            volume_ml,
-            price: 0.0,
-            is_generic,
-            is_hidden: false,
-            sort_order,
+            vessel: drink.vessel,
+            volume_ml: drink.volume_ml,
+            price: drink.price,
+            is_generic: drink.is_generic,
+            is_hidden: drink.is_hidden,
+            sort_order: drink.sort_order,
         });
-        let id = drink.id.clone();
-        self.drinks.push(drink);
-        id
+        self.know(drink.id.clone(), drink.name, drink.category, drink.abv);
+        drink.id
     }
 
     /// A drink by name and kind, made if there is none.
-    fn find_or_create(&mut self, name: &str, category: &str, abv: f64, vessel: &str, volume_ml: f64) -> Id {
-        if let Some(drink) = self.find(name, category) {
-            return drink.id.clone();
-        }
-        self.create(KnownDrink { id: Id::random(), name: name.to_string(), category: category.to_string(), abv }, vessel, volume_ml, false, 0)
+    fn find_or_create(&mut self, name: &str, category: CategoryKind, abv: f64, vessel: VesselKind, volume_ml: f64) -> Id {
+        self.named(name, category).unwrap_or_else(|| {
+            self.create(NewDrink {
+                id: Id::random(),
+                name,
+                category,
+                abv,
+                vessel,
+                volume_ml,
+                price: 0.0,
+                is_generic: false,
+                is_hidden: false,
+                sort_order: 0,
+            })
+        })
     }
 
     /// The drink bare unit counts are logged against, made if there is none.
     fn units_drink(&mut self) -> Id {
-        if let Some(drink) = self.drinks.iter().find(|drink| drink.category == "units") {
-            return drink.id.clone();
+        match &self.units {
+            Some(id) => id.clone(),
+            None => self.create(NewDrink {
+                id: Id::random(),
+                name: "Units",
+                category: CategoryKind::Units,
+                abv: CategoryKind::Units.default_abv(),
+                vessel: VesselKind::Shot,
+                volume_ml: units_unit_ml(),
+                price: 0.0,
+                is_generic: true,
+                is_hidden: false,
+                sort_order: 99,
+            }),
         }
-        self.create(KnownDrink { id: Id::random(), name: "Units".into(), category: "units".into(), abv: 100.0 }, "shot", 10.0, true, 99)
     }
 }
 
@@ -691,53 +712,45 @@ impl BackupDoc {
     /// Merges the file into the log described by `snapshot` without modifying existing data: drinks and entries are
     /// matched by id, and a day that already has drinks keeps them. The operations come in the order to apply them.
     pub fn plan(&self, snapshot: RestoreSnapshot) -> RestorePlan {
-        let mut planner = Planner {
-            drinks: snapshot
-                .drinks
-                .iter()
-                .map(|d| KnownDrink { id: Id::parse(&d.id).unwrap_or_else(|| Id(d.id.to_uppercase())), name: d.name.clone(), category: d.category.clone(), abv: d.abv })
-                .collect(),
-            ops: Vec::new(),
-        };
-        let canonical = |text: &str| Id::parse(text).unwrap_or_else(|| Id(text.to_uppercase())).0;
-        let mut pinned: HashSet<(String, String, u64)> =
-            snapshot.favourites.iter().map(|f| (canonical(&f.drink_id), f.vessel.clone(), f.volume_ml.to_bits())).collect();
+        // The apps write upper-case UUIDs; anything else is compared as it is, upper-cased.
+        let canonical = |text: &str| Id::parse(text).unwrap_or_else(|| Id(text.to_uppercase()));
+        let mut planner = Planner::default();
+        for drink in &snapshot.drinks {
+            planner.know(canonical(&drink.id), &drink.name, drink.category, drink.abv);
+        }
+        let mut pinned: HashSet<(Id, VesselKind, u64)> =
+            snapshot.favourites.iter().map(|f| (canonical(&f.drink_id), f.vessel, f.volume_ml.to_bits())).collect();
         // A pour already logged, or listed earlier in the same file, is kept as it is: the first copy wins.
-        let mut existing_pours: HashSet<String> = snapshot.pour_ids.iter().map(|id| canonical(id)).collect();
+        let mut existing_pours: HashSet<Id> = snapshot.pour_ids.iter().map(|id| canonical(id)).collect();
         let days_with_pours: HashSet<i64> = snapshot.days_with_pours.iter().copied().collect();
 
         // Backup drinks match existing ones by id, or by name and type (a fresh install's generics), so restoring onto
         // a new device does not duplicate every drink.
-        let mut drink_ids: std::collections::HashMap<Id, Id> = std::collections::HashMap::new();
+        let mut drink_ids: HashMap<Id, Id> = HashMap::new();
         for record in self.doc.drinks.iter().flatten() {
-            let existing = planner.by_id(&record.id).or_else(|| planner.find(&record.name, &record.category.0)).map(|d| d.id.clone());
-            match existing {
-                Some(id) => {
-                    drink_ids.insert(record.id.clone(), id);
-                }
-                None => {
-                    planner.create(
-                        KnownDrink { id: record.id.clone(), name: record.name.clone(), category: record.category.0.clone(), abv: record.abv },
-                        &record.vessel.0,
-                        record.volume_ml,
-                        record.is_generic,
-                        0,
-                    );
-                    // The record's own price, strength and visibility, not the defaults `create` writes.
-                    if let Some(RestoreOp::InsertDrink { price, is_hidden, .. }) = planner.ops.last_mut() {
-                        *price = record.price;
-                        *is_hidden = record.is_hidden;
-                    }
-                    drink_ids.insert(record.id.clone(), record.id.clone());
-                }
-            }
+            let existing = if planner.drinks.contains_key(&record.id) { Some(record.id.clone()) } else { planner.named(&record.name, record.category) };
+            let id = existing.unwrap_or_else(|| {
+                planner.create(NewDrink {
+                    id: record.id.clone(),
+                    name: &record.name,
+                    category: record.category,
+                    abv: record.abv,
+                    vessel: record.vessel,
+                    volume_ml: record.volume_ml,
+                    price: record.price,
+                    is_generic: record.is_generic,
+                    is_hidden: record.is_hidden,
+                    sort_order: 0,
+                })
+            });
+            drink_ids.insert(record.id.clone(), id);
         }
         for record in self.doc.favourites.iter().flatten() {
             let Some(drink_id) = drink_ids.get(&record.drink_id) else { continue };
-            if pinned.insert((drink_id.0.clone(), record.vessel.0.clone(), record.volume_ml.to_bits())) {
+            if pinned.insert((drink_id.clone(), record.vessel, record.volume_ml.to_bits())) {
                 planner.ops.push(RestoreOp::InsertFavourite {
                     drink_id: drink_id.0.clone(),
-                    vessel: record.vessel.0.clone(),
+                    vessel: record.vessel,
                     volume_ml: record.volume_ml,
                     price: record.price,
                     sort_order: record.order,
@@ -746,7 +759,7 @@ impl BackupDoc {
         }
 
         let mut added = 0;
-        let mut touched: std::collections::BTreeSet<i64> = std::collections::BTreeSet::new();
+        let mut touched: BTreeSet<i64> = BTreeSet::new();
         for record in &self.doc.days {
             let Some(day) = day_parse(record.date.clone()) else { continue };
             if days_with_pours.contains(&day) {
@@ -764,15 +777,15 @@ impl BackupDoc {
             }
             let pours = record.pours.as_deref().unwrap_or_default();
             if !future && pours.is_empty() && let Some(units) = record.units.filter(|units| *units > 0.0) {
-                let drink = planner.units_drink();
+                let drink_id = planner.units_drink().0;
                 planner.ops.push(RestoreOp::InsertPour {
                     id: Id::random().0,
-                    drink_id: drink.0,
+                    drink_id,
                     time: None,
                     evening_offset_minutes: 0,
                     day,
-                    vessel: "shot".into(),
-                    volume_ml: units * 10.0,
+                    vessel: VesselKind::Shot,
+                    volume_ml: units * units_unit_ml(),
                     price: record.cost.unwrap_or(0.0),
                     kcal_override: record.kcal,
                     abv_override: None,
@@ -781,48 +794,38 @@ impl BackupDoc {
                 touched.insert(day);
             }
             for (index, pour) in pours.iter().enumerate() {
-                if let Some(id) = &pour.id && !existing_pours.insert(id.0.clone()) {
+                if let Some(id) = &pour.id && !existing_pours.insert(id.clone()) {
                     continue;
                 }
-                let id = pour.id.clone().unwrap_or_else(Id::random);
-                let offset = index as i64 * 30;
-                if let Some(volume) = pour.volume_ml {
-                    let category = pour.category.as_ref().map_or("beer", |c| c.0.as_str());
-                    let vessel = pour.vessel.as_ref().map_or_else(|| default_vessel(category).to_string(), |v| v.0.clone());
-                    let mapped = pour.drink_id.as_ref().and_then(|id| drink_ids.get(id)).and_then(|id| planner.by_id(id)).map(|d| d.id.clone());
-                    let drink_id = mapped.unwrap_or_else(|| {
-                        planner.find_or_create(&pour.name, category, pour.abv.unwrap_or_else(|| default_abv(category)), &vessel, volume)
-                    });
-                    let drink = planner.by_id(&drink_id).expect("the drink was just found or made");
-                    let kcal = if drink.category == "units" { pour.kcal } else { None };
-                    let abv = pour.abv.filter(|abv| *abv != drink.abv);
-                    planner.ops.push(RestoreOp::InsertPour {
-                        id: id.0,
-                        drink_id: drink_id.0,
-                        time: pour.time,
-                        evening_offset_minutes: offset,
-                        day,
-                        vessel,
-                        volume_ml: volume,
-                        price: pour.price.unwrap_or(0.0),
-                        kcal_override: kcal,
-                        abv_override: abv,
-                    });
-                } else {
-                    let drink = planner.units_drink();
-                    planner.ops.push(RestoreOp::InsertPour {
-                        id: id.0,
-                        drink_id: drink.0,
-                        time: pour.time,
-                        evening_offset_minutes: offset,
-                        day,
-                        vessel: "shot".into(),
-                        volume_ml: pour.units.unwrap_or(0.0) * 10.0,
-                        price: pour.price.unwrap_or(0.0),
-                        kcal_override: pour.kcal,
-                        abv_override: None,
-                    });
-                }
+                // A pour with a volume is a drink; one without is a bare count of units.
+                let (drink_id, vessel, volume_ml, kcal_override, abv_override) = match pour.volume_ml {
+                    Some(volume) => {
+                        let category = pour.category.unwrap_or(CategoryKind::Beer);
+                        let vessel = pour.vessel.unwrap_or_else(|| category.default_vessel());
+                        let mapped = pour.drink_id.as_ref().and_then(|id| drink_ids.get(id)).cloned();
+                        let drink_id = mapped.unwrap_or_else(|| {
+                            planner.find_or_create(&pour.name, category, pour.abv.unwrap_or_else(|| category.default_abv()), vessel, volume)
+                        });
+                        let drink = &planner.drinks[&drink_id];
+                        // Only a count of units carries its own calories; any other drink's follow from its strength.
+                        let kcal = if drink.category == CategoryKind::Units { pour.kcal } else { None };
+                        let abv = pour.abv.filter(|abv| *abv != drink.abv);
+                        (drink_id, vessel, volume, kcal, abv)
+                    }
+                    None => (planner.units_drink(), VesselKind::Shot, pour.units.unwrap_or(0.0) * units_unit_ml(), pour.kcal, None),
+                };
+                planner.ops.push(RestoreOp::InsertPour {
+                    id: pour.id.clone().unwrap_or_else(Id::random).0,
+                    drink_id: drink_id.0,
+                    time: pour.time,
+                    evening_offset_minutes: index as i64 * 30,
+                    day,
+                    vessel,
+                    volume_ml,
+                    price: pour.price.unwrap_or(0.0),
+                    kcal_override,
+                    abv_override,
+                });
                 added += 1;
                 touched.insert(day);
             }
@@ -853,11 +856,11 @@ mod tests {
         for op in &plan.ops {
             match op {
                 RestoreOp::InsertDrink { id, name, category, abv, .. } => {
-                    snapshot.drinks.push(SnapshotDrink { id: id.clone(), name: name.clone(), category: category.clone(), abv: *abv })
+                    snapshot.drinks.push(SnapshotDrink { id: id.clone(), name: name.clone(), category: *category, abv: *abv })
                 }
                 RestoreOp::InsertFavourite { drink_id, vessel, volume_ml, .. } => snapshot.favourites.push(SnapshotFavourite {
                     drink_id: drink_id.clone(),
-                    vessel: vessel.clone(),
+                    vessel: *vessel,
                     volume_ml: *volume_ml,
                 }),
                 RestoreOp::InsertPour { id, day, .. } => {
@@ -962,7 +965,7 @@ mod tests {
         assert_eq!(glass.0, Some(13.6), "logged at its own strength");
         assert_eq!(glass.1, iso::parse("2026-10-11T21:40:00Z"));
         // The Units pour carries its calories, since its drink is a count of units.
-        assert!(plan.ops.iter().any(|op| matches!(op, RestoreOp::InsertDrink { category, .. } if category == "units")));
+        assert!(plan.ops.iter().any(|op| matches!(op, RestoreOp::InsertDrink { category, .. } if *category == CategoryKind::Units)));
         assert!(plan.ops.iter().any(|op| matches!(op, RestoreOp::InsertPour { kcal_override: Some(k), .. } if *k == 1e21)));
     }
 
@@ -982,7 +985,7 @@ mod tests {
     fn a_fresh_installs_generics_are_matched_by_name_and_kind() {
         let doc = parse(IOS);
         let mut state = snapshot(day_number(2026, 10, 12));
-        state.drinks.push(SnapshotDrink { id: "AAAAAAAA-0000-4000-8000-000000000001".into(), name: "Beer".into(), category: "beer".into(), abv: 4.0 });
+        state.drinks.push(SnapshotDrink { id: "AAAAAAAA-0000-4000-8000-000000000001".into(), name: "Beer".into(), category: CategoryKind::Beer, abv: 4.0 });
         let plan = doc.plan(state);
         assert!(plan.ops.iter().all(|op| !matches!(op, RestoreOp::InsertDrink { name, .. } if name == "Beer")), "the existing Beer is reused");
         let pour = plan.ops.iter().find_map(|op| match op {
@@ -1011,11 +1014,11 @@ mod tests {
         assert_eq!(plan.added, 1);
         let pour = plan.ops.iter().find_map(|op| match op {
             RestoreOp::InsertPour { day, volume_ml, price, kcal_override, vessel, time, evening_offset_minutes, .. } => {
-                Some((*day, *volume_ml, *price, *kcal_override, vessel.clone(), *time, *evening_offset_minutes))
+                Some((*day, *volume_ml, *price, *kcal_override, *vessel, *time, *evening_offset_minutes))
             }
             _ => None,
         });
-        assert_eq!(pour, Some((day_number(2026, 9, 12), 306.0, 42.0, Some(2696.0), "shot".into(), None, 0)));
+        assert_eq!(pour, Some((day_number(2026, 9, 12), 306.0, 42.0, Some(2696.0), VesselKind::Shot, None, 0)));
         assert!(plan.ops.iter().any(|op| matches!(op, RestoreOp::MarkAlcoholFree { day } if *day == day_number(2026, 9, 11))));
     }
 
@@ -1023,12 +1026,12 @@ mod tests {
     fn drinks_without_a_time_are_spaced_half_an_hour_apart() {
         let plan = parse(WITH_DRINKS).plan(snapshot(day_number(2026, 9, 20)));
         assert_eq!(plan.added, 2);
-        let pours: Vec<(Option<i64>, i64, String, f64, Option<f64>)> = plan
+        let pours: Vec<_> = plan
             .ops
             .iter()
             .filter_map(|op| match op {
                 RestoreOp::InsertPour { time, evening_offset_minutes, vessel, volume_ml, abv_override, .. } => {
-                    Some((*time, *evening_offset_minutes, vessel.clone(), *volume_ml, *abv_override))
+                    Some((*time, *evening_offset_minutes, *vessel, *volume_ml, *abv_override))
                 }
                 _ => None,
             })
@@ -1036,7 +1039,7 @@ mod tests {
         assert_eq!(pours[0].0, iso::parse("2026-09-13T19:05:00+01:00"));
         assert_eq!((pours[1].0, pours[1].1), (None, 30));
         // The pour with no vessel takes its kind's, and each is a drink of its own, made as it is met.
-        assert_eq!(pours[1].2, "bottle");
+        assert_eq!(pours[1].2, VesselKind::Bottle);
         assert_eq!(plan.ops.iter().filter(|op| matches!(op, RestoreOp::InsertDrink { .. })).count(), 2);
     }
 
@@ -1101,8 +1104,8 @@ mod tests {
                 time: iso::parse("2026-10-11T19:05:42Z").unwrap(),
                 day: today - 1,
                 name: "Beer".into(),
-                category: "beer".into(),
-                vessel: "pint".into(),
+                category: CategoryKind::Beer,
+                vessel: VesselKind::Pint,
                 volume_ml: 568.0,
                 abv: 4.0,
                 units: pint,
@@ -1113,9 +1116,9 @@ mod tests {
             drinks: vec![ExportDrink {
                 id: "5E2A7C91-0D34-4B6F-8E12-A9C4F07B3D65".into(),
                 name: "Beer".into(),
-                category: "beer".into(),
+                category: CategoryKind::Beer,
                 abv: 4.0,
-                vessel: "pint".into(),
+                vessel: VesselKind::Pint,
                 volume_ml: 568.0,
                 price: 6.4,
                 is_generic: true,

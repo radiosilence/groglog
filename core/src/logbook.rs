@@ -2,9 +2,10 @@
 //! how everything is rebuilt, and which prices a reset changes. The apps keep the transactions and the storage; they
 //! read what the rules need, ask here what to write, and write it.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::catalog::catalog_price;
+use crate::categories::{CategoryKind, VesselKind};
 use crate::ledger::DayRow;
 
 /// One drink's contribution to its day.
@@ -42,8 +43,8 @@ pub struct RebuildPlan {
 pub struct DrinkPriceIn {
     pub id: String,
     pub name: String,
-    pub category: String,
-    pub vessel: String,
+    pub category: CategoryKind,
+    pub vessel: VesselKind,
     pub volume_ml: f64,
     pub price: f64,
 }
@@ -52,7 +53,7 @@ pub struct DrinkPriceIn {
 pub struct FavouritePriceIn {
     pub id: String,
     pub drink_id: String,
-    pub vessel: String,
+    pub vessel: VesselKind,
     pub volume_ml: f64,
     pub price: f64,
 }
@@ -61,6 +62,12 @@ pub struct FavouritePriceIn {
 pub struct PriceChange {
     pub id: String,
     pub price: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct PriceResets {
+    pub drinks: Vec<PriceChange>,
+    pub favourites: Vec<PriceChange>,
 }
 
 /// A day's row with nothing on it.
@@ -124,7 +131,7 @@ pub fn logbook_rebuild(existing: Vec<DayRow>, pours: Vec<DayPour>) -> RebuildPla
         set_totals(&mut row, units, kcal, cost, count);
         if is_empty(&row) { plan.deletes.push(row.number) } else { plan.updates.push(row) }
     }
-    let known: std::collections::HashSet<i64> = existing.iter().map(|row| row.number).collect();
+    let known: HashSet<i64> = existing.iter().map(|row| row.number).collect();
     for (number, (units, kcal, cost, count)) in totals {
         if !known.contains(&number) {
             let mut row = blank(number);
@@ -143,31 +150,31 @@ pub fn logbook_abv_override(drink_abv: f64, abv: Option<f64>) -> Option<f64> {
 
 /// Whether editing a drink changes what it was logged as, so every day it appears on has to be recomputed.
 #[uniffi::export]
-pub fn logbook_drink_edit_retotals(before_abv: f64, before_category: String, after_abv: f64, after_category: String) -> bool {
+pub fn logbook_drink_edit_retotals(before_abv: f64, before_category: CategoryKind, after_abv: f64, after_category: CategoryKind) -> bool {
     before_abv != after_abv || before_category != after_category
 }
 
 /// The catalogue price for every drink and Log tile whose price has drifted. Drinks the catalogue does not price are
 /// left alone, and logged entries keep the price recorded at the time.
 #[uniffi::export]
-pub fn logbook_price_resets(drinks: Vec<DrinkPriceIn>, favourites: Vec<FavouritePriceIn>, currency: String) -> Vec<PriceChange> {
-    let mut changes = Vec::new();
-    for drink in &drinks {
-        if let Some(price) = catalog_price(drink.name.clone(), drink.category.clone(), drink.vessel.clone(), drink.volume_ml, currency.clone())
-            && price != drink.price
-        {
-            changes.push(PriceChange { id: drink.id.clone(), price });
-        }
+pub fn logbook_price_resets(drinks: Vec<DrinkPriceIn>, favourites: Vec<FavouritePriceIn>, currency: String) -> PriceResets {
+    let reset = |drink: &DrinkPriceIn, vessel: VesselKind, volume_ml: f64, price: f64| {
+        catalog_price(drink.name.clone(), drink.category, vessel, volume_ml, currency.clone()).filter(|listed| *listed != price)
+    };
+    let by_id: HashMap<&str, &DrinkPriceIn> = drinks.iter().map(|drink| (drink.id.as_str(), drink)).collect();
+    PriceResets {
+        drinks: drinks
+            .iter()
+            .filter_map(|drink| reset(drink, drink.vessel, drink.volume_ml, drink.price).map(|price| PriceChange { id: drink.id.clone(), price }))
+            .collect(),
+        favourites: favourites
+            .iter()
+            .filter_map(|favourite| {
+                let drink = by_id.get(favourite.drink_id.as_str())?;
+                reset(drink, favourite.vessel, favourite.volume_ml, favourite.price).map(|price| PriceChange { id: favourite.id.clone(), price })
+            })
+            .collect(),
     }
-    for favourite in &favourites {
-        let Some(drink) = drinks.iter().find(|drink| drink.id == favourite.drink_id) else { continue };
-        if let Some(price) = catalog_price(drink.name.clone(), drink.category.clone(), favourite.vessel.clone(), favourite.volume_ml, currency.clone())
-            && price != favourite.price
-        {
-            changes.push(PriceChange { id: favourite.id.clone(), price });
-        }
-    }
-    changes
 }
 
 #[cfg(test)]
@@ -238,24 +245,22 @@ mod tests {
 
     #[test]
     fn editing_a_drinks_strength_or_kind_retotals_its_days() {
-        assert!(logbook_drink_edit_retotals(4.0, "beer".into(), 4.5, "beer".into()));
-        assert!(logbook_drink_edit_retotals(4.0, "beer".into(), 4.0, "stout".into()));
-        assert!(!logbook_drink_edit_retotals(4.0, "beer".into(), 4.0, "beer".into()));
+        assert!(logbook_drink_edit_retotals(4.0, CategoryKind::Beer, 4.5, CategoryKind::Beer));
+        assert!(logbook_drink_edit_retotals(4.0, CategoryKind::Beer, 4.0, CategoryKind::Stout));
+        assert!(!logbook_drink_edit_retotals(4.0, CategoryKind::Beer, 4.0, CategoryKind::Beer));
     }
 
     #[test]
     fn a_price_reset_changes_only_what_drifted_and_only_what_the_catalogue_prices() {
-        let listed = catalog_price("Beer".into(), "beer".into(), "pint".into(), 568.0, "GBP".into()).expect("the generic pint is priced");
-        let drink = |id: &str, name: &str, price: f64| DrinkPriceIn { id: id.into(), name: name.into(), category: "beer".into(), vessel: "pint".into(), volume_ml: 568.0, price };
-        let favourite = |id: &str, drink_id: &str, price: f64| FavouritePriceIn { id: id.into(), drink_id: drink_id.into(), vessel: "pint".into(), volume_ml: 568.0, price };
+        let listed = catalog_price("Beer".into(), CategoryKind::Beer, VesselKind::Pint, 568.0, "GBP".into()).expect("the generic pint is priced");
+        let drink = |id: &str, name: &str, price: f64| DrinkPriceIn { id: id.into(), name: name.into(), category: CategoryKind::Beer, vessel: VesselKind::Pint, volume_ml: 568.0, price };
+        let favourite = |id: &str, drink_id: &str, price: f64| FavouritePriceIn { id: id.into(), drink_id: drink_id.into(), vessel: VesselKind::Pint, volume_ml: 568.0, price };
         let changes = logbook_price_resets(
             vec![drink("drifted", "Beer", 0.0), drink("current", "Beer", listed), drink("unknown", "Not In The Catalogue", 1.0)],
             vec![favourite("tile-drifted", "drifted", 0.0), favourite("tile-current", "current", listed), favourite("orphan", "missing", 0.0)],
             "GBP".into(),
         );
-        assert_eq!(
-            changes,
-            vec![PriceChange { id: "drifted".into(), price: listed }, PriceChange { id: "tile-drifted".into(), price: listed }]
-        );
+        assert_eq!(changes.drinks, vec![PriceChange { id: "drifted".into(), price: listed }]);
+        assert_eq!(changes.favourites, vec![PriceChange { id: "tile-drifted".into(), price: listed }]);
     }
 }

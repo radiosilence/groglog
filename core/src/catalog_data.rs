@@ -1,6 +1,10 @@
 // The catalogue's table. Edit it here; it is the one copy both apps read.
 
-use crate::catalog::{Category::*, Entry, Size, Vessel::*, e};
+// A pint at £3.14 is a price, not π.
+#![allow(clippy::approx_constant)]
+
+use crate::catalog::{Entry, Size, e};
+use crate::categories::{CategoryKind::*, VesselKind::*};
 
 const PINT: Size = Size::new(Pint, 568.0);
 const HALF: Size = Size::new(Half, 284.0);

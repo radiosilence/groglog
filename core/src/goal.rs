@@ -263,30 +263,46 @@ pub fn goal_pace_on(goal: GoalSpec, day: i64) -> i64 {
     goal_pace_drinking(taper(&goal, day).map_or(goal.baseline_weekly / 7.0, |(budget, _)| budget) * 7.0)
 }
 
+/// How far ahead a projection looks before deciding a level is never reached.
+const HORIZON_DAYS: i64 = 100 * 365;
+
 /// When the taper, continued from `today`, reaches the target and the level at which drinking can stop (`STOP_FROM`).
+/// The days are found on the budget itself, so a stepped taper is projected at the pace of each rung it passes through.
 #[uniffi::export]
 pub fn goal_projection(goal: GoalSpec, today: i64) -> ProjectionRow {
     let none = ProjectionRow { target: None, stoppable: None };
     let Some((budget_now, _)) = taper(&goal, today) else { return none };
-    let linear = goal.taper == TaperKind::Linear;
-    if !(if linear { goal_daily_unit_cut(goal) > 0.0 } else { goal_daily_cut(goal) > 0.0 }) {
+    let falls = match goal.taper {
+        TaperKind::Linear => goal_daily_unit_cut(goal) > 0.0,
+        TaperKind::Proportional => goal_daily_cut(goal) > 0.0,
+        TaperKind::Dynamic => true,
+    };
+    if !falls {
         return none;
     }
+    let budget = |day: i64| taper(&goal, day).map_or(budget_now, |(budget, _)| budget);
     let reaching = |level: f64| -> Option<i64> {
-        // A proportional taper crosses a level on a day given by a logarithm and never reaches zero. A linear taper
-        // falls at a fixed rate and can reach zero, so only it answers for a level of zero.
-        if !(if linear { level >= 0.0 } else { level > 0.0 }) {
+        // A linear taper falls at a fixed rate and can reach zero; a share taken off never does.
+        if level < 0.0 || (level == 0.0 && goal.taper != TaperKind::Linear) {
             return None;
         }
         if budget_now <= level {
             return Some(today);
         }
-        let days = if linear {
-            (budget_now - level) / goal_daily_unit_cut(goal)
-        } else {
-            (level / budget_now).ln() / (1.0 - goal_daily_cut(goal)).ln()
-        };
-        Some(today + days.ceil() as i64)
+        // The budget only falls, so the crossing is bracketed by doubling the step and then found by halving it.
+        let mut step = 1;
+        while budget(today + step) > level {
+            step *= 2;
+            if step > HORIZON_DAYS {
+                return None;
+            }
+        }
+        let (mut above, mut at) = (today + step / 2, today + step);
+        while at - above > 1 {
+            let middle = above + (at - above) / 2;
+            if budget(middle) > level { above = middle } else { at = middle }
+        }
+        Some(at)
     };
     ProjectionRow { target: reaching(goal.target_weekly / 7.0), stoppable: reaching(STOP_FROM / 7.0) }
 }
@@ -554,9 +570,27 @@ pub(crate) mod tests {
         assert!(!goal_sharpens_while_it_matters(GoalSpec { taper: TaperKind::Proportional, ..brisk }, 40.0 * 7.0));
     }
 
+    /// A stepped taper quickens as it falls, so its dates come from the budget it actually follows, not from the pace
+    /// it opened at.
     #[test]
-    fn a_stepped_budget_ignores_what_is_drunk_because_it_never_reads_the_log() {
-        let g = GoalSpec { is_enabled: true, taper: TaperKind::Dynamic, baseline_weekly: 30.0 * 7.0, start_day: START(), ..goal() };
-        assert_eq!(goal_daily_budget(g, START() + 10), goal_daily_budget(g, START() + 10));
+    fn a_stepped_taper_is_projected_to_the_day_its_budget_crosses() {
+        let g = GoalSpec { is_enabled: true, taper: TaperKind::Dynamic, baseline_weekly: 40.0 * 7.0, target_weekly: 14.0, start_day: START(), ..goal() };
+        let projection = goal_projection(g, START());
+        for (day, level) in [(projection.target.unwrap(), 2.0), (projection.stoppable.unwrap(), STOP_FROM / 7.0)] {
+            assert!(taper(&g, day - 1).unwrap().0 > level && taper(&g, day).unwrap().0 <= level, "{level} a day");
+        }
+        // Projected at the opening rung's pace all the way down, the stop date would be over a fortnight later.
+        let opening_pace = (STOP_FROM / 7.0 / 40.0).ln() / (1.0 - goal_rate_for_pace(4)).ln();
+        assert!(((projection.stoppable.unwrap() - START()) as f64) < opening_pace - 14.0);
+    }
+
+    #[test]
+    fn closed_form_tapers_project_where_their_formulas_say() {
+        let today = day_number(2026, 9, 20);
+        let linear = GoalSpec { start_day: today, ..linear() };
+        assert_eq!(goal_projection(linear, today).target, Some(today + 70), "ten a day, a seventh of a unit off each day");
+        let proportional = GoalSpec { start_day: today, ..weekly() };
+        let days = (2.0f64 / 10.0).ln() / (1.0 - goal_daily_cut(proportional)).ln();
+        assert_eq!(goal_projection(proportional, today).target, Some(today + days.ceil() as i64));
     }
 }

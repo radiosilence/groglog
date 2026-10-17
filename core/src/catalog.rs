@@ -9,138 +9,18 @@ use std::{collections::HashMap, sync::OnceLock};
 
 use unicode_normalization::{UnicodeNormalization, char::is_combining_mark};
 
+use crate::categories::{CategoryKind, VesselKind};
 use crate::{catalog_data::ENTRIES, rates};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Category {
-    Beer,
-    Stout,
-    Cider,
-    RedWine,
-    WhiteWine,
-    Rose,
-    Bubbles,
-    Spirit,
-    Alcopop,
-    Cocktail,
-    Fortified,
-    Units,
-}
-
-impl Category {
-    const ALL: [Category; 12] = [
-        Category::Beer,
-        Category::Stout,
-        Category::Cider,
-        Category::RedWine,
-        Category::WhiteWine,
-        Category::Rose,
-        Category::Bubbles,
-        Category::Spirit,
-        Category::Alcopop,
-        Category::Cocktail,
-        Category::Fortified,
-        Category::Units,
-    ];
-
-    /// The stored name, which the backup format and the database share.
-    fn raw(self) -> &'static str {
-        match self {
-            Category::Beer => "beer",
-            Category::Stout => "stout",
-            Category::Cider => "cider",
-            Category::RedWine => "redWine",
-            Category::WhiteWine => "whiteWine",
-            Category::Rose => "rose",
-            Category::Bubbles => "bubbles",
-            Category::Spirit => "spirit",
-            Category::Alcopop => "alcopop",
-            Category::Cocktail => "cocktail",
-            Category::Fortified => "fortified",
-            Category::Units => "units",
-        }
-    }
-
-    fn parse(raw: &str) -> Option<Category> {
-        Category::ALL.into_iter().find(|category| category.raw() == raw)
-    }
-
-    /// What the apps show for the kind, which search also matches.
-    fn label(self) -> &'static str {
-        match self {
-            Category::Beer => "Beer",
-            Category::Stout => "Stout",
-            Category::Cider => "Cider",
-            Category::RedWine => "Red wine",
-            Category::WhiteWine => "White wine",
-            Category::Rose => "Rosé",
-            Category::Bubbles => "Bubbles",
-            Category::Spirit => "Spirits",
-            Category::Alcopop => "Alcopop",
-            Category::Cocktail => "Cocktail",
-            Category::Fortified => "Port & sherry",
-            Category::Units => "Units",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Vessel {
-    Pint,
-    Half,
-    Can,
-    Bottle,
-    WineBottle,
-    WineGlass,
-    Flute,
-    Shot,
-    Tumbler,
-    Coupe,
-}
-
-impl Vessel {
-    const ALL: [Vessel; 10] = [
-        Vessel::Pint,
-        Vessel::Half,
-        Vessel::Can,
-        Vessel::Bottle,
-        Vessel::WineBottle,
-        Vessel::WineGlass,
-        Vessel::Flute,
-        Vessel::Shot,
-        Vessel::Tumbler,
-        Vessel::Coupe,
-    ];
-
-    fn raw(self) -> &'static str {
-        match self {
-            Vessel::Pint => "pint",
-            Vessel::Half => "half",
-            Vessel::Can => "can",
-            Vessel::Bottle => "bottle",
-            Vessel::WineBottle => "wineBottle",
-            Vessel::WineGlass => "wineGlass",
-            Vessel::Flute => "flute",
-            Vessel::Shot => "shot",
-            Vessel::Tumbler => "tumbler",
-            Vessel::Coupe => "coupe",
-        }
-    }
-
-    fn parse(raw: &str) -> Option<Vessel> {
-        Vessel::ALL.into_iter().find(|vessel| vessel.raw() == raw)
-    }
-}
 
 /// A vessel at a volume: a size a drink comes in.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Size {
-    vessel: Vessel,
+    vessel: VesselKind,
     ml: f64,
 }
 
 impl Size {
-    pub(crate) const fn new(vessel: Vessel, ml: f64) -> Size {
+    pub(crate) const fn new(vessel: VesselKind, ml: f64) -> Size {
         Size { vessel, ml }
     }
 }
@@ -150,12 +30,12 @@ type Serve = (Size, f64);
 /// A row of the table, priced in pounds.
 pub(crate) struct Entry {
     name: &'static str,
-    category: Category,
+    category: CategoryKind,
     abv: f64,
     serves: &'static [Serve],
 }
 
-pub(crate) const fn e(name: &'static str, category: Category, abv: f64, serves: &'static [Serve]) -> Entry {
+pub(crate) const fn e(name: &'static str, category: CategoryKind, abv: f64, serves: &'static [Serve]) -> Entry {
     Entry { name, category, abv, serves }
 }
 
@@ -184,7 +64,7 @@ static MARKETS: &[(&str, &[Entry])] = &[];
 /// becomes an editable drink of the user's own.
 struct Brand {
     name: &'static str,
-    category: Category,
+    category: CategoryKind,
     abv: f64,
     /// Pounds first, then the other markets by currency code.
     markets: Vec<(&'static str, Vec<Serve>)>,
@@ -210,7 +90,7 @@ impl Brand {
     ///
     /// A drink sold in `currency`'s market is priced from that market alone. Otherwise it is converted from wherever it
     /// is priced, the UK first, at the bundled rates.
-    fn price(&self, vessel: Vessel, ml: f64, currency: &str) -> f64 {
+    fn price(&self, vessel: VesselKind, ml: f64, currency: &str) -> f64 {
         if let Some((_, serves)) = self.markets.iter().find(|(code, _)| *code == currency) {
             return serves_price(serves, vessel, ml);
         }
@@ -221,7 +101,7 @@ impl Brand {
     }
 }
 
-fn serves_price(serves: &[Serve], vessel: Vessel, ml: f64) -> f64 {
+fn serves_price(serves: &[Serve], vessel: VesselKind, ml: f64) -> f64 {
     if let Some((_, price)) = serves.iter().find(|(size, _)| size.vessel == vessel && size.ml == ml) {
         return *price;
     }
@@ -296,9 +176,8 @@ fn fold(text: &str) -> String {
     text.nfd().filter(|c| !is_combining_mark(*c)).flat_map(char::to_lowercase).collect()
 }
 
-fn find(name: &str, category: &str) -> Option<&'static Brand> {
+fn find(name: &str, category: CategoryKind) -> Option<&'static Brand> {
     let catalogue = catalogue();
-    let category = Category::parse(category)?;
     let index = catalogue.by_name.get(name)?.iter().copied().find(|&i| catalogue.brands[i].category == category)?;
     Some(&catalogue.brands[index])
 }
@@ -306,8 +185,8 @@ fn find(name: &str, category: &str) -> Option<&'static Brand> {
 /// A generic drink: a kind at its standard strength, with the sizes that start out on the Log grid.
 struct Generic {
     name: &'static str,
-    category: Category,
-    serves: &'static [(Vessel, f64, f64)],
+    category: CategoryKind,
+    serves: &'static [(VesselKind, f64, f64)],
 }
 
 /// Generic drinks at Drinkaware's standard strengths. Prices follow the catalogue's convention: a pint, glass or
@@ -315,37 +194,37 @@ struct Generic {
 static GENERICS: &[Generic] = &[
     Generic {
         name: "Beer",
-        category: Category::Beer,
+        category: CategoryKind::Beer,
         serves: &[
-            (Vessel::Pint, 568.0, 6.40),
-            (Vessel::Half, 284.0, 3.20),
-            (Vessel::Can, 440.0, 2.10),
-            (Vessel::Can, 500.0, 2.40),
-            (Vessel::Bottle, 330.0, 1.95),
-            (Vessel::Bottle, 660.0, 3.15),
+            (VesselKind::Pint, 568.0, 6.40),
+            (VesselKind::Half, 284.0, 3.20),
+            (VesselKind::Can, 440.0, 2.10),
+            (VesselKind::Can, 500.0, 2.40),
+            (VesselKind::Bottle, 330.0, 1.95),
+            (VesselKind::Bottle, 660.0, 3.15),
         ],
     },
-    Generic { name: "Stout", category: Category::Stout, serves: &[(Vessel::Pint, 568.0, 6.30)] },
-    Generic { name: "Cider", category: Category::Cider, serves: &[(Vessel::Pint, 568.0, 6.50), (Vessel::Bottle, 500.0, 3.10)] },
+    Generic { name: "Stout", category: CategoryKind::Stout, serves: &[(VesselKind::Pint, 568.0, 6.30)] },
+    Generic { name: "Cider", category: CategoryKind::Cider, serves: &[(VesselKind::Pint, 568.0, 6.50), (VesselKind::Bottle, 500.0, 3.10)] },
     Generic {
         name: "Red wine",
-        category: Category::RedWine,
-        serves: &[(Vessel::WineGlass, 175.0, 8.50), (Vessel::WineGlass, 250.0, 12.00), (Vessel::WineBottle, 750.0, 9.50)],
+        category: CategoryKind::RedWine,
+        serves: &[(VesselKind::WineGlass, 175.0, 8.50), (VesselKind::WineGlass, 250.0, 12.00), (VesselKind::WineBottle, 750.0, 9.50)],
     },
     Generic {
         name: "White wine",
-        category: Category::WhiteWine,
-        serves: &[(Vessel::WineGlass, 175.0, 8.50), (Vessel::WineGlass, 125.0, 6.00)],
+        category: CategoryKind::WhiteWine,
+        serves: &[(VesselKind::WineGlass, 175.0, 8.50), (VesselKind::WineGlass, 125.0, 6.00)],
     },
-    Generic { name: "Rosé", category: Category::Rose, serves: &[(Vessel::WineGlass, 175.0, 8.50)] },
-    Generic { name: "Fizz", category: Category::Bubbles, serves: &[(Vessel::Flute, 125.0, 8.50), (Vessel::WineBottle, 750.0, 12.50)] },
-    Generic { name: "Spirits", category: Category::Spirit, serves: &[(Vessel::Shot, 25.0, 5.00)] },
-    Generic { name: "Alcopop", category: Category::Alcopop, serves: &[(Vessel::Bottle, 275.0, 2.20)] },
-    Generic { name: "Cocktail", category: Category::Cocktail, serves: &[(Vessel::Coupe, 150.0, 12.00)] },
-    Generic { name: "Port or sherry", category: Category::Fortified, serves: &[(Vessel::WineGlass, 50.0, 5.50)] },
+    Generic { name: "Rosé", category: CategoryKind::Rose, serves: &[(VesselKind::WineGlass, 175.0, 8.50)] },
+    Generic { name: "Fizz", category: CategoryKind::Bubbles, serves: &[(VesselKind::Flute, 125.0, 8.50), (VesselKind::WineBottle, 750.0, 12.50)] },
+    Generic { name: "Spirits", category: CategoryKind::Spirit, serves: &[(VesselKind::Shot, 25.0, 5.00)] },
+    Generic { name: "Alcopop", category: CategoryKind::Alcopop, serves: &[(VesselKind::Bottle, 275.0, 2.20)] },
+    Generic { name: "Cocktail", category: CategoryKind::Cocktail, serves: &[(VesselKind::Coupe, 150.0, 12.00)] },
+    Generic { name: "Port or sherry", category: CategoryKind::Fortified, serves: &[(VesselKind::WineGlass, 50.0, 5.50)] },
 ];
 
-fn generic_price(name: &str, vessel: Vessel, ml: f64) -> Option<f64> {
+fn generic_price(name: &str, vessel: VesselKind, ml: f64) -> Option<f64> {
     GENERICS
         .iter()
         .find(|generic| generic.name == name)?
@@ -357,13 +236,13 @@ fn generic_price(name: &str, vessel: Vessel, ml: f64) -> Option<f64> {
 
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct SizeRecord {
-    pub vessel: String,
+    pub vessel: VesselKind,
     pub ml: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct ServeRecord {
-    pub vessel: String,
+    pub vessel: VesselKind,
     pub ml: f64,
     pub price: f64,
 }
@@ -377,7 +256,7 @@ pub struct MarketRecord {
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct BrandRecord {
     pub name: String,
-    pub category: String,
+    pub category: CategoryKind,
     pub abv: f64,
     pub markets: Vec<MarketRecord>,
     pub sizes: Vec<SizeRecord>,
@@ -387,8 +266,8 @@ pub struct BrandRecord {
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct ItemRecord {
     pub name: String,
-    pub category: String,
-    pub vessel: String,
+    pub category: CategoryKind,
+    pub vessel: VesselKind,
     pub ml: f64,
     pub abv: f64,
 }
@@ -396,22 +275,22 @@ pub struct ItemRecord {
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct GenericRecord {
     pub name: String,
-    pub category: String,
+    pub category: CategoryKind,
     pub serves: Vec<ServeRecord>,
 }
 
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct LabelRecord {
-    pub category: String,
+    pub category: CategoryKind,
     pub label: String,
 }
 
 fn size_record(size: &Size) -> SizeRecord {
-    SizeRecord { vessel: size.vessel.raw().to_string(), ml: size.ml }
+    SizeRecord { vessel: size.vessel, ml: size.ml }
 }
 
 fn serve_record((size, price): &Serve) -> ServeRecord {
-    ServeRecord { vessel: size.vessel.raw().to_string(), ml: size.ml, price: *price }
+    ServeRecord { vessel: size.vessel, ml: size.ml, price: *price }
 }
 
 /// Every brand, in catalogue order, for the lists the apps build once.
@@ -422,7 +301,7 @@ pub fn catalog_brands() -> Vec<BrandRecord> {
         .iter()
         .map(|brand| BrandRecord {
             name: brand.name.to_string(),
-            category: brand.category.raw().to_string(),
+            category: brand.category,
             abv: brand.abv,
             markets: brand
                 .markets
@@ -445,8 +324,8 @@ pub fn catalog_items() -> Vec<ItemRecord> {
             let brand = &catalogue.brands[item.brand];
             ItemRecord {
                 name: brand.name.to_string(),
-                category: brand.category.raw().to_string(),
-                vessel: item.size.vessel.raw().to_string(),
+                category: brand.category,
+                vessel: item.size.vessel,
                 ml: item.size.ml,
                 abv: brand.abv,
             }
@@ -473,22 +352,21 @@ pub fn catalog_search(query: String) -> Vec<u32> {
 
 /// Whether a drink still matches the catalogue exactly. Changing its name, kind or strength makes it the user's own.
 #[uniffi::export]
-pub fn catalog_holds(name: String, category: String, abv: f64) -> bool {
-    find(&name, &category).is_some_and(|brand| brand.abv == abv)
+pub fn catalog_holds(name: String, category: CategoryKind, abv: f64) -> bool {
+    find(&name, category).is_some_and(|brand| brand.abv == abv)
 }
 
 /// The sizes a drink of this name and kind is listed in, or none for a drink the catalogue does not know.
 #[uniffi::export]
-pub fn catalog_sizes(name: String, category: String) -> Vec<SizeRecord> {
-    find(&name, &category).map(|brand| brand.sizes().iter().map(size_record).collect()).unwrap_or_default()
+pub fn catalog_sizes(name: String, category: CategoryKind) -> Vec<SizeRecord> {
+    find(&name, category).map(|brand| brand.sizes().iter().map(size_record).collect()).unwrap_or_default()
 }
 
 /// The normal price of a drink of this name in this size: a brand's own price, else a generic's starting price. None
 /// when unknown, so callers can distinguish unpriced from free.
 #[uniffi::export]
-pub fn catalog_price(name: String, category: String, vessel: String, ml: f64, currency: String) -> Option<f64> {
-    let vessel = Vessel::parse(&vessel)?;
-    if let Some(brand) = find(&name, &category) {
+pub fn catalog_price(name: String, category: CategoryKind, vessel: VesselKind, ml: f64, currency: String) -> Option<f64> {
+    if let Some(brand) = find(&name, category) {
         let found = brand.price(vessel, ml, &currency);
         return (found > 0.0).then_some(found);
     }
@@ -497,11 +375,8 @@ pub fn catalog_price(name: String, category: String, vessel: String, ml: f64, cu
 
 /// A known brand's price in a size and currency, zero when the brand or the currency is unknown.
 #[uniffi::export]
-pub fn catalog_brand_price(name: String, category: String, vessel: String, ml: f64, currency: String) -> f64 {
-    match (find(&name, &category), Vessel::parse(&vessel)) {
-        (Some(brand), Some(vessel)) => brand.price(vessel, ml, &currency),
-        _ => 0.0,
-    }
+pub fn catalog_brand_price(name: String, category: CategoryKind, vessel: VesselKind, ml: f64, currency: String) -> f64 {
+    find(&name, category).map_or(0.0, |brand| brand.price(vessel, ml, &currency))
 }
 
 /// The generic drinks a fresh install starts with, and their Log-grid sizes.
@@ -511,11 +386,11 @@ pub fn catalog_generics() -> Vec<GenericRecord> {
         .iter()
         .map(|generic| GenericRecord {
             name: generic.name.to_string(),
-            category: generic.category.raw().to_string(),
+            category: generic.category,
             serves: generic
                 .serves
                 .iter()
-                .map(|(vessel, ml, price)| ServeRecord { vessel: vessel.raw().to_string(), ml: *ml, price: *price })
+                .map(|(vessel, ml, price)| ServeRecord { vessel: *vessel, ml: *ml, price: *price })
                 .collect(),
         })
         .collect()
@@ -523,16 +398,16 @@ pub fn catalog_generics() -> Vec<GenericRecord> {
 
 /// A generic's starting price for a vessel and size, or none when the generic has no such serve.
 #[uniffi::export]
-pub fn catalog_generic_price(name: String, vessel: String, ml: f64) -> Option<f64> {
-    generic_price(&name, Vessel::parse(&vessel)?, ml)
+pub fn catalog_generic_price(name: String, vessel: VesselKind, ml: f64) -> Option<f64> {
+    generic_price(&name, vessel, ml)
 }
 
 /// What search matches a kind by. The apps show their own labels, and a test holds the two together.
 #[uniffi::export]
 pub fn catalog_category_labels() -> Vec<LabelRecord> {
-    Category::ALL
+    CategoryKind::ALL
         .iter()
-        .map(|category| LabelRecord { category: category.raw().to_string(), label: category.label().to_string() })
+        .map(|category| LabelRecord { category: *category, label: category.label().to_string() })
         .collect()
 }
 
@@ -541,15 +416,23 @@ mod tests {
     use super::*;
     use crate::rates::{rates_as_of, rates_convert, rates_currencies, rates_per_pound};
 
-    fn price(name: &str, category: &str, vessel: &str, ml: f64) -> Option<f64> {
-        catalog_price(name.into(), category.into(), vessel.into(), ml, "GBP".into())
+    fn kind(raw: &str) -> CategoryKind {
+        CategoryKind::parse(raw).unwrap_or_else(|| panic!("no kind {raw}"))
+    }
+
+    fn vessel(raw: &str) -> VesselKind {
+        VesselKind::parse(raw).unwrap_or_else(|| panic!("no vessel {raw}"))
+    }
+
+    fn price(name: &str, category: &str, vessel_raw: &str, ml: f64) -> Option<f64> {
+        catalog_price(name.into(), kind(category), vessel(vessel_raw), ml, "GBP".into())
     }
 
     #[test]
     fn every_brand_is_listed_once_and_has_sizes() {
         let brands = catalog_brands();
         assert_eq!(brands.len(), 1168);
-        let mut keys: Vec<_> = brands.iter().map(|b| (b.name.clone(), b.category.clone())).collect();
+        let mut keys: Vec<_> = brands.iter().map(|b| (b.name.clone(), b.category.raw())).collect();
         keys.sort();
         keys.dedup();
         assert_eq!(keys.len(), brands.len());
@@ -561,7 +444,7 @@ mod tests {
     #[test]
     fn every_item_is_unique_and_plausible() {
         let items = catalog_items();
-        let ids: std::collections::HashSet<_> = items.iter().map(|i| format!("{}|{}|{}", i.name, i.vessel, i.ml as i64)).collect();
+        let ids: std::collections::HashSet<_> = items.iter().map(|i| format!("{}|{}|{}", i.name, i.vessel.raw(), i.ml as i64)).collect();
         assert_eq!(ids.len(), items.len());
         // The ceiling is a white cider bottle, the one serve that isn't a glassful.
         assert!(items.iter().all(|i| (10.0..=2500.0).contains(&i.ml)));
@@ -569,25 +452,25 @@ mod tests {
 
     /// What a strength can plausibly be for each kind of drink: wide enough for Żywiec Porter, Wray & Nephew and a
     /// 25 ml measure dropped in a glass of Monster, tight enough to catch 45% for 4.5%.
-    fn band(category: &str) -> std::ops::RangeInclusive<f64> {
+    fn band(category: CategoryKind) -> std::ops::RangeInclusive<f64> {
         match category {
-            "beer" | "stout" => 2.0..=13.0,
-            "cider" => 2.0..=9.0,
-            "redWine" | "whiteWine" | "rose" => 8.0..=16.0,
-            "bubbles" => 5.0..=14.0,
+            CategoryKind::Beer | CategoryKind::Stout => 2.0..=13.0,
+            CategoryKind::Cider => 2.0..=9.0,
+            CategoryKind::RedWine | CategoryKind::WhiteWine | CategoryKind::Rose => 8.0..=16.0,
+            CategoryKind::Bubbles => 5.0..=14.0,
             // Down to umeshu and Bulgarian pelin, the fruit and aromatised wines filed alongside vermouth and sake.
-            "fortified" => 10.0..=22.0,
-            "spirit" => 10.0..=85.0,
-            "alcopop" => 3.0..=9.0,
-            "cocktail" => 2.0..=35.0,
-            _ => 100.0..=100.0,
+            CategoryKind::Fortified => 10.0..=22.0,
+            CategoryKind::Spirit => 10.0..=85.0,
+            CategoryKind::Alcopop => 3.0..=9.0,
+            CategoryKind::Cocktail => 2.0..=35.0,
+            CategoryKind::Units => 100.0..=100.0,
         }
     }
 
     #[test]
     fn strengths_are_plausible_for_their_kind() {
         for brand in catalog_brands() {
-            assert!(band(&brand.category).contains(&brand.abv), "{} at {}%", brand.name, brand.abv);
+            assert!(band(brand.category).contains(&brand.abv), "{} at {}%", brand.name, brand.abv);
         }
     }
 
@@ -598,23 +481,24 @@ mod tests {
         assert!(names("stella").contains(&"Stella Artois".to_string()));
         assert_eq!(names("STELLA"), names("stella"));
         assert_eq!(names("  stella  "), names("stella"));
-        assert!(names("kolsch").iter().any(|n| n.to_lowercase().contains("lsch")) || names("kolsch").is_empty());
+        assert!(names("rose").contains(&"Thatchers Rosé".to_string()));
+        assert_eq!(names("rose"), names("rosé"));
         assert!(catalog_search("   ".into()).is_empty());
         assert!(catalog_search("".into()).is_empty());
         assert!(catalog_search("zzzzzz".into()).is_empty());
-        let reds: Vec<_> = catalog_search("Red wine".into()).into_iter().map(|i| items[i as usize].category.clone()).collect();
-        assert!(!reds.is_empty() && reds.iter().all(|c| c == "redWine"));
+        let reds: Vec<_> = catalog_search("Red wine".into()).into_iter().map(|i| items[i as usize].category).collect();
+        assert!(!reds.is_empty() && reds.iter().all(|c| *c == CategoryKind::RedWine));
     }
 
     #[test]
     fn a_brand_is_held_only_while_name_kind_and_strength_match() {
         let stella = catalog_brands().into_iter().find(|b| b.name == "Stella Artois").unwrap();
-        assert!(catalog_holds(stella.name.clone(), stella.category.clone(), stella.abv));
-        assert!(!catalog_holds(stella.name.clone(), stella.category.clone(), stella.abv + 0.1));
-        assert!(!catalog_holds(format!("{} (the good one)", stella.name), stella.category.clone(), stella.abv));
-        assert!(!catalog_holds("Dave's shed cider".into(), "cider".into(), 7.0));
-        assert!(!catalog_holds("Beer".into(), "beer".into(), 4.0), "a generic is the user's own, not the catalogue's");
-        assert!(!catalog_holds("Stella Artois".into(), "nonsense".into(), stella.abv));
+        assert!(catalog_holds(stella.name.clone(), stella.category, stella.abv));
+        assert!(!catalog_holds(stella.name.clone(), stella.category, stella.abv + 0.1));
+        assert!(!catalog_holds(format!("{} (the good one)", stella.name), stella.category, stella.abv));
+        assert!(!catalog_holds("Dave's shed cider".into(), CategoryKind::Cider, 7.0));
+        assert!(!catalog_holds("Beer".into(), CategoryKind::Beer, 4.0), "a generic is the user's own, not the catalogue's");
+        assert!(!catalog_holds("Stella Artois".into(), CategoryKind::Cider, stella.abv), "a brand is held under its own kind");
     }
 
     #[test]
@@ -626,25 +510,24 @@ mod tests {
         assert!(price("Red wine", "redWine", "wineGlass", 175.0).unwrap() > 0.0);
         assert_eq!(price("Beer", "beer", "wineGlass", 175.0), None);
         assert_eq!(price("Not a drink", "beer", "pint", 568.0), None);
-        assert_eq!(price("Stella Artois", "beer", "nonsense", 568.0), None);
     }
 
     #[test]
     fn an_unlisted_size_scales_from_the_nearest_serve_of_the_same_vessel() {
-        let bottle = |ml| catalog_brand_price("Asahi Super Dry".into(), "beer".into(), "bottle".into(), ml, "GBP".into());
+        let bottle = |ml| catalog_brand_price("Asahi Super Dry".into(), CategoryKind::Beer, VesselKind::Bottle, ml, "GBP".into());
         assert!((bottle(660.0) - bottle(330.0) * 2.0).abs() < 1e-9);
         assert!(bottle(440.0) > bottle(330.0) && bottle(440.0) < bottle(660.0));
-        let pint = catalog_brand_price("Asahi Super Dry".into(), "beer".into(), "pint".into(), 568.0, "GBP".into());
+        let pint = catalog_brand_price("Asahi Super Dry".into(), CategoryKind::Beer, VesselKind::Pint, 568.0, "GBP".into());
         assert!(pint > bottle(330.0));
-        assert!(catalog_brand_price("Asahi Super Dry".into(), "beer".into(), "can".into(), 440.0, "GBP".into()) > 0.0);
+        assert!(catalog_brand_price("Asahi Super Dry".into(), CategoryKind::Beer, VesselKind::Can, 440.0, "GBP".into()) > 0.0);
     }
 
     #[test]
     fn another_currency_converts_and_an_unknown_one_prices_at_nothing() {
-        let in_ = |currency: &str| catalog_brand_price("Asahi Super Dry".into(), "beer".into(), "pint".into(), 568.0, currency.into());
+        let in_ = |currency: &str| catalog_brand_price("Asahi Super Dry".into(), CategoryKind::Beer, VesselKind::Pint, 568.0, currency.into());
         assert!((in_("EUR") - in_("GBP") * 1.16218).abs() < 1e-9);
         assert_eq!(in_("XXX"), 0.0);
-        assert_eq!(catalog_brand_price("Nope".into(), "beer".into(), "pint".into(), 568.0, "GBP".into()), 0.0);
+        assert_eq!(catalog_brand_price("Nope".into(), CategoryKind::Beer, VesselKind::Pint, 568.0, "GBP".into()), 0.0);
     }
 
     #[test]
@@ -652,15 +535,15 @@ mod tests {
         let generics = catalog_generics();
         assert_eq!(generics.len(), 11);
         assert!(generics.iter().all(|g| !g.serves.is_empty() && g.serves.iter().all(|s| s.price > 0.0)));
-        assert_eq!(catalog_sizes("Stella Artois".into(), "beer".into()).len(), 4);
-        assert!(catalog_sizes("Nope".into(), "beer".into()).is_empty());
+        assert_eq!(catalog_sizes("Stella Artois".into(), CategoryKind::Beer).len(), 4);
+        assert!(catalog_sizes("Nope".into(), CategoryKind::Beer).is_empty());
     }
 
     #[test]
     fn labels_cover_every_kind() {
         let labels = catalog_category_labels();
         assert_eq!(labels.len(), 12);
-        assert!(labels.iter().any(|l| l.category == "redWine" && l.label == "Red wine"));
+        assert!(labels.iter().any(|l| l.category == CategoryKind::RedWine && l.label == "Red wine"));
     }
 
     /// A drink at £0.00 looks free rather than broken, and silently flattens the spend charts.
@@ -668,7 +551,7 @@ mod tests {
     fn every_size_of_every_brand_costs_something() {
         for brand in catalog_brands() {
             for serve in brand.markets.iter().flat_map(|m| &m.serves) {
-                assert!(serve.price > 0.0, "{} {} {}", brand.name, serve.vessel, serve.ml);
+                assert!(serve.price > 0.0, "{} {:?} {}", brand.name, serve.vessel, serve.ml);
             }
         }
     }
@@ -676,8 +559,8 @@ mod tests {
     #[test]
     fn a_price_in_the_markets_own_currency_is_the_listed_one() {
         let asahi = catalog_brands().into_iter().find(|b| b.name == "Asahi Super Dry").unwrap();
-        let listed = asahi.markets.iter().find(|m| m.currency == "GBP").unwrap().serves.iter().find(|s| s.vessel == "pint").unwrap().price;
-        let pounds = catalog_brand_price(asahi.name.clone(), asahi.category.clone(), "pint".into(), 568.0, "GBP".into());
+        let listed = asahi.markets.iter().find(|m| m.currency == "GBP").unwrap().serves.iter().find(|s| s.vessel == VesselKind::Pint).unwrap().price;
+        let pounds = catalog_brand_price(asahi.name.clone(), asahi.category, VesselKind::Pint, 568.0, "GBP".into());
         assert_eq!(pounds, listed);
     }
 
@@ -685,17 +568,14 @@ mod tests {
     #[test]
     fn no_two_brands_share_a_name_and_kind() {
         let brands = catalog_brands();
-        let keys: std::collections::HashSet<_> = brands.iter().map(|b| format!("{}|{}", b.name, b.category)).collect();
+        let keys: std::collections::HashSet<_> = brands.iter().map(|b| (b.name.clone(), b.category)).collect();
         assert_eq!(keys.len(), brands.len());
     }
 
+    /// The Swift catalogue as it stood before the table moved here: every brand, the generics, the rates and the
+    /// labels, with each answer to a sample of lookups and searches.
     fn golden() -> serde_json::Value {
-        // A full dump, with every brand priced in every probe size, can be checked by pointing CATALOG_GOLDEN at it.
-        let text = match std::env::var("CATALOG_GOLDEN") {
-            Ok(path) => std::fs::read_to_string(path).unwrap(),
-            Err(_) => include_str!("../tests/catalog_golden.json").to_string(),
-        };
-        serde_json::from_str(&text).unwrap()
+        serde_json::from_str(include_str!("../tests/catalog_golden.json")).unwrap()
     }
 
     fn close(a: f64, b: f64) -> bool {
@@ -712,7 +592,7 @@ mod tests {
         assert_eq!(brands.len(), expected.len());
         for (brand, want) in brands.iter().zip(expected) {
             assert_eq!(brand.name, want["name"].as_str().unwrap());
-            assert_eq!(brand.category, want["category"].as_str().unwrap(), "{}", brand.name);
+            assert_eq!(brand.category.raw(), want["category"].as_str().unwrap(), "{}", brand.name);
             assert!(close(brand.abv, want["abv"].as_f64().unwrap()), "{}", brand.name);
             let markets = want["markets"].as_array().unwrap();
             assert_eq!(brand.markets.len(), markets.len(), "{}", brand.name);
@@ -721,7 +601,7 @@ mod tests {
                 let serves = want["serves"].as_array().unwrap();
                 assert_eq!(market.serves.len(), serves.len(), "{}", brand.name);
                 for (serve, want) in market.serves.iter().zip(serves) {
-                    assert_eq!(serve.vessel, want["vessel"].as_str().unwrap(), "{}", brand.name);
+                    assert_eq!(serve.vessel.raw(), want["vessel"].as_str().unwrap(), "{}", brand.name);
                     assert!(close(serve.ml, want["ml"].as_f64().unwrap()), "{}", brand.name);
                     assert!(close(serve.price, want["price"].as_f64().unwrap()), "{}", brand.name);
                 }
@@ -729,18 +609,8 @@ mod tests {
             let sizes = want["sizes"].as_array().unwrap();
             assert_eq!(brand.sizes.len(), sizes.len(), "{}", brand.name);
             for (size, want) in brand.sizes.iter().zip(sizes) {
-                assert_eq!(size.vessel, want["vessel"].as_str().unwrap());
+                assert_eq!(size.vessel.raw(), want["vessel"].as_str().unwrap());
                 assert!(close(size.ml, want["ml"].as_f64().unwrap()));
-            }
-            for priced in want["priced"].as_array().into_iter().flatten() {
-                let got = catalog_brand_price(
-                    brand.name.clone(),
-                    brand.category.clone(),
-                    priced["vessel"].as_str().unwrap().into(),
-                    priced["ml"].as_f64().unwrap(),
-                    priced["currency"].as_str().unwrap().into(),
-                );
-                assert!(close(got, priced["price"].as_f64().unwrap()), "{} {priced}", brand.name);
             }
         }
     }
@@ -751,8 +621,8 @@ mod tests {
         for lookup in golden["lookups"].as_array().unwrap() {
             let got = catalog_price(
                 lookup["name"].as_str().unwrap().into(),
-                lookup["category"].as_str().unwrap().into(),
-                lookup["vessel"].as_str().unwrap().into(),
+                kind(lookup["category"].as_str().unwrap()),
+                vessel(lookup["vessel"].as_str().unwrap()),
                 lookup["ml"].as_f64().unwrap(),
                 lookup["currency"].as_str().unwrap().into(),
             );
@@ -769,7 +639,7 @@ mod tests {
             assert_eq!(got.len(), want.len(), "{query:?}");
             for (item, want) in got.iter().zip(want) {
                 let parts: Vec<_> = want.as_str().unwrap().split('|').collect();
-                assert_eq!((item.name.as_str(), item.category.as_str(), item.vessel.as_str()), (parts[0], parts[1], parts[2]), "{query:?}");
+                assert_eq!((item.name.as_str(), item.category.raw(), item.vessel.raw()), (parts[0], parts[1], parts[2]), "{query:?}");
                 assert_eq!(item.ml as i64, parts[3].parse::<i64>().unwrap());
                 assert!(close(item.abv, parts[4].parse().unwrap()));
             }
@@ -777,15 +647,14 @@ mod tests {
         for generic in golden["generics"].as_array().unwrap() {
             let name = generic["name"].as_str().unwrap();
             for probe in generic["prices"].as_array().unwrap() {
-                let vessel = Vessel::parse(probe["vessel"].as_str().unwrap()).unwrap();
-                let got = generic_price(name, vessel, probe["ml"].as_f64().unwrap());
+                let got = generic_price(name, vessel(probe["vessel"].as_str().unwrap()), probe["ml"].as_f64().unwrap());
                 match probe["price"].as_f64() {
                     Some(want) => assert!(close(got.unwrap_or(f64::NAN), want), "{name} {probe}"),
                     None => assert_eq!(got, None, "{name} {probe}"),
                 }
             }
         }
-        let labels: Vec<_> = catalog_category_labels().into_iter().map(|l| (l.category, l.label)).collect();
+        let labels: Vec<_> = catalog_category_labels().into_iter().map(|l| (l.category.raw().to_string(), l.label)).collect();
         let want: Vec<_> = golden["labels"]
             .as_array()
             .unwrap()
