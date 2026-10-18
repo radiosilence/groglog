@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Prepare a release PR: branch from origin/main, raise MARKETING_VERSION, turn the unreleased changelog fragments into
-# the release, commit, push and open the PR. Never creates or pushes a tag.
+# the release, commit, push and open the PR. Never creates or pushes a tag: merging the PR is what releases.
 #
 #   scripts/release.sh X.Y.Z|patch|minor|major [--no-push]
 set -euo pipefail
@@ -52,13 +52,13 @@ rm -f project.yml.bak
 python3 scripts/changelog.py --release "$version"
 
 git add -A
-git commit -q -S -m "Release $version"
-echo "committed Release $version on $branch"
+git commit -q -m "release: v$version"
+echo "committed release: v$version on $branch"
 
 if [ "$push" = 1 ]; then
   git push -q -u origin "$branch"
   section=$(awk -v h="## $version" '$0==h{f=1;next} f&&/^## /{exit} f' CHANGELOG.md)
-  gh pr create --title "Release $version" --body "$section"
+  gh pr create --title "release: v$version" --body "$section"
 else
   echo "not pushed (--no-push)"
 fi

@@ -45,7 +45,8 @@ assembled from the fragments, so they are current before a release is cut.
 
 1. `just release patch|minor|major` (or an exact version) branches from `main`, raises `MARKETING_VERSION` in `project.yml`,
    turns the unreleased fragments into that version with `just changelog --release`, and opens the release PR with the
-   changelog section as its body. Merging it uploads the build; it creates no tag, which is left to you.
+   changelog section as its body; `gh workflow run release.yml` does the same from CI. Merging it uploads the builds
+   and publishes the GitHub release, and so its tag, with the APK attached (see below).
 2. For an update, add a `## What's new` section to [app-store.md](app-store.md). Apple requires release notes on every
    version after the first and refuses them on the first.
 3. `just store listing` pushes app-store.md to the listing, creating the version in App Store Connect if needed.

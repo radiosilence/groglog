@@ -1,0 +1,1 @@
+- **Release PRs are titled `release: vX.Y.Z` and can be opened from CI.** The title matches koan and sift; `gh workflow run release.yml` opens the PR as `just release` does, and a merged or closed PR gives up its queued runs.
