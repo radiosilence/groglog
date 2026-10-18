@@ -14,7 +14,8 @@ phone config="Debug":
 changelog *args:
     python3 scripts/changelog.py {{args}}
 
-# Opens the release PR: `just release patch|minor|major`, or an exact version. Tagging and publishing stay by hand.
+# Opens the release PR: `just release patch|minor|major`, or an exact version. Merging it publishes the GitHub release
+# with the APK; App Store submission and Play promotion stay manual.
 release version *args:
     scripts/release.sh {{version}} {{args}}
 
