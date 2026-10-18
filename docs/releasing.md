@@ -4,7 +4,8 @@ Every push to `main` that passes the core and changelog checks is archived, sign
 `.github/workflows/ios.yml`, and appears in TestFlight once Apple has processed it. The app's tests are not run again
 on `main`: its pull request ran them, and the macOS runners are shared with every other repository on the account, so
 each run takes at most one. A pull request takes one only when it changes something the iOS app is built from; the
-list of paths that do not is in the workflow's `changes` job. The listing and review submission
+list of paths that do not is in the workflow's `changes` job. A release PR, one that raises `MARKETING_VERSION`, also archives the app
+unsigned in that job, so a release build that fails is found before the version merges. The listing and review submission
 are driven from the terminal by `scripts/app-store.py` (`just store <command>`), so the App Store Connect website is
 needed only for what Apple offers no API for.
 
@@ -29,7 +30,7 @@ Once, in App Store Connect and GitHub:
    - secret `IOS_CERTIFICATE_P12`: the base64 of the `.p12` in 1Password's "Apple Development certificate for CI
      (.p12)", and secret `IOS_CERTIFICATE_PASSWORD` from "Apple Development certificate for CI (password)"
 
-Until `APPLE_TEAM_ID` is set, the upload job is skipped and only the tests run.
+The upload job fails on `main` while any of these is missing, so a push never passes without reaching TestFlight.
 
 An internal TestFlight group with access to all builds hands each processed upload to its testers without anyone
 having to add it; internal testers must be App Store Connect users.

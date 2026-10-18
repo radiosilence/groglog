@@ -1,0 +1,1 @@
+- **A release PR archives the iOS app unsigned, and the TestFlight upload no longer skips without its secrets.** A failing release build is found before the version merges, a missing signing secret fails the upload instead of passing silently, and the CI checks run independently so one failure does not hide another.

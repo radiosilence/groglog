@@ -30,12 +30,15 @@ concurrency:
 jobs:
   # Whether a pull request changes anything the iOS app is built or tested from. Everything counts unless it is listed
   # here as belonging to Android, the site, the docs or release tooling, so a new path takes the macOS runner until it
-  # is listed. The checkout of a pull request is its merge commit, whose first parent is the base branch.
+  # is listed. The checkout of a pull request is its merge commit, whose first parent is the base branch. A release
+  # pull request, one that raises MARKETING_VERSION, also archives the app unsigned, so a release build that fails is
+  # found before the version merges rather than by the TestFlight upload after it.
   changes:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     outputs:
       apple: ${{ steps.diff.outputs.apple }}
+      release: ${{ steps.diff.outputs.release }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -55,6 +58,9 @@ jobs:
             echo "Nothing the iOS app is built from changed, so its tests are skipped"
             echo "apple=false" >> "$GITHUB_OUTPUT"
           fi
+          if git diff HEAD^1 HEAD -- project.yml | grep -qE '^\+ *MARKETING_VERSION:'; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
 
   # Platform-independent, so on Linux, on every run.
   checks:
@@ -64,13 +70,19 @@ jobs:
         with:
           fetch-depth: 2
 
+      # rust-toolchain.toml's channel without its iOS and Android targets, which nothing here builds for.
       - name: Rust toolchain
-        run: rustup toolchain install
+        id: toolchain
+        run: |
+          channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)
+          rustup toolchain install "$channel" --profile minimal --component clippy
+          echo "RUSTUP_TOOLCHAIN=$channel" >> "$GITHUB_ENV"
 
       # CHANGELOG.md is generated from changelog.d/ and changes only in a release PR, so a PR adds fragments without
       # regenerating it. Only its fragments and the released versions are checked; one that writes the file must write
       # exactly what the fragments make.
       - name: Changelog
+        if: ${{ !cancelled() }}
         env:
           EVENT: ${{ github.event_name }}
         run: |
@@ -80,11 +92,15 @@ jobs:
           fi
           python3 scripts/changelog.py --lint
 
-      # The shared core's own suite, which both apps rely on; the app suites exercise it only through the bindings.
-      - name: Core
-        run: |
-          cargo test --locked -p groglog-core
-          cargo clippy --locked -p groglog-core --all-targets -- -D warnings
+      # The shared core's own suite, which both apps rely on; the app suites exercise it only through the bindings. Each
+      # check runs whatever the others found, so one failure does not hide another.
+      - name: Core tests
+        if: ${{ !cancelled() && steps.toolchain.outcome == 'success' }}
+        run: cargo test --locked -p groglog-core
+
+      - name: Core clippy
+        if: ${{ !cancelled() && steps.toolchain.outcome == 'success' }}
+        run: cargo clippy --locked -p groglog-core --all-targets -- -D warnings
 
   test:
     needs: changes
@@ -94,33 +110,63 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install toolchain
+        id: tools
         uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
         with:
           # cargo-ndk is for the Android build.
           install_args: just uv xcodegen
 
+      # rust-toolchain.toml's channel with only the two iOS targets, not the Android ones the file also lists.
+      - name: Rust toolchain
+        id: rust
+        run: |
+          channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)
+          rustup toolchain install "$channel" --profile minimal --target aarch64-apple-ios --target aarch64-apple-ios-sim
+          echo "RUSTUP_TOOLCHAIN=$channel" >> "$GITHUB_ENV"
+
       - name: Use the newest Xcode on the runner
+        id: xcode
         run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
 
       - name: Test
         run: scripts/ci-test.sh
 
+      # The archive the TestFlight upload makes, without signing, which needs secrets a pull request does not get. Runs
+      # whether or not the tests passed, so a failure in either does not hide the other.
+      - name: Archive unsigned
+        if: ${{ !cancelled() && needs.changes.outputs.release == 'true' && steps.tools.outcome == 'success' && steps.rust.outcome == 'success' && steps.xcode.outcome == 'success' }}
+        run: |
+          scripts/core-apple.sh
+          xcodegen generate --quiet
+          xcodebuild archive -scheme GrogLog -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/GrogLog.xcarchive" CODE_SIGNING_ALLOWED=NO -quiet
+
   testflight:
     runs-on: macos-26
     # The core and changelog checks gate the upload; the app's tests ran on its pull request.
     needs: checks
-    # Skipped rather than failed until the signing secrets exist; see docs/releasing.md.
-    if: github.ref == 'refs/heads/main' && vars.APPLE_TEAM_ID != ''
+    # Fails rather than skips when a signing secret is missing, so a push to main never passes without uploading.
+    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install toolchain
+        id: tools
         uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
         with:
           # cargo-ndk is for the Android build.
           install_args: just uv xcodegen
 
+      # rust-toolchain.toml's channel with only the two iOS targets, not the Android ones the file also lists.
+      - name: Rust toolchain
+        id: rust
+        run: |
+          channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)
+          rustup toolchain install "$channel" --profile minimal --target aarch64-apple-ios --target aarch64-apple-ios-sim
+          echo "RUSTUP_TOOLCHAIN=$channel" >> "$GITHUB_ENV"
+
       - name: Use the newest Xcode on the runner
+        id: xcode
         run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
 
       # Automatic signing archives with an Apple Development identity, and a runner has none, so Xcode had Apple issue
@@ -130,8 +176,8 @@ jobs:
         env:
           IOS_CERTIFICATE_P12: ${{ secrets.IOS_CERTIFICATE_P12 }}
           IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
-        if: env.IOS_CERTIFICATE_P12 != ''
         run: |
+          [ -n "$IOS_CERTIFICATE_P12" ] || { echo "::error::IOS_CERTIFICATE_P12 is not set; see docs/releasing.md"; exit 1; }
           keychain="$RUNNER_TEMP/signing.keychain-db"
           password=$(openssl rand -hex 24)
           security create-keychain -p "$password" "$keychain"
