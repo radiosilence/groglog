@@ -1,0 +1,1 @@
+- **iOS CI takes at most one macOS runner per run.** The changelog and core checks run on Linux; a pull request runs the app's tests on macOS only when it changes something the app is built from, and a push to `main` uploads to TestFlight without testing again.

@@ -1,6 +1,9 @@
 name: iOS
 
-# Tests every push and pull request; every push to main is also archived, signed and uploaded to TestFlight. Submitting
+# The account's macOS runners are few and shared with every other repository, so each run takes at most one. A pull
+# request runs the app's tests on macOS only when it changes something the app is built from; the changelog and the
+# shared core are checked on Linux every time. A push to main is archived, signed and uploaded to TestFlight without
+# running the app's tests again, since its pull request ran them, and the archive still compiles everything. Submitting
 # a build for App Store review is left to App Store Connect, where the release notes and screenshots live.
 
 permissions:
@@ -25,21 +28,44 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    runs-on: macos-26
+  # Whether a pull request changes anything the iOS app is built or tested from. Everything counts unless it is listed
+  # here as belonging to Android, the site, the docs or release tooling, so a new path takes the macOS runner until it
+  # is listed. The checkout of a pull request is its merge commit, whose first parent is the base branch.
+  changes:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      apple: ${{ steps.diff.outputs.apple }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+      - id: diff
+        run: |
+          files=$(git diff --name-only HEAD^1 HEAD | grep -vE \
+            -e '^(site|android|docs|changelog\.d|\.claude)/' \
+            -e '\.md$' \
+            -e '^\.github/workflows/(android|site|release|cancel-closed-pr)\.yml$' \
+            -e '^scripts/(play|changelog|test_changelog)\.py$' \
+            -e '^scripts/(release|android-upload-key|play-service-account)\.sh$' || true)
+          if [ -n "$files" ]; then
+            printf 'Runs the iOS tests for:\n%s\n' "$files"
+            echo "apple=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Nothing the iOS app is built from changed, so its tests are skipped"
+            echo "apple=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Platform-independent, so on Linux, on every run.
+  checks:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 2
 
-      - name: Install toolchain
-        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
-        with:
-          # cargo-ndk is for the Android build.
-          install_args: just uv xcodegen
-
-      - name: Use the newest Xcode on the runner
-        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+      - name: Rust toolchain
+        run: rustup toolchain install
 
       # CHANGELOG.md is generated from changelog.d/ and changes only in a release PR, so a PR adds fragments without
       # regenerating it. Only its fragments and the released versions are checked; one that writes the file must write
@@ -54,18 +80,35 @@ jobs:
           fi
           python3 scripts/changelog.py --lint
 
-      # The shared core's own suite, which both apps rely on; the app suites below exercise it only through the bindings.
+      # The shared core's own suite, which both apps rely on; the app suites exercise it only through the bindings.
       - name: Core
         run: |
           cargo test --locked -p groglog-core
           cargo clippy --locked -p groglog-core --all-targets -- -D warnings
+
+  test:
+    needs: changes
+    if: needs.changes.outputs.apple == 'true'
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install toolchain
+        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
+        with:
+          # cargo-ndk is for the Android build.
+          install_args: just uv xcodegen
+
+      - name: Use the newest Xcode on the runner
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
 
       - name: Test
         run: scripts/ci-test.sh
 
   testflight:
     runs-on: macos-26
-    needs: test
+    # The core and changelog checks gate the upload; the app's tests ran on its pull request.
+    needs: checks
     # Skipped rather than failed until the signing secrets exist; see docs/releasing.md.
     if: github.ref == 'refs/heads/main' && vars.APPLE_TEAM_ID != ''
     steps:
