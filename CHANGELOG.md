@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.2.2
+
+### Fixed
+
+- **Stepped taper dates.** The dates a stepped taper reaches its target and a level low enough to stop from now follow the pace it quickens to as the budget falls. They were projected at one fixed pace, which from a heavy starting point could put them a fortnight or more out. Backups carry the corrected date as `projectedStop`.
+
+### Internal
+
+- **Catalogue brands on Android carry no price table.** Nothing read it; prices are asked of the shared core when they are needed, as on iOS.
+- **Backups in the shared core.** Reading, writing and merging a backup is done once, in Rust, for both apps; the file format is unchanged. On iOS an entry timed after today is now exported and imported, as it already was on Android.
+- **One catalogue.** The drink catalogue, its price lookups and the exchange rates now live in the shared Rust core, so both apps read one table and the Kotlin copy is no longer generated from the Swift one.
+- **Ledger and goals in the shared core.** Day totals, streaks, weekly figures, the budget tapers and their projections, and the running-total curves are computed once in Rust for both apps. What is stored and synced is unchanged.
+- **Release PRs are titled `release: vX.Y.Z` and can be opened from CI.** The title matches koan and sift; `gh workflow run release.yml` opens the PR as `just release` does, and a merged or closed PR gives up its queued runs.
+
 ## 1.2.1
 
 ### Changed
