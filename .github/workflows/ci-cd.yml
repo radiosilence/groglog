@@ -61,8 +61,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         # The domains a change touches, from its diff. A pull request's is against its base, the first parent of its
         # merge commit. A push's is against the last commit on main whose run passed, so a push whose run was cancelled
-        # by the next one still reaches CD with it; without one in recent history, the commit before. A manual run, or
-        # a diff that cannot be worked out, runs everything.
+        # by the next one still reaches CD with it; a re-run of that commit itself diffs against the commit before. A
+        # manual run, a push whose passed commit cannot be found or reached, or a diff that cannot be worked out, runs
+        # everything.
         #
         # Allowlists, so the question is "did any source of this domain change?" rather than "was everything
         # recognisably irrelevant?". The cost is that a new top-level directory is invisible here until it is added
@@ -76,14 +77,19 @@ jobs:
           base=HEAD^1
           if [ "$EVENT" = "push" ]; then
             passed=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci-cd.yml --branch main --event push \
-              --status success --limit 1 --json headSha --jq '.[0].headSha' 2>/dev/null || true)
-            if [ -n "$passed" ] && [ "$passed" != "$(git rev-parse HEAD)" ] && git fetch -q --deepen=100 origin main && git merge-base --is-ancestor "$passed" HEAD; then
+              --status success --limit 1 --json headSha --jq '.[0].headSha // empty' 2>/dev/null || true)
+            if [ "$passed" = "$(git rev-parse HEAD)" ]; then
+              base=HEAD^1
+            elif [ -n "$passed" ] && git fetch -q --deepen=200 origin main && git merge-base --is-ancestor "$passed" HEAD; then
               base=$passed
+            else
+              echo "no passed commit on main to diff against, so everything runs"
+              base=
             fi
           fi
 
           # Whether this run releases, the one answer every release job reads, worked out apart from the diff. A pull
-          # request: a release PR (branch `release-*`, or a version change), which runs everything and publishes
+          # request: a release PR (branch `release-v*`, or a version change), which runs everything and publishes
           # nothing. On main, a push that changes the version to one not released yet, or a manual run, which is how a
           # failed release is retried, while the version is not released. Anywhere else, never. Only GitHub's 404 means
           # a version is not out: any other answer fails the job, since guessing either way releases twice or never. A
@@ -96,7 +102,7 @@ jobs:
           fi
           case "$EVENT" in
             pull_request)
-              case "$HEAD_REF" in release-*) bumped=true ;; esac
+              case "$HEAD_REF" in release-v*) bumped=true ;; esac
               release=$bumped
               ;;
             *)
@@ -128,7 +134,7 @@ jobs:
           touches() { printf '%s\n' "$files" | grep -E "$1" | grep -qvE '\.md$'; }
           if [ "$release" = true ]; then
             echo "a release runs everything"
-          elif [ "$EVENT" != "workflow_dispatch" ] && files=$(git diff --name-only "$base" HEAD); then
+          elif [ "$EVENT" != "workflow_dispatch" ] && [ -n "$base" ] && files=$(git diff --name-only "$base" HEAD); then
             echo "changes since $(git rev-parse --short "$base"):"
             printf '%s\n' "$files" | sed 's/^/  /'
             # mise.toml and project.yml count for an app only when the change reaches it. Unanswerable, they count.
@@ -176,18 +182,24 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           SELF: ${{ github.run_id }}
         run: |
+          # Best effort: a release must not fail for want of room.
           for status in requested queued pending waiting in_progress; do
             gh run list --repo "$GITHUB_REPOSITORY" --workflow ci-cd.yml --status "$status" --limit 100 \
               --json databaseId,event,headBranch,headSha,displayTitle \
               --jq '.[] | select(.event == "pull_request" or (.event == "push" and .headBranch == "main" and (.displayTitle | startswith("release: ") | not))) | "\(.databaseId) \(.event) \(.headSha)"'
           done | sort -u | while read -r id event sha; do
             [ "$id" = "$SELF" ] && continue
-            if [ "$event" = push ] && gh api "repos/$GITHUB_REPOSITORY/commits/$sha" --jq '.files[].filename' | grep -qx project.yml; then
-              continue
+            if [ "$event" = push ]; then
+              # Unanswerable, the run is spared: it may be a release.
+              if ! changed=$(gh api --paginate "repos/$GITHUB_REPOSITORY/commits/$sha" --jq '.files[].filename'); then
+                echo "::warning::could not read $sha's files, so run $id is left alone" >&2
+                continue
+              fi
+              grep -qx project.yml <<< "$changed" && continue
             fi
             echo "cancelling run $id"
             gh run cancel "$id" --repo "$GITHUB_REPOSITORY" || true
-          done
+          done || true
 
   # CHANGELOG.md is generated from changelog.d/ and changes only in a release PR, so a PR adds fragments without
   # regenerating it. Only its fragments and the released versions are checked; one that writes the file must write
@@ -216,9 +228,6 @@ jobs:
     needs: changes
     if: needs.changes.outputs.rust == 'true'
     timeout-minutes: 30
-    concurrency:
-      group: core-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
-      cancel-in-progress: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Rust toolchain
@@ -241,9 +250,6 @@ jobs:
     needs: changes
     if: needs.changes.outputs.apple == 'true' && github.ref != 'refs/heads/main'
     timeout-minutes: 90
-    concurrency:
-      group: apple-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
-      cancel-in-progress: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -267,9 +273,6 @@ jobs:
     needs: changes
     if: needs.changes.outputs.android == 'true'
     timeout-minutes: 60
-    concurrency:
-      group: android-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
-      cancel-in-progress: true
     outputs:
       signed: ${{ steps.key.outputs.signed }}
     defaults:
@@ -445,7 +448,8 @@ jobs:
   # testflight.yml's manual dispatch.
   testflight:
     name: TestFlight
-    needs: [changes, checks]
+    # make-room, on a release, frees the macOS runners this waits for.
+    needs: [changes, checks, make-room]
     if: ${{ !cancelled() && needs.checks.result == 'success' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && needs.changes.outputs.apple == 'true' }}
     uses: ./.github/workflows/testflight.yml
     secrets: inherit
@@ -487,9 +491,8 @@ jobs:
   # The deployment (jaritanet's updater) follows main's head: it deploys `sha-<head>`, so every head needs that tag.
   # A push that changed the site gets it, and `latest`, on the image CI pushed, and asks the deployment to pick it up.
   # Any other push gets it on `latest`, the site as it stands, since nothing it changed is in the image. Retagging needs
-  # no rebuild. Release and manual runs are never cancelled, so one can finish after a newer push's; `latest` moves
-  # only while this commit is still main's head, and a newer push's run, diffed against the last that passed, carries
-  # the site changes of any run that did not.
+  # no rebuild. Release and manual runs are never cancelled, so one can finish after a newer push's: `latest` moves
+  # only onto a commit descending from the one it holds (the image's revision label).
   site-deploy:
     name: Site deploy
     runs-on: ubuntu-latest
@@ -520,12 +523,19 @@ jobs:
             exit 0
           fi
           docker buildx imagetools create -t "$IMAGE:$tag" "$IMAGE:$GITHUB_SHA"
-          if [ "$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)" = "$GITHUB_SHA" ]; then
-            docker buildx imagetools create -t "$IMAGE:latest" "$IMAGE:$GITHUB_SHA"
-            echo "DEPLOY=true" >> "$GITHUB_ENV"
-          else
-            echo "::notice::main has moved on, so latest stays where the newer push puts it"
+          held=$(docker buildx imagetools inspect "$IMAGE:latest" --format '{{json .Image}}' \
+            | jq -r '[.. | objects | .config?.Labels?["org.opencontainers.image.revision"]? // empty] | first // empty')
+          status=identical
+          if [ -n "$held" ] && [ "$held" != "$GITHUB_SHA" ]; then
+            status=$(gh api "repos/$GITHUB_REPOSITORY/compare/$held...$GITHUB_SHA" --jq .status)
           fi
+          case "$status" in
+            ahead|identical)
+              docker buildx imagetools create -t "$IMAGE:latest" "$IMAGE:$GITHUB_SHA"
+              echo "DEPLOY=true" >> "$GITHUB_ENV"
+              ;;
+            *) echo "::notice::latest holds $held, which this commit does not descend from, so it stays" ;;
+          esac
       # DEPLOYMENT_PAT needs only `actions: write` on radiosilence/jaritanet, to trigger the updater. Its schedule
       # moves the deployment to an unchanged site's new tag in its own time.
       - name: Ask the deployment to pick this up
