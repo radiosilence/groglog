@@ -499,6 +499,8 @@ jobs:
     timeout-minutes: 10
     needs: [checks, site-image]
     if: ${{ !cancelled() && needs.checks.result == 'success' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+    # One at a time across runs: two that read `latest` together could both find their commit ahead, and the one
+    # finishing last would win.
     concurrency:
       group: site-deploy
       cancel-in-progress: false
@@ -523,28 +525,44 @@ jobs:
             exit 0
           fi
           docker buildx imagetools create -t "$IMAGE:$tag" "$IMAGE:$GITHUB_SHA"
-          # No `latest`, or no label on it, moves it. Any other failure to read it fails the step.
-          held=
-          if image=$(docker buildx imagetools inspect "$IMAGE:latest" --format '{{json .Image}}' 2>&1); then
-            held=$(jq -r '[.. | objects | .config?.Labels?["org.opencontainers.image.revision"]? // empty] | first // empty' <<< "$image")
-          elif ! grep -qi 'not found' <<< "$image"; then
-            echo "::error::could not inspect $IMAGE:latest: $image"
-            exit 1
-          fi
-          # A held commit GitHub no longer knows (404) is replaced; any other error fails the step.
+          # A missing tag, a tag without the label, or a labelled commit that history no longer leads to (gone, or
+          # diverged after a force-push) moves `latest`. Any other failure is retried, then fails the step: moving it
+          # on a guess can move the site backwards.
+          attempt() {
+            local n
+            for n in 1 2 3; do
+              "$@" && return 0
+              sleep $((n * 10))
+            done
+            return 1
+          }
+          read_tag() {
+            if docker buildx imagetools inspect "$IMAGE:latest" --format '{{json .Image}}' > "$RUNNER_TEMP/tag.json" 2> "$RUNNER_TEMP/tag.err"; then
+              held=$(jq -r '[.. | objects | .config?.Labels?["org.opencontainers.image.revision"]? // empty] | first // empty' "$RUNNER_TEMP/tag.json")
+            elif grep -qF "$IMAGE:latest: not found" "$RUNNER_TEMP/tag.err"; then
+              held=
+            else
+              cat "$RUNNER_TEMP/tag.err" >&2
+              return 1
+            fi
+          }
+          compare() {
+            if gh api "repos/$GITHUB_REPOSITORY/compare/$held...$GITHUB_SHA" --jq .status > "$RUNNER_TEMP/compare.out" 2> "$RUNNER_TEMP/compare.err"; then
+              status=$(cat "$RUNNER_TEMP/compare.out")
+            elif grep -q 'HTTP 404' "$RUNNER_TEMP/compare.err"; then
+              status=gone
+            else
+              cat "$RUNNER_TEMP/compare.err" >&2
+              return 1
+            fi
+          }
+          attempt read_tag || { echo "::error::cannot read $IMAGE:latest"; exit 1; }
           status=identical
           if [ -n "$held" ] && [ "$held" != "$GITHUB_SHA" ]; then
-            if ! status=$(gh api "repos/$GITHUB_REPOSITORY/compare/$held...$GITHUB_SHA" --jq .status 2>&1); then
-              if grep -q 'HTTP 404' <<< "$status"; then
-                status=ahead
-              else
-                echo "::error::could not compare $held with $GITHUB_SHA: $status"
-                exit 1
-              fi
-            fi
+            attempt compare || { echo "::error::cannot compare $held with $GITHUB_SHA"; exit 1; }
           fi
           case "$status" in
-            ahead|identical)
+            ahead|identical|gone|diverged)
               docker buildx imagetools create -t "$IMAGE:latest" "$IMAGE:$GITHUB_SHA"
               echo "DEPLOY=true" >> "$GITHUB_ENV"
               ;;
