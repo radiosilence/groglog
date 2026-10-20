@@ -523,11 +523,25 @@ jobs:
             exit 0
           fi
           docker buildx imagetools create -t "$IMAGE:$tag" "$IMAGE:$GITHUB_SHA"
-          held=$(docker buildx imagetools inspect "$IMAGE:latest" --format '{{json .Image}}' \
-            | jq -r '[.. | objects | .config?.Labels?["org.opencontainers.image.revision"]? // empty] | first // empty')
+          # No `latest`, or no label on it, moves it. Any other failure to read it fails the step.
+          held=
+          if image=$(docker buildx imagetools inspect "$IMAGE:latest" --format '{{json .Image}}' 2>&1); then
+            held=$(jq -r '[.. | objects | .config?.Labels?["org.opencontainers.image.revision"]? // empty] | first // empty' <<< "$image")
+          elif ! grep -qi 'not found' <<< "$image"; then
+            echo "::error::could not inspect $IMAGE:latest: $image"
+            exit 1
+          fi
+          # A held commit GitHub no longer knows (404) is replaced; any other error fails the step.
           status=identical
           if [ -n "$held" ] && [ "$held" != "$GITHUB_SHA" ]; then
-            status=$(gh api "repos/$GITHUB_REPOSITORY/compare/$held...$GITHUB_SHA" --jq .status)
+            if ! status=$(gh api "repos/$GITHUB_REPOSITORY/compare/$held...$GITHUB_SHA" --jq .status 2>&1); then
+              if grep -q 'HTTP 404' <<< "$status"; then
+                status=ahead
+              else
+                echo "::error::could not compare $held with $GITHUB_SHA: $status"
+                exit 1
+              fi
+            fi
           fi
           case "$status" in
             ahead|identical)
