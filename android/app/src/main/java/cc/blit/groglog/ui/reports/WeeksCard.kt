@@ -95,6 +95,6 @@ fun WeeksCard(stats: List<WeekStat>, nights: Nights, weeks: Int, onWeeks: (Int) 
             }
             Text("scroll back", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
         }
-        HeartChips(hearts, "", shownHeart, onShowHeart)
+        HeartChips(hearts, { "" }, shownHeart, onShowHeart)
     }
 }

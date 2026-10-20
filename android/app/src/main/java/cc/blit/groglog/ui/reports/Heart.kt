@@ -22,8 +22,22 @@ import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.max
 
-/** Which heart readings a progress chart carries: each night as it came, or the week around it. */
-enum class HeartLines { NIGHTLY, AVERAGED }
+/**
+ * Which heart readings a progress chart carries: each night as it came, or, monthly, HRV as the week around each night
+ * and resting rate still night by night. A night's HRV swings too far to follow across a month, while resting rate moves
+ * slowly enough that each night reads on its own and the trend shows through.
+ */
+enum class HeartLines {
+    NIGHTLY,
+    MONTHLY,
+    ;
+
+    /** Whether this chart draws `reading` as the mean of the week up to each night. */
+    fun averages(reading: HeartReading) = this == MONTHLY && reading == HeartReading.HRV
+
+    /** What a reading's chip adds to its name, so an averaged line says so. */
+    fun suffix(reading: HeartReading) = if (averages(reading)) ", 7-night" else ""
+}
 
 enum class HeartReading(val label: String, val short: String, val unit: String, val color: Color, val kind: ReadingKind, val value: (Night) -> Double?) {
     HRV("HRV", "HRV", "ms", GrogColors.hrv, ReadingKind.HRV, Night::hrv),
@@ -125,7 +139,7 @@ data class HeartScale(val low: Double, val high: Double, val top: Double, val co
  * below the drinking keys. The choice is shared by every chart.
  */
 @Composable
-fun HeartChips(points: List<HeartPoint>, suffix: String, shown: HeartReading, onShow: (HeartReading) -> Unit) {
+fun HeartChips(points: List<HeartPoint>, suffix: (HeartReading) -> String, shown: HeartReading, onShow: (HeartReading) -> Unit) {
     val drawn = HeartPoint.drawn(shown, points) ?: return
     val readings = HeartReading.entries.filter { reading -> points.any { it.reading == reading } }
     Row(
@@ -138,7 +152,7 @@ fun HeartChips(points: List<HeartPoint>, suffix: String, shown: HeartReading, on
             FilterChip(
                 selected = selected,
                 onClick = { onShow(reading) },
-                label = { Text("${reading.short}$suffix", fontWeight = if (selected) FontWeight.SemiBold else null) },
+                label = { Text("${reading.short}${suffix(reading)}", fontWeight = if (selected) FontWeight.SemiBold else null) },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = reading.color.copy(alpha = 0.18f),
                     selectedLabelColor = reading.color,
