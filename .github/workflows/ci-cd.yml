@@ -1,0 +1,556 @@
+name: CI/CD
+
+# Two halves in one run, so the second ships what the first built.
+#
+# CI checks the change and ends in `Checks`, the one status the ruleset requires. Each job runs only for the domains
+# the change touches (see `changes`); a skipped job passes `Checks`, a failed or cancelled one fails it. Jobs can
+# therefore be added, renamed or skipped without touching branch protection.
+#
+# CD runs on main once `Checks` has passed. Every push delivers what it changed: the iOS app to TestFlight, the Android
+# bundle CI built and signed to Google Play's internal track, and the site's image to groglog.io's deployment. A push
+# that raises MARKETING_VERSION to a version not yet released also publishes the GitHub release, with the signed APK
+# CI built and the version's changelog section as its notes.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# The account's macOS runners are few and shared, so a run nobody will look at gives way to the next. A pull request's
+# newer push cancels its older run; on main, a newer push cancels an older one that releases nothing.
+#
+# A run that may release is in a group of its own and is never cancelled, and nor is a manual run, which is how a
+# failed release is retried. The group is chosen before any job runs, so it cannot ask `changes`. A push may release
+# when its head commit is titled `release: ` (as `just release` names its pull request) or changes `project.yml`, which
+# `changes` compares with the commit before: the second catches a version bump merged under any other title, at the
+# cost of also keeping a project change from being cancelled.
+concurrency:
+  group: "ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.event_name == 'workflow_dispatch' && format('dispatch-{0}', github.run_id) || (startsWith(github.event.head_commit.message, 'release: ') || contains(github.event.head_commit.modified, 'project.yml')) && format('release-{0}', github.sha) || 'main' }}"
+  cancel-in-progress: "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'release: ') && !contains(github.event.head_commit.modified, 'project.yml')) }}"
+
+jobs:
+  # ── CI ────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  changes:
+    name: Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      # `gh run list`, for the last commit on main whose run passed.
+      actions: read
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      apple: ${{ steps.filter.outputs.apple }}
+      android: ${{ steps.filter.outputs.android }}
+      site: ${{ steps.filter.outputs.site }}
+      release: ${{ steps.filter.outputs.release }}
+      version: ${{ steps.filter.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+      - id: filter
+        env:
+          EVENT: ${{ github.event_name }}
+          HEAD_REF: ${{ github.head_ref }}
+          GH_TOKEN: ${{ github.token }}
+        # The domains a change touches, from its diff. A pull request's is against its base, the first parent of its
+        # merge commit. A push's is against the last commit on main whose run passed, so a push whose run was cancelled
+        # by the next one still reaches CD with it; without one in recent history, the commit before. A manual run, or
+        # a diff that cannot be worked out, runs everything.
+        #
+        # Allowlists, so the question is "did any source of this domain change?" rather than "was everything
+        # recognisably irrelevant?". The cost is that a new top-level directory is invisible here until it is added
+        # below. Markdown is documentation wherever it sits.
+        #
+        # Steps run under `bash -e`, where grep finding nothing is a failing command rather than an answer, so every
+        # question is asked in a condition.
+        run: |
+          rust=true apple=true android=true site=true release=false
+          version_of() { sed -n 's/^ *MARKETING_VERSION: *\(.*\)$/\1/p' | head -1; }
+          base=HEAD^1
+          if [ "$EVENT" = "push" ]; then
+            passed=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci-cd.yml --branch main --event push \
+              --status success --limit 1 --json headSha --jq '.[0].headSha' 2>/dev/null || true)
+            if [ -n "$passed" ] && [ "$passed" != "$(git rev-parse HEAD)" ] && git fetch -q --deepen=100 origin main && git merge-base --is-ancestor "$passed" HEAD; then
+              base=$passed
+            fi
+          fi
+
+          # Whether this run releases, the one answer every release job reads, worked out apart from the diff. A pull
+          # request: a release PR (branch `release-*`, or a version change), which runs everything and publishes
+          # nothing. On main, a push that changes the version to one not released yet, or a manual run, which is how a
+          # failed release is retried, while the version is not released. Anywhere else, never. Only GitHub's 404 means
+          # a version is not out: any other answer fails the job, since guessing either way releases twice or never.
+          version=$(version_of < project.yml)
+          [ -n "$version" ] || { echo "::error::no MARKETING_VERSION in project.yml"; exit 1; }
+          bumped=false
+          if [ "$(git show HEAD^1:project.yml 2>/dev/null | version_of)" != "$version" ]; then
+            bumped=true
+          fi
+          case "$EVENT" in
+            pull_request)
+              case "$HEAD_REF" in release-*) bumped=true ;; esac
+              release=$bumped
+              ;;
+            *)
+              if [ "$GITHUB_REF" = refs/heads/main ] && { [ "$EVENT" = workflow_dispatch ] || [ "$bumped" = true ]; }; then
+                if answer=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/v$version" --silent 2>&1); then
+                  echo "v$version is already released"
+                elif printf '%s' "$answer" | grep -q 'HTTP 404'; then
+                  release=true
+                else
+                  echo "::error::could not tell whether v$version is released: $answer"
+                  exit 1
+                fi
+              fi
+              ;;
+          esac
+
+          touches() { printf '%s\n' "$files" | grep -E "$1" | grep -qvE '\.md$'; }
+          if [ "$release" = true ]; then
+            echo "a release runs everything"
+          elif [ "$EVENT" != "workflow_dispatch" ] && files=$(git diff --name-only "$base" HEAD); then
+            echo "changes since $(git rev-parse --short "$base"):"
+            printf '%s\n' "$files" | sed 's/^/  /'
+            # mise.toml and project.yml count for an app only when the change reaches it. Unanswerable, they count.
+            inputs=$(python3 .github/scripts/shared_inputs.py "$base" HEAD) || inputs=$'apple=true\nandroid=true'
+            eval "$(printf '%s\n' "$inputs" | sed 's/^/inputs_/')"
+
+            # The shared core's own checks: what cargo compiles for groglog-core, and what decides how.
+            touches '^core/|^Cargo\.(toml|lock)$|^rust-toolchain\.toml$|^\.github/' || rust=false
+            # The iOS app: its sources, the project generated from project.yml, the core and the bindings generator
+            # it links, and the scripts that build and upload it.
+            if [ "$inputs_apple" != true ]; then
+              touches '^(GrogLog|GrogLogTests|GrogLogWidgets)/|^project\.yml$|^core/|^tools/|^Cargo\.(toml|lock)$|^rust-toolchain\.toml$|^scripts/(ci-test|core-apple|testflight)\.sh$|^\.github/' || apple=false
+            fi
+            # The Android app: its sources, the core and the bindings generator it links, and the Play upload.
+            if [ "$inputs_android" != true ]; then
+              touches '^android/|^core/|^tools/|^Cargo\.(toml|lock)$|^rust-toolchain\.toml$|^scripts/play\.py$|^\.github/' || android=false
+            fi
+            touches '^site/|^\.github/' || site=false
+          fi
+          {
+            echo "rust=$rust"
+            echo "apple=$apple"
+            echo "android=$android"
+            echo "site=$site"
+            echo "release=$release"
+            echo "version=$version"
+          } | tee -a "$GITHUB_OUTPUT"
+
+  # GitHub has no priority among its runners, and the account's few macOS ones are what a release's TestFlight upload
+  # waits on. A release cancels this workflow's pull request runs, which are re-run from their page or by the next
+  # push, and main's earlier non-release runs, which a newer one supersedes. A job of its own, so only it holds a token
+  # that can cancel runs.
+  make-room:
+    name: Make room for the release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: changes
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && needs.changes.outputs.release == 'true'
+    permissions:
+      actions: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          SELF: ${{ github.run_id }}
+        run: |
+          for status in requested queued pending waiting in_progress; do
+            gh run list --repo "$GITHUB_REPOSITORY" --workflow ci-cd.yml --status "$status" --limit 100 \
+              --json databaseId,event,headBranch,displayTitle \
+              --jq '.[] | select(.event == "pull_request" or (.event == "push" and .headBranch == "main" and (.displayTitle | startswith("release: ") | not))) | .databaseId'
+          done | sort -u | while read -r id; do
+            [ "$id" = "$SELF" ] && continue
+            echo "cancelling run $id"
+            gh run cancel "$id" --repo "$GITHUB_REPOSITORY" || true
+          done
+
+  # CHANGELOG.md is generated from changelog.d/ and changes only in a release PR, so a PR adds fragments without
+  # regenerating it. Only its fragments and the released versions are checked; one that writes the file must write
+  # exactly what the fragments make. Every change adds a fragment, so this runs every time.
+  changelog:
+    name: Changelog
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+      - run: python3 -m unittest scripts/test_changelog.py
+      - env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = "pull_request" ] && git diff --name-only HEAD^1 HEAD | grep -qx CHANGELOG.md; then
+            python3 scripts/changelog.py --check
+          fi
+          python3 scripts/changelog.py --lint
+
+  # The shared core's own suite, which both apps rely on; the app suites exercise it only through the bindings.
+  core:
+    name: Core
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    timeout-minutes: 30
+    concurrency:
+      group: core-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Rust toolchain
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          shared-key: core
+          # A failing check would otherwise leave the cache unsaved.
+          cache-on-failure: true
+      - run: cargo test --locked -p groglog-core
+      - run: cargo clippy --locked -p groglog-core --all-targets -- -D warnings
+
+  # The iOS app's tests, on the simulator. Off main only: the account's macOS runners are few and shared, so each run
+  # takes at most one, and on main that one archives the app for TestFlight, which compiles everything the tests
+  # would. A pull request's run is what tests the app.
+  apple:
+    name: iOS
+    runs-on: macos-26
+    needs: changes
+    if: needs.changes.outputs.apple == 'true' && github.ref != 'refs/heads/main'
+    timeout-minutes: 90
+    concurrency:
+      group: apple-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install toolchain
+        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
+        with:
+          # cargo-ndk is for the Android build.
+          install_args: just uv xcodegen
+
+      - name: Use the newest Xcode on the runner
+        run: sudo xcode-select -s "$(find /Applications -maxdepth 1 -name 'Xcode_*.app' | sort -V | tail -1)"
+
+      - name: Test
+        run: scripts/ci-test.sh
+
+  # Tests and builds the app as it ships. Off pull requests, on main, it is signed with the upload key and also builds
+  # the APK; CD uploads the bundle to Google Play and attaches the APK to a release, rather than building either again.
+  android:
+    name: Android
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
+    timeout-minutes: 60
+    concurrency:
+      group: android-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: true
+    outputs:
+      signed: ${{ steps.key.outputs.signed }}
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Play refuses a version code it has seen, so each build's must be higher than any before it, re-runs included.
+      # The time always rises, and fits Android's limit until 2036.
+      - name: Version code
+        run: echo "VERSION_CODE=$(date -u +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      # The shared Rust core: Gradle builds it for each ABI with cargo-ndk, and the tests load a build for this machine.
+      # cargo-ndk is the version mise.toml pins, installed once and cached; the Rust toolchain is rust-toolchain.toml's.
+      - name: cargo-ndk
+        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
+        with:
+          install_args: cargo:cargo-ndk
+
+      # The toolchain is installed here, once: left to the two Gradle tasks that run cargo in parallel, each would try to
+      # install it at the same moment.
+      - name: Rust toolchain and NDK
+        run: |
+          rustup toolchain install
+          ndk=$(sed -n 's/.*ndkVersion = "\(.*\)"/\1/p' app/build.gradle.kts)
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$ndk" > /dev/null
+
+      # Only on main, and only once the secrets exist: without them the bundle is built unsigned, which tests that it
+      # builds and cannot be uploaded or released.
+      - name: Upload key
+        id: key
+        if: github.ref == 'refs/heads/main'
+        env:
+          ANDROID_UPLOAD_KEYSTORE: ${{ secrets.ANDROID_UPLOAD_KEYSTORE }}
+        run: |
+          if [ -z "$ANDROID_UPLOAD_KEYSTORE" ]; then
+            echo "::notice::ANDROID_UPLOAD_KEYSTORE is not set, so the bundle and APK are unsigned"
+            exit 0
+          fi
+          printf '%s' "$ANDROID_UPLOAD_KEYSTORE" | base64 --decode > "$RUNNER_TEMP/upload.jks"
+          echo "ANDROID_UPLOAD_KEYSTORE_FILE=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
+      # The key's passwords reach the build only on main, as the key itself does: a branch's code never sees them.
+      - name: Test and build
+        env:
+          ANDROID_UPLOAD_KEYSTORE_PASSWORD: ${{ github.ref == 'refs/heads/main' && secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD || '' }}
+          ANDROID_UPLOAD_KEY_ALIAS: ${{ github.ref == 'refs/heads/main' && secrets.ANDROID_UPLOAD_KEY_ALIAS || '' }}
+          ANDROID_UPLOAD_KEY_PASSWORD: ${{ github.ref == 'refs/heads/main' && secrets.ANDROID_UPLOAD_KEY_PASSWORD || '' }}
+          MAIN: ${{ github.ref == 'refs/heads/main' }}
+        run: |
+          tasks=(:app:testDebugUnitTest :app:bundleRelease)
+          [ "$MAIN" = true ] && tasks+=(:app:assembleRelease)
+          ./gradlew "${tasks[@]}" -PversionCode="$VERSION_CODE"
+
+      - name: Remove the upload key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upload.jks"
+
+      # The APK is signed with the upload key, not the key Play signs its own installs with, so it installs fresh but
+      # does not update over a Play install, or the other way round. Named as a release names it, or by commit.
+      - name: Check the APK
+        if: steps.key.outputs.signed == 'true'
+        env:
+          NAME: ${{ needs.changes.outputs.release == 'true' && format('GrogLog-v{0}', needs.changes.outputs.version) || format('GrogLog-{0}', github.sha) }}
+        run: |
+          apk="$RUNNER_TEMP/$NAME.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$apk"
+          tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 | sort -V | tail -1)
+          "$tools/apksigner" verify --print-certs "$apk" | grep -E "certificate (DN|SHA-256)"
+          "$tools/aapt2" dump badging "$apk" | grep -E "^package:"
+          echo "APK=$apk" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bundle
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 14
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: env.APK != ''
+        with:
+          name: apk
+          path: ${{ env.APK }}
+          retention-days: ${{ needs.changes.outputs.release == 'true' && 90 || 7 }}
+
+  # groglog.io's image, built to prove it builds. Pull requests and manual runs off main; main builds and pushes it in
+  # `site-image` instead.
+  site:
+    name: Site
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.site == 'true' && github.ref != 'refs/heads/main'
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # A placeholder that reaches the site would be published as the contact address on the privacy policy.
+      - name: No placeholders
+        run: "! grep -rn '__[A-Z]*__' site/public"
+
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - run: docker buildx build site --load --tag groglog-site
+
+  # On main, the image is pushed under the commit it was built from, in parallel with the checks. Nothing deploys that
+  # tag: CD gives it the `sha-` tag the deployment follows, and `latest`, once `Checks` has passed. A job of its own so
+  # that a pull request's build never holds a token that can write packages.
+  site-image:
+    name: Site image
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.site == 'true' && github.ref == 'refs/heads/main'
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/radiosilence/groglog-site
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: No placeholders
+        run: "! grep -rn '__[A-Z]*__' site/public"
+
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Both architectures from one build: nothing in the image is architecture-specific.
+      - run: |
+          docker buildx build site --platform linux/amd64,linux/arm64 --tag "$IMAGE:$GITHUB_SHA" \
+            --label org.opencontainers.image.revision="$GITHUB_SHA" --push
+
+  # The one status the ruleset requires. Skipped jobs are domains the change does not touch and pass; anything failed
+  # or cancelled fails it.
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [changes, changelog, core, apple, android, site, site-image]
+    if: always()
+    steps:
+      - env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          bad=$(echo "$NEEDS" | jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | .key')
+          if [ -n "$bad" ]; then
+            echo "::error::not passed: ${bad//$'\n'/ }"
+            exit 1
+          fi
+
+  # ── CD ────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  #
+  # Main only, after `Checks`. `checks` runs whatever its needs did, so every job here states the results it depends on
+  # rather than relying on the default, which would skip it whenever any job upstream was skipped.
+
+  # Every push that changes what the iOS app is built from uploads a build, a release or not: MARKETING_VERSION stays
+  # and the build number (the time) rises, so testers always have main. A failed upload is retried alone, from
+  # testflight.yml's manual dispatch.
+  testflight:
+    name: TestFlight
+    needs: [changes, checks]
+    if: ${{ !cancelled() && needs.checks.result == 'success' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && needs.changes.outputs.apple == 'true' }}
+    uses: ./.github/workflows/testflight.yml
+    secrets: inherit
+
+  # The bundle the Android job built and signed, to Google Play's internal track, on every push that changes what the
+  # app contains. Skipped, not failed, until the upload key and the service account's key are configured.
+  play:
+    name: Google Play
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [checks, android]
+    if: ${{ !cancelled() && needs.checks.result == 'success' && needs.android.result == 'success' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+    env:
+      PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+      SIGNED: ${{ needs.android.outputs.signed }}
+    steps:
+      - id: ready
+        run: |
+          if [ "$SIGNED" != true ]; then
+            echo "::notice::The bundle is unsigned, so it was not uploaded to Google Play"
+          elif [ -z "$PLAY_SERVICE_ACCOUNT_JSON" ]; then
+            echo "::notice::PLAY_SERVICE_ACCOUNT_JSON is not set, so the signed bundle was not uploaded"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      # play.py takes the release notes from CHANGELOG.md.
+      - if: steps.ready.outputs.ready == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - if: steps.ready.outputs.ready == 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: bundle
+          path: ${{ runner.temp }}/bundle
+      - if: steps.ready.outputs.ready == 'true'
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - if: steps.ready.outputs.ready == 'true'
+        run: scripts/play.py upload "$RUNNER_TEMP/bundle/app-release.aab" internal
+
+  # The deployment (jaritanet's updater) follows main's head: it deploys `sha-<head>`, so every head needs that tag.
+  # A push that changed the site gets it, and `latest`, on the image CI pushed, and asks the deployment to pick it up.
+  # Any other push gets it on `latest`, the site as it stands, since nothing it changed is in the image. Retagging needs
+  # no rebuild.
+  site-deploy:
+    name: Site deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [checks, site-image]
+    if: ${{ !cancelled() && needs.checks.result == 'success' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+    concurrency:
+      group: site-deploy
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/radiosilence/groglog-site
+      BUILT: ${{ needs.site-image.result == 'success' }}
+    steps:
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: |
+          tag="sha-$(echo "$GITHUB_SHA" | cut -c1-7)"
+          if [ "$BUILT" = true ]; then
+            docker buildx imagetools create -t "$IMAGE:$tag" -t "$IMAGE:latest" "$IMAGE:$GITHUB_SHA"
+          else
+            docker buildx imagetools create -t "$IMAGE:$tag" "$IMAGE:latest"
+          fi
+      # DEPLOYMENT_PAT needs only `actions: write` on radiosilence/jaritanet, to trigger the updater. Its schedule
+      # moves the deployment to an unchanged site's new tag in its own time.
+      - name: Ask the deployment to pick this up
+        if: env.BUILT == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.DEPLOYMENT_PAT }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice::DEPLOYMENT_PAT is not set, so the deployment was not asked to update"
+            exit 0
+          fi
+          gh workflow run update-apps.yml --repo radiosilence/jaritanet
+
+  # The GitHub release, and so its tag, on the commit this run built, with the signed APK the Android job built and
+  # the version's changelog section as its notes. Every need having run, not merely not failed: a release without its
+  # APK is not a release. A re-run finds the release made and replaces its APK.
+  publish-release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [changes, checks, android]
+    if: ${{ !cancelled() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && !contains(needs.*.result, 'skipped') && needs.changes.outputs.release == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+    permissions:
+      contents: write
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    env:
+      VERSION: ${{ needs.changes.outputs.version }}
+    steps:
+      - name: Signed APK
+        env:
+          SIGNED: ${{ needs.android.outputs.signed }}
+        run: |
+          if [ "$SIGNED" != true ]; then
+            echo "::error::ANDROID_UPLOAD_KEYSTORE is not set, and an unsigned APK cannot be installed"
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: apk
+          path: ${{ runner.temp }}/apk
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          apk="$RUNNER_TEMP/apk/GrogLog-v$VERSION.apk"
+          [ -f "$apk" ] || { echo "::error::the Android job left no GrogLog-v$VERSION.apk"; exit 1; }
+          if gh release view "v$VERSION" > /dev/null 2>&1; then
+            gh release upload "v$VERSION" "$apk" --clobber
+            exit 0
+          fi
+          notes=$(awk -v h="## $VERSION" '$0==h{f=1;next} f&&/^## /{exit} f' CHANGELOG.md)
+          [ -n "$notes" ] || { echo "::error::CHANGELOG.md has no section for $VERSION"; exit 1; }
+          gh release create "v$VERSION" "$apk" --target "$GITHUB_SHA" --title "v$VERSION" --notes "$notes"

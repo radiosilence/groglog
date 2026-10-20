@@ -1,10 +1,11 @@
 # Releasing
 
-Every push to `main` that passes the core and changelog checks is archived, signed and uploaded to App Store Connect by
-`.github/workflows/ios.yml`, and appears in TestFlight once Apple has processed it. The app's tests are not run again
-on `main`: its pull request ran them, and the macOS runners are shared with every other repository on the account, so
-each run takes at most one. A pull request takes one only when it changes something the iOS app is built from; the
-list of paths that do not is in the workflow's `changes` job. The listing and review submission
+Every push to `main` that changes something the iOS app is built from, and whose run passes `Checks`, is archived,
+signed and uploaded to App Store Connect by `.github/workflows/testflight.yml`, which `ci-cd.yml` calls, and appears in
+TestFlight once Apple has processed it. The app's tests are not run again on `main`: its pull request ran them, and the
+macOS runners are shared with every other repository on the account, so each run takes at most one. A pull request
+takes one only when it changes something the iOS app is built from; the paths that do are the `apple` list in the
+workflow's `changes` job. `gh workflow run testflight.yml` uploads `main` again without a new commit. The listing and review submission
 are driven from the terminal by `scripts/app-store.py` (`just store <command>`), so the App Store Connect website is
 needed only for what Apple offers no API for.
 
@@ -29,7 +30,7 @@ Once, in App Store Connect and GitHub:
    - secret `IOS_CERTIFICATE_P12`: the base64 of the `.p12` in 1Password's "Apple Development certificate for CI
      (.p12)", and secret `IOS_CERTIFICATE_PASSWORD` from "Apple Development certificate for CI (password)"
 
-Until `APPLE_TEAM_ID` is set, the upload job is skipped and only the tests run.
+Until `APPLE_TEAM_ID` and `ASC_KEY` are set, the upload is skipped with a notice.
 
 An internal TestFlight group with access to all builds hands each processed upload to its testers without anyone
 having to add it; internal testers must be App Store Connect users.
@@ -49,7 +50,8 @@ assembled from the fragments, so they are current before a release is cut.
 1. `just release patch|minor|major` (or an exact version) branches from `main`, raises `MARKETING_VERSION` in `project.yml`,
    turns the unreleased fragments into that version with `just changelog --release`, and opens the release PR with the
    changelog section as its body; `gh workflow run release.yml` does the same from CI. Merging it uploads the builds
-   and publishes the GitHub release, and so its tag, with the APK attached (see below).
+   and publishes the GitHub release, and so its tag, with the APK attached (see below). If the release fails,
+   `gh workflow run ci-cd.yml` on `main` makes it, as long as the version has no release yet.
 2. For an update, add a `## What's new` section to [app-store.md](app-store.md). Apple requires release notes on every
    version after the first and refuses them on the first.
 3. `just store listing` pushes app-store.md to the listing, creating the version in App Store Connect if needed.
@@ -72,8 +74,8 @@ are in `mise.toml`. App Privacy, the EU trader declaration and agreements have n
 
 ## Build numbers
 
-A CI build's number is 1000 plus the workflow run number, so it always rises and can never collide with one uploaded
-by hand. The version shown in the App Store is `MARKETING_VERSION` in `project.yml`; raise it for each release.
+A CI build's number is 1000 plus the time of the upload in seconds, so it always rises, whichever workflow runs it, and
+can never collide with one uploaded by hand. The version shown in the App Store is `MARKETING_VERSION` in `project.yml`; raise it for each release.
 
 ## Screenshots
 
@@ -84,14 +86,15 @@ when the app changes visibly. Then run `scripts/render-share-image.sh`, which bu
 
 ## Android
 
-Every push to `main` that touches `android/` is tested, bundled, signed with the upload key and released to Google
-Play's internal track by `.github/workflows/android.yml`. Pull requests are tested and bundled unsigned. Until the
-upload key's secrets exist the bundle stays unsigned and nothing is uploaded; until `PLAY_SERVICE_ACCOUNT_JSON` exists
-the signed bundle is kept as the run's `bundle` artifact and not uploaded. Setting both up, the Play Console forms and
+Every push to `main` that changes something the Android app is built from is tested, bundled and signed with the
+upload key by the `Android` job in `.github/workflows/ci-cd.yml`, and once `Checks` has passed, the `Google Play` job
+uploads that bundle to Google Play's internal track. Pull requests are tested and bundled unsigned. Until the upload
+key's secrets exist the bundle stays unsigned and nothing is uploaded; until `PLAY_SERVICE_ACCOUNT_JSON` exists the
+signed bundle is kept as the run's `bundle` artifact and not uploaded. Setting both up, the Play Console forms and
 the closed test a personal account must run before production are in [play-store.md](play-store.md).
 
-The version code is the workflow's run number times 100 plus its attempt, so it always rises and a re-run uploads a
-code Play has not seen. The version name is `versionName` in
+The version code is the time of the build in seconds, so it always rises and a re-run uploads a code Play has not
+seen; it fits Android's limit until 2036. The version name is `versionName` in
 `android/app/build.gradle.kts`; raise it with `MARKETING_VERSION`, so both apps carry the same version. Release notes
 on each upload are CHANGELOG.md's Unreleased section, or the newest version's, cut to Play's 500 characters.
 
@@ -104,9 +107,14 @@ To release a version on Android:
 3. When the listing has changed, `scripts/play.py listing` pushes `android/store/listing.toml` and the graphics. Run
    `scripts/render-play-graphics.sh` first if the icon has changed.
 
-A push to `main` whose `MARKETING_VERSION` is newer than the latest GitHub release is released by the `apk` job in `.github/workflows/android.yml`: it builds a signed APK from the commit that raised the version, publishes the release with that version's changelog section as its notes and attaches the APK. Publishing a release by hand attaches the APK to it too. It is signed with the upload key, not the key Play signs installs with, so it installs fresh but does not update over a Play install, or the other way round.
+A push to `main` that changes `MARKETING_VERSION` to a version with no GitHub release is released by the `Publish
+GitHub Release` job in `.github/workflows/ci-cd.yml`, once `Checks` has passed: it publishes the release on that commit
+with the version's changelog section as its notes and attaches the signed APK the `Android` job built in the same run.
+It is signed with the upload key, not the key Play signs installs with, so it installs fresh but does not update over a
+Play install, or the other way round. Releases are made only this way; one published by hand gets no APK.
 
-To check that a release would work first, run the Android workflow by hand (Actions › Android › Run workflow, or `gh workflow run android.yml`): the `apk` job builds and signs the APK, prints its certificate and version, and keeps it as a workflow artifact for a week, without publishing anything.
+Every run on `main` builds and signs the APK, prints its certificate and version, and keeps it as the run's `apk`
+artifact for a week, so the latest run on `main` shows whether a release would work.
 
 `scripts/play.py status` shows what each track holds. It authenticates with the service account's key in
 `PLAY_SERVICE_ACCOUNT_JSON`.

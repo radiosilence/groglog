@@ -22,11 +22,26 @@ correct a note, edit its fragment. `just changelog --stdout` previews the result
 
 `just release patch|minor|major` (or an exact `X.Y.Z`) branches from main, raises `MARKETING_VERSION` in `project.yml`,
 the one place the version lives for both apps, turns the unreleased fragments into the version and opens the release
-PR; `gh workflow run release.yml` does the same from CI. Merging it is the release: the Android workflow publishes the
-GitHub release with the signed APK and the changelog section as notes. A push releases only when `MARKETING_VERSION` is
-newer than the latest GitHub release, so a release that failed is made by the next push that runs the Android workflow.
-TestFlight and Play's internal track receive every push to main, release or not; App Store submission and Play
-promotion stay manual (see `docs/releasing.md`).
+PR; `gh workflow run release.yml` does the same from CI. Merging it is the release: CI/CD publishes the GitHub release
+with the signed APK and the changelog section as notes. A push releases when it changes `MARKETING_VERSION` to a version
+with no GitHub release yet; a release that failed is retried with `gh workflow run ci-cd.yml` on main, which releases
+the version if it is still not out. TestFlight and Play's internal track receive every push to main that changes their
+app, release or not; App Store submission and Play promotion stay manual (see `docs/releasing.md`).
+
+## CI
+
+One workflow, `.github/workflows/ci-cd.yml`. Its `changes` job works out from the diff which domains a change touches
+(`rust`, `apple`, `android`, `site`), and each job runs only for its domain, so most jobs on most pull requests are
+skipped; a skipped job passes. `Checks` needs every CI job and is the only status the ruleset requires. On main, CD runs
+after `Checks`: TestFlight, Google Play's internal track, the site's image and deployment, and, for a release, the
+GitHub release. The macOS runners are few and shared across the account, so a run takes at most one: the iOS tests on a
+pull request, the TestFlight archive on main.
+
+A domain is an allowlist of paths in `changes`, and anything under `.github/` counts for every domain. A new top-level
+directory is invisible until it is added to the domains it belongs to. `mise.toml` and `project.yml` are read by both
+apps, so `.github/scripts/shared_inputs.py` decides which app a change to them reaches; a tool a job newly installs from
+mise goes in its list there. To add a domain, add its output and path list to `changes`, gate its jobs on that output
+with a job-level `if:`, and add the jobs to `Checks`' `needs`.
 
 ## Docs
 
