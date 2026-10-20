@@ -32,6 +32,9 @@ enum class HeartLines {
     MONTHLY,
     ;
 
+    /** The readings this chart carries: sleeping rate only nightly, as the nearest to the night itself. */
+    val readings get() = if (this == NIGHTLY) HeartReading.entries else listOf(HeartReading.HRV, HeartReading.RESTING)
+
     /** Whether this chart draws `reading` as the mean of the week up to each night. */
     fun averages(reading: HeartReading) = this == MONTHLY && reading == HeartReading.HRV
 

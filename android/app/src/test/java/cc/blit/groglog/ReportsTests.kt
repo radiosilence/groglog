@@ -12,6 +12,7 @@ import cc.blit.groglog.ui.reports.HeartPoint
 import cc.blit.groglog.ui.reports.HeartReading
 import cc.blit.groglog.ui.reports.HeartScale
 import cc.blit.groglog.ui.reports.Progress
+import cc.blit.groglog.ui.reports.heartSummary
 import cc.blit.groglog.ui.reports.niceTicks
 import cc.blit.groglog.ui.reports.readout
 import cc.blit.groglog.ui.reports.runningRange
@@ -126,6 +127,10 @@ class ProgressTests {
         assertTrue(resting.all { it.value == 55.0 + (kotlin.math.floor(it.x).toInt() % 3) })
         assertEquals(", 7-night", HeartLines.MONTHLY.suffix(HeartReading.HRV))
         assertEquals("", HeartLines.MONTHLY.suffix(HeartReading.RESTING))
+        // The caption says the same as the lines: HRV over the week, resting rate last night.
+        val lastNight = today - 1
+        val summary = heartSummary(nights, HeartLines.MONTHLY, lastNight).single().text
+        assertEquals("HRV 50 ms over the last week · RHR ${(55.0 + lastNight.number % 3).toInt()} bpm last night", summary)
     }
 
     @Test fun theRunningTotalsReachBackToLastMonthAndThreeWeeks() {

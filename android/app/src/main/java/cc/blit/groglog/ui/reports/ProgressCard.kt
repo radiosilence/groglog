@@ -108,12 +108,8 @@ data class Progress(
             }
             val nightsShown = (start..(today - 1)).toList()
             val noon = { day: DayKey -> day.number + 0.5 }
-            val readings = when (heart) {
-                HeartLines.NIGHTLY -> HeartReading.entries
-                HeartLines.MONTHLY -> listOf(HeartReading.HRV, HeartReading.RESTING)
-            }
-            // An averaged anchor is averaged the same way, so a lone old reading with no week around it is not used.
-            val hearts = readings.flatMap { reading ->
+            // The anchor is read the same way as its line: averaged, a lone old reading with no week around it is not used.
+            val hearts = heart.readings.flatMap { reading ->
                 HeartPoint.line(reading, nightsShown, nights.last(reading.kind, start), noon) { day ->
                     if (heart.averages(reading)) nights.mean(reading.kind, (day - 6)..day) else nights[day]?.let(reading.value)
                 }
@@ -281,7 +277,10 @@ fun heartDots(points: List<HeartPoint>, scale: HeartScale?, dots: Boolean, size:
     return points.filter { !it.bridge && (dots || it.alone) }.map { PlotDot(it.x, scale.y(it.value), it.reading.color, size) }
 }
 
-/** Last night against the week before it, to show the effect of one evening; or, averaged, the last week. */
+/**
+ * Last night against the week before it, to show the effect of one evening; or, monthly, HRV over the last week and
+ * resting rate last night, as each is drawn.
+ */
 fun heartSummary(nights: Nights, heart: HeartLines, lastNight: DayKey): List<AnnotatedString> {
     val week = (lastNight - 7)..(lastNight - 1)
     return when (heart) {
@@ -299,11 +298,11 @@ fun heartSummary(nights: Nights, heart: HeartLines, lastNight: DayKey): List<Ann
         }
         HeartLines.MONTHLY -> {
             val hrv = nights.mean(ReadingKind.HRV, (lastNight - 6)..lastNight)
-            val resting = nights.mean(ReadingKind.RESTING_HR, (lastNight - 6)..lastNight)
+            val resting = nights[lastNight]?.restingHR
             if (hrv == null && resting == null) {
                 emptyList()
             } else {
-                listOf(AnnotatedString(listOfNotNull(hrv?.let { "HRV ${it.roundToInt()} ms" }, resting?.let { "RHR ${it.roundToInt()} bpm" }).joinToString(" · ") + " over the last week"))
+                listOf(AnnotatedString(listOfNotNull(hrv?.let { "HRV ${it.roundToInt()} ms over the last week" }, resting?.let { "RHR ${it.roundToInt()} bpm last night" }).joinToString(" · ")))
             }
         }
     }

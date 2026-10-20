@@ -61,6 +61,9 @@ struct ReportsScreen: View {
 private enum HeartLines {
     case nightly, monthly
 
+    /// The readings this chart carries: sleeping rate only nightly, as the nearest to the night itself.
+    var readings: [HeartReading] { self == .nightly ? HeartReading.allCases : [.hrv, .resting] }
+
     /// Whether this chart draws `reading` as the mean of the week up to each night.
     func averages(_ reading: HeartReading) -> Bool { self == .monthly && reading == .hrv }
 
@@ -303,11 +306,10 @@ private struct ProgressCard: View {
         let shown = drank.filter { $0.date >= ledger.clock.start(of: today - days) }
         let top = max(10, sofar, shown.map(\.units).max() ?? 0, ahead.map(\.units).max() ?? 0) * 1.15
         // Each night sits on the bar of the day it followed. Averaged, it is the mean of the week up to that night,
-        // shown only once enough of that week has readings; the anchor is averaged the same way, so a lone old
-        // reading with no week around it is not used.
+        // shown only once enough of that week has readings. The anchor is read the same way as its line: averaged, a
+        // lone old reading with no week around it is not used.
         let nightsShown = Array(start..<today)
-        let readings: [HeartReading] = heart == .nightly ? HeartReading.allCases : [.hrv, .resting]
-        let hearts = readings.flatMap { reading in
+        let hearts = heart.readings.flatMap { reading in
             HeartPoint.line(reading, nightsShown, before: nights.last(reading.kind, before: start), at: noon) { day in
                 heart.averages(reading) ? nights.mean(reading.kind, over: (day - 6)...day) : nights[day]?[keyPath: reading.value]
             }
@@ -356,7 +358,8 @@ private struct ProgressCard: View {
         }
     }
 
-    /// Last night against the week before it, to show the effect of one evening.
+    /// Last night against the week before it, to show the effect of one evening; or, monthly, HRV over the last week
+    /// and resting rate last night, as each is drawn.
     @ViewBuilder private func heartSummary(_ lastNight: DayKey) -> some View {
         let week = (lastNight - 7)...(lastNight - 1)
         switch heart {
@@ -372,9 +375,9 @@ private struct ProgressCard: View {
             ForEach(lines.indices, id: \.self) { lines[$0] }
         case .monthly:
             let hrv = nights.mean(.hrv, over: (lastNight - 6)...lastNight)
-            let resting = nights.mean(.restingHr, over: (lastNight - 6)...lastNight)
+            let resting = nights[lastNight]?.restingHR
             if hrv != nil || resting != nil {
-                Text([hrv.map { "HRV \(Int($0.rounded())) ms" }, resting.map { "RHR \(Int($0.rounded())) bpm" }].compactMap(\.self).joined(separator: " · ") + " over the last week")
+                Text([hrv.map { "HRV \(Int($0.rounded())) ms over the last week" }, resting.map { "RHR \(Int($0.rounded())) bpm last night" }].compactMap(\.self).joined(separator: " · "))
             }
         }
     }
