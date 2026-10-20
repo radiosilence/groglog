@@ -113,8 +113,8 @@ with the version's changelog section as its notes and attaches the signed APK th
 It is signed with the upload key, not the key Play signs installs with, so it installs fresh but does not update over a
 Play install, or the other way round. Releases are made only this way; one published by hand gets no APK.
 
-Every run on `main` builds and signs the APK, prints its certificate and version, and keeps it as the run's `apk`
-artifact for a week, so the latest run on `main` shows whether a release would work.
+Every run on `main` that builds the Android app also builds and signs the APK, prints its certificate and version, and
+keeps it as the run's `apk` artifact for a week, so the latest such run shows whether a release would work.
 
 `scripts/play.py status` shows what each track holds. It authenticates with the service account's key in
 `PLAY_SERVICE_ACCOUNT_JSON`.
