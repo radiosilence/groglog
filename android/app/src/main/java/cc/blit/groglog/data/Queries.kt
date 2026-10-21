@@ -8,6 +8,7 @@ import cc.blit.groglog.model.DayRange
 import cc.blit.groglog.model.Drink
 import cc.blit.groglog.model.Entry
 import cc.blit.groglog.model.FavouriteItem
+import cc.blit.groglog.model.Pour
 import java.text.Collator
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
@@ -43,6 +44,14 @@ abstract class Queries {
 
     /** How many times a drink has been logged, which decides whether it can be deleted. */
     fun pourCount(drinkId: UUID): Flow<Int> = observePourCount(drinkId).distinctUntilChanged()
+
+    /** Every drink ever logged, read once when the Log grid is ordered rather than observed. */
+    @Query("SELECT * FROM pour")
+    abstract suspend fun history(): List<Pour>
+
+    /** Every drink as it stands, read alongside `history`. */
+    @Query("SELECT * FROM drink")
+    abstract suspend fun allDrinks(): List<Drink>
 
     @Query("SELECT * FROM day ORDER BY number")
     protected abstract fun observeDays(): Flow<List<Day>>
