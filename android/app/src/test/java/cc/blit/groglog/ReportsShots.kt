@@ -94,7 +94,7 @@ class ReportsShots {
         val state = demo()
         shoot("cards") {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                ProgressCard("Monthly progress", 35.0, 120, state.ledger, state.goal, state.nights, HeartLines.AVERAGED, HeartReading.RESTING, {}, {})
+                ProgressCard("Monthly progress", 35.0, 120, state.ledger, state.goal, state.nights, HeartLines.MONTHLY, HeartReading.RESTING, {}, {})
                 SleepCard(state.ledger, state.nights)
                 WeekCard(state.ledger, state.goal, state.entries)
                 MonthCard(state.ledger, state.entries)

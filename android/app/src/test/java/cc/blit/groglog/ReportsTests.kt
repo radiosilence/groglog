@@ -12,6 +12,7 @@ import cc.blit.groglog.ui.reports.HeartPoint
 import cc.blit.groglog.ui.reports.HeartReading
 import cc.blit.groglog.ui.reports.HeartScale
 import cc.blit.groglog.ui.reports.Progress
+import cc.blit.groglog.ui.reports.heartSummary
 import cc.blit.groglog.ui.reports.niceTicks
 import cc.blit.groglog.ui.reports.readout
 import cc.blit.groglog.ui.reports.runningRange
@@ -110,16 +111,26 @@ class ProgressTests {
         assertTrue(readout(ledger, Goal(), (today - 5).number + 0.5).lines.single().startsWith("6.0 u"))
     }
 
-    @Test fun weeklyHeartLinesCarryEachNightAndMonthlyOnesTheWeek() {
+    @Test fun weeklyHeartLinesCarryEachNightAndMonthlyOnesTheWeekOfHrvAndEachNightOfRestingRate() {
         val today = clock.today
-        val nights = Nights(((today - 20)..(today - 1)).associateWith { Night(hrv = 50.0, restingHR = 55.0, sleepingHR = 50.0) })
+        val nights = Nights(((today - 20)..(today - 1)).associateWith { Night(hrv = 50.0, restingHR = 55.0 + it.number % 3, sleepingHR = 50.0) })
         val ledger = ledger(Day((today - 30).number, units = 6.0, count = 2))
         val nightly = Progress.of(ledger, goal, nights, HeartLines.NIGHTLY, 60, Instant.now()).hearts
-        val averaged = Progress.of(ledger, goal, nights, HeartLines.AVERAGED, 120, Instant.now()).hearts
+        val monthly = Progress.of(ledger, goal, nights, HeartLines.MONTHLY, 120, Instant.now()).hearts
         assertEquals(HeartReading.entries.toSet(), nightly.map { it.reading }.toSet())
-        assertFalse(averaged.any { it.reading == HeartReading.SLEEPING })
+        assertFalse(monthly.any { it.reading == HeartReading.SLEEPING })
         // A week's average needs three nights, so the first two nights of readings have none.
-        assertEquals(18, averaged.count { it.reading == HeartReading.HRV && !it.bridge })
+        assertEquals(18, monthly.count { it.reading == HeartReading.HRV && !it.bridge })
+        // Resting rate is every night as it came, not smoothed.
+        val resting = monthly.filter { it.reading == HeartReading.RESTING && !it.bridge }
+        assertEquals(20, resting.size)
+        assertTrue(resting.all { it.value == 55.0 + (kotlin.math.floor(it.x).toInt() % 3) })
+        assertEquals(", 7-night", HeartLines.MONTHLY.suffix(HeartReading.HRV))
+        assertEquals("", HeartLines.MONTHLY.suffix(HeartReading.RESTING))
+        // The caption says the same as the lines: HRV over the week, resting rate last night.
+        val lastNight = today - 1
+        val summary = heartSummary(nights, HeartLines.MONTHLY, lastNight).single().text
+        assertEquals("HRV 50 ms over the last week · RHR ${(55.0 + lastNight.number % 3).toInt()} bpm last night", summary)
     }
 
     @Test fun theRunningTotalsReachBackToLastMonthAndThreeWeeks() {

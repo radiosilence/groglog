@@ -25,7 +25,7 @@ struct ReportsScreen: View {
         ScrollView {
             VStack(spacing: 16) {
                 ProgressCard(title: "Weekly progress", days: 10, history: 60, ledger: ledger, goal: prefs.goal, nights: nights, heart: .nightly) { settingGoal = true }
-                ProgressCard(title: "Monthly progress", days: 35, history: 120, ledger: ledger, goal: prefs.goal, nights: nights, heart: .averaged) { settingGoal = true }
+                ProgressCard(title: "Monthly progress", days: 35, history: 120, ledger: ledger, goal: prefs.goal, nights: nights, heart: .monthly) { settingGoal = true }
                 if nights.byDay.values.contains(where: { $0.sleep != nil }) {
                     SleepCard(ledger: ledger, nights: nights)
                 }
@@ -55,9 +55,20 @@ struct ReportsScreen: View {
     }
 }
 
-/// Which heart readings a progress chart carries: each night as it came, or the week around it.
+/// Which heart readings a progress chart carries: each night as it came, or, monthly, HRV as the week around each night
+/// and resting rate still night by night. A night's HRV swings too far to follow across a month, while resting rate
+/// moves slowly enough that each night reads on its own and the trend shows through.
 private enum HeartLines {
-    case nightly, averaged
+    case nightly, monthly
+
+    /// The readings this chart carries: sleeping rate only nightly, as the nearest to the night itself.
+    var readings: [HeartReading] { self == .nightly ? HeartReading.allCases : [.hrv, .resting] }
+
+    /// Whether this chart draws `reading` as the mean of the week up to each night.
+    func averages(_ reading: HeartReading) -> Bool { self == .monthly && reading == .hrv }
+
+    /// What a reading's chip adds to its name, so an averaged line says so.
+    func suffix(_ reading: HeartReading) -> String { averages(reading) ? ", 7-night" : "" }
 }
 
 private enum HeartReading: String, CaseIterable {
@@ -177,7 +188,7 @@ private struct HeartScale: Equatable {
 /// row below the drinking keys. The choice is shared by every chart.
 private struct HeartLegend: View {
     let points: [HeartPoint]
-    let suffix: String
+    let suffix: (HeartReading) -> String
     @Binding var shown: HeartReading
 
     /// The chosen reading, or the first there is when the chosen one has no data in this chart.
@@ -190,7 +201,7 @@ private struct HeartLegend: View {
         let readings = HeartReading.allCases.filter { reading in points.contains { $0.reading == reading } }
         if let drawn = Self.drawn(shown, in: points) {
             HStack(spacing: 12) {
-                ChipRow(options: readings, selection: Binding(get: { drawn }, set: { shown = $0 }), tint: \.color) { "\($0.short)\(suffix)" }
+                ChipRow(options: readings, selection: Binding(get: { drawn }, set: { shown = $0 }), tint: \.color) { "\($0.short)\(suffix($0))" }
                     .controlSize(.small)
                 Text(drawn.unit).font(.caption).foregroundStyle(.tertiary)
             }
@@ -295,17 +306,12 @@ private struct ProgressCard: View {
         let shown = drank.filter { $0.date >= ledger.clock.start(of: today - days) }
         let top = max(10, sofar, shown.map(\.units).max() ?? 0, ahead.map(\.units).max() ?? 0) * 1.15
         // Each night sits on the bar of the day it followed. Averaged, it is the mean of the week up to that night,
-        // shown only once enough of that week has readings.
+        // shown only once enough of that week has readings. The anchor is read the same way as its line: averaged, a
+        // lone old reading with no week around it is not used.
         let nightsShown = Array(start..<today)
-        let hearts = switch heart {
-        case .nightly:
-            HeartReading.allCases.flatMap { reading in
-                HeartPoint.line(reading, nightsShown, before: nights.last(reading.kind, before: start), at: noon) { nights[$0]?[keyPath: reading.value] }
-            }
-        case .averaged:
-            // The anchor is averaged the same way, so a lone old reading with no week around it is not used.
-            [HeartReading.hrv, .resting].flatMap { reading in
-                HeartPoint.line(reading, nightsShown, before: nights.last(reading.kind, before: start), at: noon) { nights.mean(reading.kind, over: ($0 - 6)...$0) }
+        let hearts = heart.readings.flatMap { reading in
+            HeartPoint.line(reading, nightsShown, before: nights.last(reading.kind, before: start), at: noon) { day in
+                heart.averages(reading) ? nights.mean(reading.kind, over: (day - 6)...day) : nights[day]?[keyPath: reading.value]
             }
         }
 
@@ -322,8 +328,10 @@ private struct ProgressCard: View {
             }
             .font(.subheadline)
             .foregroundStyle(.secondary)
-            let drawn = hearts.filter { $0.reading == HeartLegend.drawn(shownHeart, in: hearts) }
-            ProgressPlot(drank: drank, behind: behind, ahead: ahead, heart: drawn, heartScale: HeartScale(drawn, top: top), dots: heart == .nightly,
+            let reading = HeartLegend.drawn(shownHeart, in: hearts)
+            let drawn = hearts.filter { $0.reading == reading }
+            // A dot on each night measured; an averaged line has none, as its points are not readings.
+            ProgressPlot(drank: drank, behind: behind, ahead: ahead, heart: drawn, heartScale: HeartScale(drawn, top: top), dots: reading.map { !heart.averages($0) } ?? false,
                          now: now, top: top, days: days, readout: readout, selection: $selected,
                          x: Binding(get: { scrolledTo ?? (today - (days - 4)).date(in: calendar) }, set: { scrolledTo = $0 }))
             // Simultaneous, or the chart's own scrolling swallows it and nothing zooms.
@@ -342,7 +350,7 @@ private struct ProgressCard: View {
                     LegendKey(label: "Plan", color: .dry, dashed: true)
                 }
             }
-            HeartLegend(points: hearts, suffix: heart == .nightly ? "" : ", 7-night", shown: $shownHeart)
+            HeartLegend(points: hearts, suffix: heart.suffix, shown: $shownHeart)
             if !goal.isEnabled {
                 Button("Set a goal to see your budget come down", systemImage: "target", action: onSetGoal)
                     .font(.subheadline)
@@ -350,7 +358,8 @@ private struct ProgressCard: View {
         }
     }
 
-    /// Last night against the week before it, to show the effect of one evening.
+    /// Last night against the week before it, to show the effect of one evening; or, monthly, HRV over the last week
+    /// and resting rate last night, as each is drawn.
     @ViewBuilder private func heartSummary(_ lastNight: DayKey) -> some View {
         let week = (lastNight - 7)...(lastNight - 1)
         switch heart {
@@ -364,11 +373,11 @@ private struct ProgressCard: View {
                 return Text("\(reading.short) last night \(Int(value.rounded())) \(reading.unit)\(against)")
             }
             ForEach(lines.indices, id: \.self) { lines[$0] }
-        case .averaged:
+        case .monthly:
             let hrv = nights.mean(.hrv, over: (lastNight - 6)...lastNight)
-            let resting = nights.mean(.restingHr, over: (lastNight - 6)...lastNight)
+            let resting = nights[lastNight]?.restingHR
             if hrv != nil || resting != nil {
-                Text([hrv.map { "HRV \(Int($0.rounded())) ms" }, resting.map { "RHR \(Int($0.rounded())) bpm" }].compactMap(\.self).joined(separator: " · ") + " over the last week")
+                Text([hrv.map { "HRV \(Int($0.rounded())) ms over the last week" }, resting.map { "RHR \(Int($0.rounded())) bpm last night" }].compactMap(\.self).joined(separator: " · "))
             }
         }
     }
@@ -913,7 +922,7 @@ private struct WeeksCard: View {
                 Spacer()
                 Text("scroll back").font(.caption).foregroundStyle(.tertiary)
             }
-            HeartLegend(points: hearts, suffix: "", shown: $shownHeart)
+            HeartLegend(points: hearts, suffix: { _ in "" }, shown: $shownHeart)
         }
     }
 }

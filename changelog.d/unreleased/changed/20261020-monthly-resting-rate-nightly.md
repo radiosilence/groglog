@@ -1,0 +1,1 @@
+- **Monthly progress draws resting heart rate night by night.** Each night's resting rate is a point on its own day rather than the mean of the week up to it, so a heavy evening shows the next morning. HRV stays a 7-night average there, since a single night swings too far to follow across a month.

@@ -58,8 +58,8 @@ data class DayBar(val day: DayKey, val units: Double, val partial: Boolean, val 
 
 /**
  * Everything a progress chart shows, worked out from the log: what was drunk each day as bars, the daily budget as a
- * line that runs on from now as the dashed plan, and the heart readings. Nothing here is averaged except the heart
- * readings of a monthly chart.
+ * line that runs on from now as the dashed plan, and the heart readings. Nothing here is averaged except the HRV of a
+ * monthly chart.
  */
 @Immutable
 data class Progress(
@@ -108,13 +108,10 @@ data class Progress(
             }
             val nightsShown = (start..(today - 1)).toList()
             val noon = { day: DayKey -> day.number + 0.5 }
-            val hearts = when (heart) {
-                HeartLines.NIGHTLY -> HeartReading.entries.flatMap { reading ->
-                    HeartPoint.line(reading, nightsShown, nights.last(reading.kind, start), noon) { nights[it]?.let(reading.value) }
-                }
-                // The anchor is averaged the same way, so a lone old reading with no week around it is not used.
-                HeartLines.AVERAGED -> listOf(HeartReading.HRV, HeartReading.RESTING).flatMap { reading ->
-                    HeartPoint.line(reading, nightsShown, nights.last(reading.kind, start), noon) { nights.mean(reading.kind, (it - 6)..it) }
+            // The anchor is read the same way as its line: averaged, a lone old reading with no week around it is not used.
+            val hearts = heart.readings.flatMap { reading ->
+                HeartPoint.line(reading, nightsShown, nights.last(reading.kind, start), noon) { day ->
+                    if (heart.averages(reading)) nights.mean(reading.kind, (day - 6)..day) else nights[day]?.let(reading.value)
                 }
             }
             return Progress(
@@ -196,6 +193,8 @@ fun ProgressCard(
         val drawn = HeartPoint.drawn(shownHeart, progress.hearts)
         val heartPoints = progress.hearts.filter { it.reading == drawn }
         val scale = HeartScale.of(heartPoints, top)
+        // A dot on each night measured; an averaged line has none, as its points are not readings.
+        val dots = drawn != null && !heart.averages(drawn)
         val plot = Plot(
             from = from,
             to = to,
@@ -208,8 +207,8 @@ fun ProgressCard(
             lines = listOf(
                 PlotLine(progress.behind, GrogColors.dry),
                 PlotLine(progress.ahead, GrogColors.dry, dash = listOf(4.dp, 4.dp)),
-            ) + heartLines(heartPoints, scale, dots = heart == HeartLines.NIGHTLY),
-            dots = heartDots(heartPoints, scale, dots = heart == HeartLines.NIGHTLY, size = 6.dp),
+            ) + heartLines(heartPoints, scale, dots = dots),
+            dots = heartDots(heartPoints, scale, dots = dots, size = 6.dp),
             rules = listOf(progress.now),
             rightTicks = scale?.ticks?.map { it.first to it.second.toString() }.orEmpty(),
             rightColor = scale?.color ?: androidx.compose.ui.graphics.Color.Unspecified,
@@ -234,7 +233,7 @@ fun ProgressCard(
                 LegendKey("Plan", GrogColors.dry, dashed = true)
             }
         }
-        HeartChips(progress.hearts, if (heart == HeartLines.NIGHTLY) "" else ", 7-night", shownHeart, onShowHeart)
+        HeartChips(progress.hearts, heart::suffix, shownHeart, onShowHeart)
         if (!goal.isEnabled) {
             TextButton(onClick = onSetGoal) {
                 Icon(ReportIcons.target, contentDescription = null)
@@ -278,7 +277,10 @@ fun heartDots(points: List<HeartPoint>, scale: HeartScale?, dots: Boolean, size:
     return points.filter { !it.bridge && (dots || it.alone) }.map { PlotDot(it.x, scale.y(it.value), it.reading.color, size) }
 }
 
-/** Last night against the week before it, to show the effect of one evening; or, averaged, the last week. */
+/**
+ * Last night against the week before it, to show the effect of one evening; or, monthly, HRV over the last week and
+ * resting rate last night, as each is drawn.
+ */
 fun heartSummary(nights: Nights, heart: HeartLines, lastNight: DayKey): List<AnnotatedString> {
     val week = (lastNight - 7)..(lastNight - 1)
     return when (heart) {
@@ -294,13 +296,13 @@ fun heartSummary(nights: Nights, heart: HeartLines, lastNight: DayKey): List<Ann
                 }
             }
         }
-        HeartLines.AVERAGED -> {
+        HeartLines.MONTHLY -> {
             val hrv = nights.mean(ReadingKind.HRV, (lastNight - 6)..lastNight)
-            val resting = nights.mean(ReadingKind.RESTING_HR, (lastNight - 6)..lastNight)
+            val resting = nights[lastNight]?.restingHR
             if (hrv == null && resting == null) {
                 emptyList()
             } else {
-                listOf(AnnotatedString(listOfNotNull(hrv?.let { "HRV ${it.roundToInt()} ms" }, resting?.let { "RHR ${it.roundToInt()} bpm" }).joinToString(" · ") + " over the last week"))
+                listOf(AnnotatedString(listOfNotNull(hrv?.let { "HRV ${it.roundToInt()} ms over the last week" }, resting?.let { "RHR ${it.roundToInt()} bpm last night" }).joinToString(" · ")))
             }
         }
     }

@@ -113,7 +113,7 @@ fun ReportsContent(
                 ProgressCard("Weekly progress", 10.0, 60, ledger, state.goal, state.nights, HeartLines.NIGHTLY, shownHeart, onShowHeart, onSetGoal)
             }
             item("monthly progress") {
-                ProgressCard("Monthly progress", 35.0, 120, ledger, state.goal, state.nights, HeartLines.AVERAGED, shownHeart, onShowHeart, onSetGoal)
+                ProgressCard("Monthly progress", 35.0, 120, ledger, state.goal, state.nights, HeartLines.MONTHLY, shownHeart, onShowHeart, onSetGoal)
             }
             if (hasSleep) item("sleep") { SleepCard(ledger, state.nights) }
             item("week") { WeekCard(ledger, state.goal, state.entries) }
