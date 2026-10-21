@@ -2,8 +2,8 @@
 //! logged on the day, the favourites in their pinned order, the serves usually drunk at this moment, then the generic
 //! drinks. Only the third tier is scored, so pinned tiles never move.
 //!
-//! A serve's score for a moment is the number of times it was logged in a similar moment, each weighted by how similar
-//! and how recent: the hour into the drinking day, the kind of day, and weakly the date in the month, so a payday habit
+//! A serve's score for a moment is the number of nights it was drunk at a similar moment, each weighted by how similar
+//! and how recent, so six rounds of a guest ale on one night count once: the hour into the drinking day, the kind of day, and weakly the date in the month, so a payday habit
 //! can show. Habits that change take over within weeks, since each pour's weight halves every `HALF_LIFE_DAYS`.
 
 use std::collections::{HashMap, HashSet};
@@ -23,7 +23,7 @@ const DATE_SPREAD: f64 = 3.0;
 const DATE_WEIGHT: f64 = 0.2;
 /// How much a pour counts whatever the moment, so search still prefers what is drunk often at any time.
 const PRIOR: f64 = 0.02;
-/// A serve is usual for a moment with at least this much weighted evidence, about three similar recent pours, and at
+/// A serve is usual for a moment with at least this much weighted evidence, about three similar recent nights, and at
 /// least `SHARE` of the best serve's, so a weak runner-up does not follow a strong habit onto the grid.
 const EVIDENCE: f64 = 2.0;
 const SHARE: f64 = 0.25;
@@ -49,15 +49,21 @@ impl CorePicker {
     /// Scores every serve in `history` for the moment `hours` into `day`.
     #[uniffi::constructor]
     pub fn new(history: Vec<PickerPour>, day: i64, hours: f64) -> Self {
-        let mut context: HashMap<String, f64> = HashMap::new();
-        let mut scores: HashMap<String, f64> = HashMap::new();
+        // Each night counts at its closest pour to the moment.
+        let mut nights: HashMap<(&str, i64), (f64, f64)> = HashMap::new();
         for pour in &history {
             // A pour logged ahead of the moment counts as current rather than growing heavier.
             let age = ((day - pour.day) as f64 + (hours - pour.hours) / 24.0).max(0.0);
             let decay = 0.5_f64.powf(age / HALF_LIFE_DAYS);
             let similar = decay * hour_weight(pour.hours, hours) * day_weight(pour.day, day) * date_weight(pour.day, day);
-            *context.entry(pour.key.clone()).or_default() += similar;
-            *scores.entry(pour.key.clone()).or_default() += similar + PRIOR * decay;
+            let night = nights.entry((pour.key.as_str(), pour.day)).or_default();
+            *night = (night.0.max(similar), night.1.max(decay));
+        }
+        let mut context: HashMap<String, f64> = HashMap::new();
+        let mut scores: HashMap<String, f64> = HashMap::new();
+        for ((key, _), (similar, decay)) in nights {
+            *context.entry(key.to_string()).or_default() += similar;
+            *scores.entry(key.to_string()).or_default() += similar + PRIOR * decay;
         }
         let mut ranked: Vec<(&String, f64)> = context.iter().map(|(key, score)| (key, *score)).collect();
         ranked.sort_by(|a, b| b.1.total_cmp(&a.1).then_with(|| a.0.cmp(b.0)));
@@ -196,6 +202,13 @@ mod tests {
     }
 
     #[test]
+    fn one_long_session_is_one_night() {
+        let saturday = day_number(2026, 10, 24);
+        let session = (0..6).map(|round| pour("guest ale", saturday - 7, 14.0 + round as f64 * 0.5)).collect();
+        assert!(CorePicker::new(session, saturday, 15.0).usual().is_empty());
+    }
+
+    #[test]
     fn the_time_of_day_separates_habits_on_the_same_day() {
         let sunday = day_number(2026, 10, 18);
         let history: Vec<PickerPour> =
@@ -215,9 +228,11 @@ mod tests {
     #[test]
     fn a_weak_runner_up_does_not_follow_a_strong_habit() {
         let friday = day_number(2026, 10, 23);
-        let strong = (1..=8).flat_map(|week| (0..3).map(move |n| pour("ipa", friday - 7 * week, 14.0 + n as f64 * 0.5)));
-        let weak = (1..=3).map(|week| pour("cider", friday - 7 * week, 14.0));
-        assert_eq!(CorePicker::new(strong.chain(weak).collect(), friday, 14.5).usual(), keys(&["ipa"]));
+        // Every night for four months, against three recent Fridays, which alone would be usual.
+        let strong = (1..=120).map(|ago| pour("ipa", friday - ago, 14.0));
+        let weak: Vec<PickerPour> = (1..=3).map(|week| pour("cider", friday - 7 * week, 14.0)).collect();
+        assert_eq!(CorePicker::new(weak.clone(), friday, 14.0).usual(), keys(&["cider"]));
+        assert_eq!(CorePicker::new(strong.chain(weak).collect(), friday, 14.0).usual(), keys(&["ipa"]));
     }
 
     #[test]

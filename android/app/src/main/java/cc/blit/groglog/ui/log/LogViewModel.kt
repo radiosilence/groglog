@@ -29,6 +29,7 @@ import cc.blit.groglog.model.ServeSize
 import cc.blit.groglog.model.searchFolded
 import java.time.Duration
 import java.time.Instant
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -43,9 +44,11 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.lifecycle.SavedStateHandle
 import cc.blit.groglog.data.Serves
 
@@ -106,9 +109,6 @@ class LogViewModel(
      * Deliberate picks (the options sheet, a catalogue result) move to the front straight away.
      */
     private val recency = MutableStateFlow<Map<String, Instant>?>(null)
-
-    /** The whole history scored for the moment a drink would be logged, taken when the screen appeared for the same reason. */
-    private val usual = MutableStateFlow<Usual?>(null)
     private val pulses = MutableStateFlow(emptyMap<String, Int>())
 
     private val settings = prefs.settings
@@ -126,10 +126,21 @@ class LogViewModel(
             Content(day, favourites, drinks, pours)
         }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    /**
+     * The whole history scored for the moment a drink would be logged, taken when the screen appears or the day changes,
+     * for the same reason. A newer scoring cancels one still running, so the last to start is the one kept.
+     */
+    private val usual: StateFlow<Usual?> =
+        combine(content.filterNotNull().map { it.day }.distinctUntilChanged(), appeared) { day, _ -> day }
+            .mapLatest { day -> content.value?.takeIf { it.day == day }?.let { rank(it) } }
+            .filterNotNull()
+            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
     private val ledger = combine(queries.days(), settings) { days, settings -> Ledger(days, settings.clock) to settings.currency }
 
+    /** Waits for the first scoring, so no tile is drawn where the usual drinks would then push it down. */
     val state: StateFlow<LogState?> =
-        combine(content.filterNotNull(), ledger, snapshotFlow { search }, combine(recency, usual, ::Pair), pulses) { content, (ledger, currency), query, (frozen, usual), pulses ->
+        combine(content.filterNotNull(), ledger, snapshotFlow { search }, combine(recency, usual.filterNotNull(), ::Pair), pulses) { content, (ledger, currency), query, (frozen, usual), pulses ->
             val order = frozen ?: Picker.recency(content.pours)
             LogState(
                 day = content.day,
@@ -139,7 +150,7 @@ class LogViewModel(
                 favourites = content.favourites,
                 drinks = content.drinks,
                 pours = content.pours,
-                tiles = Picker.tiles(query, content.favourites, content.drinks, content.pours, order, usual ?: Usual.none),
+                tiles = Picker.tiles(query, content.favourites, content.drinks, content.pours, order, usual),
                 catalog = Picker.catalogMatches(query, content.drinks),
                 counts = content.pours.groupingBy { it.serveKey }.eachCount(),
                 pulses = pulses,
@@ -150,24 +161,24 @@ class LogViewModel(
         viewModelScope.launch {
             val first = content.filterNotNull().first()
             recency.compareAndSet(null, Picker.recency(first.pours))
-            rank(first)
         }
     }
 
     /** The screen came into view: re-anchor today, and take the order the grid will hold while it is used. */
     fun appeared() {
         appeared.update { it + 1 }
-        content.value?.let {
-            recency.value = Picker.recency(it.pours)
-            viewModelScope.launch { rank(it) }
-        }
+        content.value?.let { recency.value = Picker.recency(it.pours) }
     }
 
-    /** Scores every serve ever logged for when the next drink would go: now for today, or that evening on a past day. */
-    private suspend fun rank(content: Content) {
+    /**
+     * Scores every serve ever logged for when the next drink would go: now for today, or that evening on a past day. The
+     * history grows without bound, so it is scored off the main thread.
+     */
+    private suspend fun rank(content: Content): Usual {
         val clock = settings.first().clock
         val at = clock.suggestedTime(content.day, content.pours.lastOrNull()?.timestamp)
-        usual.value = Usual.of(queries.history(), queries.allDrinks(), clock, content.day, at)
+        val history = queries.history()
+        return withContext(Dispatchers.Default) { Usual.of(history, content.drinks, clock, content.day, at) }
     }
 
     /**
@@ -284,25 +295,28 @@ class LogViewModel(
 
 }
 
-/** The whole history scored for one moment by the shared core, with the serves it found usual then. */
-class Usual(val picker: CorePicker, val serves: Map<String, Serve>) {
+/**
+ * The whole history scored for one moment by the shared core, with a pour of each serve it found usual then. Tiles are
+ * built from the pours against the drinks as they are when drawn, so an edit or a hide shows at once.
+ */
+class Usual(val picker: CorePicker, val pours: Map<String, Pour>) {
     companion object {
         val none by lazy { Usual(CorePicker(emptyList(), 0, 0.0), emptyMap()) }
 
         /** Hidden drinks are left out, so they never come back as usual. */
         fun of(history: List<Pour>, drinks: List<Drink>, clock: DayClock, day: DayKey, at: Instant): Usual {
-            val shown = drinks.filter { !it.isHidden }.associateBy { it.id }
+            val hidden = drinks.filter { it.isHidden }.mapTo(HashSet()) { it.id }
             val hours = HourCounter(clock)
-            val serves = HashMap<String, Serve>()
+            val pours = HashMap<String, Pour>()
             val rows = history.mapNotNull { pour ->
-                val drink = shown[pour.drinkId] ?: return@mapNotNull null
-                val key = Serve.key(drink.id, pour.vessel, pour.volumeMl)
-                serves.getOrPut(key) { Serve(drink, pour.vessel, pour.volumeMl) }
+                if (pour.drinkId in hidden) return@mapNotNull null
+                val key = Serve.key(pour.drinkId, pour.vessel, pour.volumeMl)
+                pours.putIfAbsent(key, pour)
                 PickerPour(key, pour.day.toLong(), hours.hours(pour.timestamp, pour.dayKey))
             }
             val picker = CorePicker(rows, day.number.toLong(), clock.hours(at, day))
             val found = picker.usual().toSet()
-            return Usual(picker, serves.filterKeys { it in found })
+            return Usual(picker, pours.filterKeys { it in found })
         }
     }
 }
@@ -330,7 +344,12 @@ object Picker {
                 .filter { it.isGeneric && !it.isHidden && it.category != DrinkCategory.UNITS }
                 .sortedBy { it.sortOrder }
                 .map(::Serve)
-            val serves = HashMap(usual.serves)
+            val live = drinks.associateBy { it.id }
+            val serves = HashMap<String, Serve>()
+            for ((key, pour) in usual.pours) {
+                val drink = live[pour.drinkId]?.takeIf { !it.isHidden } ?: continue
+                serves[key] = Serve(drink, pour.vessel, pour.volumeMl)
+            }
             for (serve in generics) serves[serve.id] = serve
             for (entry in pours) serves[entry.serveKey] = Serve(entry.drink, entry.vessel, entry.volumeMl, entry.price)
             for (item in shown) serves[item.serve.id] = item.serve

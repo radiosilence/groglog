@@ -49,10 +49,6 @@ abstract class Queries {
     @Query("SELECT * FROM pour")
     abstract suspend fun history(): List<Pour>
 
-    /** Every drink as it stands, read alongside `history`. */
-    @Query("SELECT * FROM drink")
-    abstract suspend fun allDrinks(): List<Drink>
-
     @Query("SELECT * FROM day ORDER BY number")
     protected abstract fun observeDays(): Flow<List<Day>>
 

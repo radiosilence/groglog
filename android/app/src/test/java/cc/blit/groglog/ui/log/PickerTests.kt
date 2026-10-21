@@ -56,7 +56,7 @@ class PickerTests {
 
     @Test fun aHiddenDrinkIsNeverUsual() {
         val fridays = (1L..4L).map { week -> entry(hidden, date(2026, 3, 6, 20).minus(Duration.ofDays(7 * week))).pour }
-        assertTrue(Usual.of(fridays, listOf(hidden), clock, friday, date(2026, 3, 6, 20)).serves.isEmpty())
+        assertTrue(Usual.of(fridays, listOf(hidden), clock, friday, date(2026, 3, 6, 20)).pours.isEmpty())
     }
 
     @Test fun aHiddenDrinkShowsOnlyOnTheDayItWasLogged() {
