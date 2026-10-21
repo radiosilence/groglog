@@ -1,0 +1,103 @@
+name: TestFlight
+
+# Archives the iOS app, signs it and uploads it to App Store Connect, where it lands in TestFlight. Called by CI/CD
+# after `Checks` on every push to main that changes what the app is built from, and runnable by hand to upload again
+# without a new commit. Called rather than triggered by an event of its own, so the upload waits for the checks of the
+# commit it ships. Submitting a build for App Store review is left to App Store Connect, where the release notes and
+# screenshots live.
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Without the team and the App Store Connect key there is nothing to sign with. This answers that on a cheap runner,
+  # and the upload is skipped rather than failed; see docs/releasing.md.
+  signable:
+    name: Signing configured
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          ASC_KEY: ${{ secrets.ASC_KEY }}
+        run: |
+          if [ -n "$APPLE_TEAM_ID" ] && [ -n "$ASC_KEY" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::APPLE_TEAM_ID or ASC_KEY is not set, so the build was not uploaded to TestFlight"
+          fi
+
+  testflight:
+    name: TestFlight
+    needs: signable
+    if: needs.signable.outputs.ready == 'true'
+    runs-on: macos-26
+    timeout-minutes: 90
+    # One upload at a time. A pending upload is replaced by a newer one, which carries everything it would have.
+    concurrency:
+      group: testflight
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install toolchain
+        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
+        with:
+          # cargo-ndk is for the Android build.
+          install_args: just uv xcodegen
+
+      - name: Use the newest Xcode on the runner
+        run: sudo xcode-select -s "$(find /Applications -maxdepth 1 -name 'Xcode_*.app' | sort -V | tail -1)"
+
+      # Automatic signing archives with an Apple Development identity, and a runner has none, so Xcode had Apple issue
+      # a new certificate on every run until the account reached its limit and archiving failed. One certificate,
+      # shared with koan's CI and kept in 1Password as "Apple Development certificate for CI", is imported instead.
+      - name: Import the Apple Development certificate
+        env:
+          IOS_CERTIFICATE_P12: ${{ secrets.IOS_CERTIFICATE_P12 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+        if: env.IOS_CERTIFICATE_P12 != ''
+        run: |
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password=$(openssl rand -hex 24)
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          printf '%s' "$IOS_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" -P "$IOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/certificate.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" >/dev/null
+          # shellcheck disable=SC2046 # one argument per keychain already listed
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          security find-identity -v -p codesigning "$keychain" | grep -q "Apple Development" \
+            || { echo "::error::no Apple Development identity in IOS_CERTIFICATE_P12"; exit 1; }
+
+      # A build number must rise with every upload of a version. A run number cannot promise that: called from CI/CD it
+      # is that workflow's, dispatched by hand it is this one's. The time always rises. testflight.sh adds 1000.
+      - name: Build number
+        run: echo "BUILD_NUMBER=$(date -u +%s)" >> "$GITHUB_ENV"
+
+      # Signing is Xcode's cloud-managed kind, authenticated with an App Store Connect API key; the imported
+      # development identity above is the only signing material kept in secrets.
+      - name: Archive and upload
+        env:
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY: ${{ secrets.ASC_KEY }}
+        run: scripts/testflight.sh
+
+      # What testers see when they install the build: this version's changelog section, or Unreleased. Waits for
+      # processing. The build is already uploaded, so a failure here does not fail the run.
+      - name: Set What to Test
+        continue-on-error: true
+        env:
+          ASC_KEY: ${{ secrets.ASC_KEY }}
+        run: scripts/app-store.py whats-new $((1000 + BUILD_NUMBER))
