@@ -1,0 +1,1 @@
+- **One CI/CD pipeline.** The Android, iOS and site workflows are one, `ci-cd.yml`, whose jobs run only for what a change touches and end in a single `Checks` status. On `main` the delivery jobs run after it, ship the bundle and APK the checks built, and the release is retried by running the workflow by hand.
