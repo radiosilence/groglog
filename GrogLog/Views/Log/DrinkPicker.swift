@@ -1,8 +1,11 @@
+import GRDB
 import GRDBQuery
+import GrogLogCore
 import SwiftUI
 
-/// The logging surface: the Log-grid favourites plus anything already logged that day, each a drink in a size,
-/// most recently drunk first. Tap logs one now; long-press to change the drink, size, time or count.
+/// The logging surface: anything already logged that day, the Log-grid favourites, what is usually drunk at this time,
+/// then the generic drinks, each a drink in a size. Tap logs one now; long-press to change the drink, size, time or
+/// count.
 struct DrinkPicker: View {
     let day: DayKey
     let ledger: Ledger
@@ -16,9 +19,14 @@ struct DrinkPicker: View {
     @State private var countingUnits = false
     @State private var creating = false
     @State private var logged = 0
-    /// Recency as of when the screen appeared, so tapping a tile does not reorder the grid while it is in use.
-    /// Deliberate picks (the long-press sheet, a search result) jump to the front straight away.
+    /// The day's drinks as of when the screen appeared, so tapping a tile does not reorder the grid while it is in
+    /// use. Deliberate picks (the long-press sheet, a search result) jump to the front straight away.
     @State private var recency: [String: Date] = [:]
+    /// The whole history scored for the moment a drink would be logged, taken when the screen appeared for the same
+    /// reason, with a pour of each serve it found usual. Nil until the first scoring lands, and the grid waits for it
+    /// rather than drawing a tile that would then move.
+    @State private var picker: CorePicker?
+    @State private var usual: [String: Pour] = [:]
     /// Bumped per tile each time it is logged, to play the pour.
     @State private var pulses: [String: Int] = [:]
 
@@ -106,47 +114,82 @@ struct DrinkPicker: View {
             DrinkEditor(drink: nil, name: search.trimmingCharacters(in: .whitespaces))
         }
         .sensoryFeedback(.impact(weight: .medium), trigger: logged)
-        .onAppear {
-            recency = Dictionary(favourites.compactMap { item in
-                item.favourite.lastUsed.map { (item.serve.id, $0) }
-            }, uniquingKeysWith: max)
-            for pour in pours { recency[pour.serveKey] = max(recency[pour.serveKey] ?? .distantPast, pour.timestamp) }
+        // Runs on each appearance and again when the day rolls over with the screen open.
+        .task(id: day) {
+            recency = Dictionary(pours.map { ($0.serveKey, $0.timestamp) }, uniquingKeysWith: max)
+            await rank()
         }
     }
 
-    /// Favourites and the day's drinks or, when searching, the Log-grid sizes (or default size) of every matching drink.
-    /// Recently drunk first, then in favourite order. Hidden drinks show only if logged that day.
+    /// The day's drinks, most recent first, then the favourites in pinned order, the serves usually drunk at this time
+    /// and the generic drinks, each shown once. When searching, the Log-grid sizes (or default size) of every matching
+    /// drink, those usually drunk at this time first. Hidden drinks show only if logged that day.
     private var tiles: [Serve] {
+        guard let picker else { return [] }
         let query = search.trimmingCharacters(in: .whitespaces)
         let favourites = favourites.filter { !$0.drink.isHidden }
-        var serves: [Serve]
+        let order = favourites.map(\.serve.id)
         if query.isEmpty {
-            serves = favourites.map(\.serve)
-            for entry in pours where !serves.contains(where: { $0.id == entry.serveKey }) {
-                serves.append(Serve(entry.drink, entry.vessel, entry.volumeMl, price: entry.price))
+            let generics = drinks
+                .filter { $0.isGeneric && !$0.isHidden && $0.category != .units }
+                .sorted { $0.sortOrder < $1.sortOrder }
+                .map { Serve($0) }
+            // Built from the drinks as they are now, so an edit or a hide made with the screen open shows at once.
+            let live = Dictionary(drinks.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            var serves: [String: Serve] = [:]
+            for (key, pour) in usual {
+                guard let drink = live[pour.drinkId], !drink.isHidden else { continue }
+                serves[key] = Serve(drink, pour.vessel, pour.volumeMl)
             }
-        } else {
-            serves = drinks
-                .filter { !$0.isHidden && ($0.name.localizedStandardContains(query) || $0.category.label.localizedStandardContains(query)) }
-                .flatMap { drink -> [Serve] in
-                    // Every size it comes in, not only the one it was added as, so a drink found by name can
-                    // be logged at any size without going through the long-press sheet.
-                    let pinned = favourites.filter { $0.drink.id == drink.id }
-                    return drink.sizes(including: ServeSize(drink.vessel, drink.volumeMl)).map { size in
-                        pinned.first { $0.favourite.vessel == size.vessel && $0.favourite.volumeMl == size.ml }?.serve
-                            ?? Serve(drink, size.vessel, size.ml)
-                    }
+            for serve in generics { serves[serve.id] = serve }
+            for entry in pours { serves[entry.serveKey] = Serve(entry.drink, entry.vessel, entry.volumeMl, price: entry.price) }
+            for item in favourites { serves[item.serve.id] = item.serve }
+            let added = recency.sorted { $0.value > $1.value }.map(\.key)
+            return picker.tiles(added: added, favourites: order, generics: generics.map(\.id), logged: pours.map(\.serveKey))
+                .compactMap { serves[$0] }
+        }
+        let serves = drinks
+            .filter { !$0.isHidden && ($0.name.localizedStandardContains(query) || $0.category.label.localizedStandardContains(query)) }
+            .flatMap { drink -> [Serve] in
+                // Every size it comes in, not only the one it was added as, so a drink found by name can
+                // be logged at any size without going through the long-press sheet.
+                let pinned = favourites.filter { $0.drink.id == drink.id }
+                return drink.sizes(including: ServeSize(drink.vessel, drink.volumeMl)).map { size in
+                    pinned.first { $0.favourite.vessel == size.vessel && $0.favourite.volumeMl == size.ml }?.serve
+                        ?? Serve(drink, size.vessel, size.ml)
                 }
-        }
-        let order = Dictionary(favourites.enumerated().map { ($1.serve.id, $0) }, uniquingKeysWith: min)
-        return serves.sorted { a, b in
-            switch (recency[a.id], recency[b.id]) {
-            case let (x?, y?): x > y
-            case (.some, nil): true
-            case (nil, .some): false
-            case (nil, nil): (order[a.id] ?? .max) < (order[b.id] ?? .max)
             }
+        let byId = Dictionary(serves.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return picker.rank(keys: serves.map(\.id), favourites: order).compactMap { byId[$0] }
+    }
+
+    /// Scores every serve ever logged for when the next drink would go: now for today, or that evening on a past day.
+    /// The history grows without bound, so it is read and scored off the main thread.
+    private func rank() async {
+        let clock = ledger.clock
+        let day = day
+        let time = clock.suggestedTime(for: day, after: pours.last?.timestamp)
+        guard let reader = try? database.reader,
+              let (picker, usual) = try? await reader.read({ db in try Self.score(db, clock: clock, day: day, at: time) })
+        else { return }
+        self.picker = picker
+        self.usual = usual
+    }
+
+    /// Hidden drinks are left out, so they never come back as usual.
+    private nonisolated static func score(_ db: Database, clock: DayClock, day: DayKey, at time: Date) throws -> (CorePicker, [String: Pour]) {
+        let hidden = try Set(Drink.filter(Column("isHidden")).fetchAll(db).map(\.id))
+        var hours = HourCounter(clock)
+        var pours: [String: Pour] = [:]
+        var rows: [PickerPour] = []
+        for pour in try Pour.fetchAll(db) where !hidden.contains(pour.drinkId) {
+            let key = Serve.key(pour.drinkId, pour.vessel, pour.volumeMl)
+            if pours[key] == nil { pours[key] = pour }
+            rows.append(PickerPour(key: key, day: Int64(pour.day), hours: hours.hours(pour.timestamp, into: pour.dayKey)))
         }
+        let picker = CorePicker(history: rows, day: Int64(day.number), hours: clock.hours(time, into: day))
+        let found = Set(picker.usual())
+        return (picker, pours.filter { found.contains($0.key) })
     }
 
     private var catalogMatches: [CatalogItem] {

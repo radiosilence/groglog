@@ -10,6 +10,7 @@ mod goal;
 mod ledger;
 mod logbook;
 mod nights;
+mod picker;
 mod rates;
 mod swift_json;
 mod units;

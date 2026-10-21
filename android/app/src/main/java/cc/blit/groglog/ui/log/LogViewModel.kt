@@ -7,6 +7,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cc.blit.groglog.AppContainer
+import cc.blit.groglog.core.CorePicker
+import cc.blit.groglog.core.PickerPour
 import cc.blit.groglog.data.Logbook
 import cc.blit.groglog.data.Prefs
 import cc.blit.groglog.data.Queries
@@ -19,6 +21,7 @@ import cc.blit.groglog.model.DrinkCategory
 import cc.blit.groglog.model.Entry
 import cc.blit.groglog.model.Favourite
 import cc.blit.groglog.model.FavouriteItem
+import cc.blit.groglog.model.HourCounter
 import cc.blit.groglog.model.Ledger
 import cc.blit.groglog.model.Pour
 import cc.blit.groglog.model.Serve
@@ -26,6 +29,7 @@ import cc.blit.groglog.model.ServeSize
 import cc.blit.groglog.model.searchFolded
 import java.time.Duration
 import java.time.Instant
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -40,9 +44,11 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.lifecycle.SavedStateHandle
 import cc.blit.groglog.data.Serves
 
@@ -77,7 +83,7 @@ private data class Content(val day: DayKey, val favourites: List<FavouriteItem>,
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class LogViewModel(
-    queries: Queries,
+    private val queries: Queries,
     prefs: Prefs,
     private val logbook: suspend () -> Logbook,
     fixedDay: DayKey? = null,
@@ -99,8 +105,8 @@ class LogViewModel(
     private val appeared = MutableStateFlow(0)
 
     /**
-     * Recency as of when the screen appeared, so tapping a tile does not reorder the grid while it is in use. Deliberate
-     * picks (the options sheet, a catalogue result) move to the front straight away.
+     * The day's drinks as of when the screen appeared, so tapping a tile does not reorder the grid while it is in use.
+     * Deliberate picks (the options sheet, a catalogue result) move to the front straight away.
      */
     private val recency = MutableStateFlow<Map<String, Instant>?>(null)
     private val pulses = MutableStateFlow(emptyMap<String, Int>())
@@ -120,11 +126,22 @@ class LogViewModel(
             Content(day, favourites, drinks, pours)
         }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    /**
+     * The whole history scored for the moment a drink would be logged, taken when the screen appears or the day changes,
+     * for the same reason. A newer scoring cancels one still running, so the last to start is the one kept.
+     */
+    private val usual: StateFlow<Usual?> =
+        combine(content.filterNotNull().map { it.day }.distinctUntilChanged(), appeared) { day, _ -> day }
+            .mapLatest { day -> content.value?.takeIf { it.day == day }?.let { rank(it) } }
+            .filterNotNull()
+            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
     private val ledger = combine(queries.days(), settings) { days, settings -> Ledger(days, settings.clock) to settings.currency }
 
+    /** Waits for the first scoring, so no tile is drawn where the usual drinks would then push it down. */
     val state: StateFlow<LogState?> =
-        combine(content.filterNotNull(), ledger, snapshotFlow { search }, recency, pulses) { content, (ledger, currency), query, frozen, pulses ->
-            val order = frozen ?: Picker.recency(content.favourites, content.pours)
+        combine(content.filterNotNull(), ledger, snapshotFlow { search }, combine(recency, usual.filterNotNull(), ::Pair), pulses) { content, (ledger, currency), query, (frozen, usual), pulses ->
+            val order = frozen ?: Picker.recency(content.pours)
             LogState(
                 day = content.day,
                 ledger = ledger,
@@ -133,7 +150,7 @@ class LogViewModel(
                 favourites = content.favourites,
                 drinks = content.drinks,
                 pours = content.pours,
-                tiles = Picker.tiles(query, content.favourites, content.drinks, content.pours, order),
+                tiles = Picker.tiles(query, content.favourites, content.drinks, content.pours, order, usual),
                 catalog = Picker.catalogMatches(query, content.drinks),
                 counts = content.pours.groupingBy { it.serveKey }.eachCount(),
                 pulses = pulses,
@@ -143,14 +160,25 @@ class LogViewModel(
     init {
         viewModelScope.launch {
             val first = content.filterNotNull().first()
-            recency.compareAndSet(null, Picker.recency(first.favourites, first.pours))
+            recency.compareAndSet(null, Picker.recency(first.pours))
         }
     }
 
     /** The screen came into view: re-anchor today, and take the order the grid will hold while it is used. */
     fun appeared() {
         appeared.update { it + 1 }
-        content.value?.let { recency.value = Picker.recency(it.favourites, it.pours) }
+        content.value?.let { recency.value = Picker.recency(it.pours) }
+    }
+
+    /**
+     * Scores every serve ever logged for when the next drink would go: now for today, or that evening on a past day. The
+     * history grows without bound, so it is scored off the main thread.
+     */
+    private suspend fun rank(content: Content): Usual {
+        val clock = settings.first().clock
+        val at = clock.suggestedTime(content.day, content.pours.lastOrNull()?.timestamp)
+        val history = queries.history()
+        return withContext(Dispatchers.Default) { Usual.of(history, content.drinks, clock, content.day, at) }
     }
 
     /**
@@ -267,58 +295,80 @@ class LogViewModel(
 
 }
 
+/**
+ * The whole history scored for one moment by the shared core, with a pour of each serve it found usual then. Tiles are
+ * built from the pours against the drinks as they are when drawn, so an edit or a hide shows at once.
+ */
+class Usual(val picker: CorePicker, val pours: Map<String, Pour>) {
+    companion object {
+        val none by lazy { Usual(CorePicker(emptyList(), 0, 0.0), emptyMap()) }
+
+        /** Hidden drinks are left out, so they never come back as usual. */
+        fun of(history: List<Pour>, drinks: List<Drink>, clock: DayClock, day: DayKey, at: Instant): Usual {
+            val hidden = drinks.filter { it.isHidden }.mapTo(HashSet()) { it.id }
+            val hours = HourCounter(clock)
+            val pours = HashMap<String, Pour>()
+            val rows = history.mapNotNull { pour ->
+                if (pour.drinkId in hidden) return@mapNotNull null
+                val key = Serve.key(pour.drinkId, pour.vessel, pour.volumeMl)
+                pours.putIfAbsent(key, pour)
+                PickerPour(key, pour.day.toLong(), hours.hours(pour.timestamp, pour.dayKey))
+            }
+            val picker = CorePicker(rows, day.number.toLong(), clock.hours(at, day))
+            val found = picker.usual().toSet()
+            return Usual(picker, pours.filterKeys { it in found })
+        }
+    }
+}
+
 /** The picker's arithmetic, apart from any screen so it can be tested. */
 object Picker {
-    /** When each serve was last drunk: favourites by their last use, the day's drinks by their time. */
-    fun recency(favourites: List<FavouriteItem>, pours: List<Entry>): Map<String, Instant> {
+    /** When each of the day's drinks was last logged. */
+    fun recency(pours: List<Entry>): Map<String, Instant> {
         val recency = HashMap<String, Instant>()
-        for (item in favourites) {
-            val used = item.favourite.lastUsed ?: continue
-            recency.merge(item.serve.id, used, ::maxOf)
-        }
         for (pour in pours) recency.merge(pour.serveKey, pour.timestamp, ::maxOf)
         return recency
     }
 
     /**
-     * Favourites and the day's drinks or, when searching, every size of every matching drink, its pinned price where it
-     * has one. Recently drunk first, then in favourite order. Hidden drinks show only if logged that day.
+     * The day's drinks, most recent first, then the favourites in pinned order, the serves usually drunk at this time and
+     * the generic drinks, each shown once. When searching, every size of every matching drink, its pinned price where it
+     * has one, those usually drunk at this time first. Hidden drinks show only if logged that day.
      */
-    fun tiles(query: String, favourites: List<FavouriteItem>, drinks: List<Drink>, pours: List<Entry>, recency: Map<String, Instant>): List<Serve> {
+    fun tiles(query: String, favourites: List<FavouriteItem>, drinks: List<Drink>, pours: List<Entry>, recency: Map<String, Instant>, usual: Usual): List<Serve> {
         val folded = query.trim().searchFolded
         val shown = favourites.filter { !it.drink.isHidden }
-        val serves: List<Serve> = if (folded.isEmpty()) {
-            val list = shown.map { it.serve }.toMutableList()
-            val ids = list.mapTo(HashSet()) { it.id }
-            for (entry in pours) {
-                if (ids.add(entry.serveKey)) list += Serve(entry.drink, entry.vessel, entry.volumeMl, entry.price)
+        val order = shown.map { it.serve.id }
+        if (folded.isEmpty()) {
+            val generics = drinks
+                .filter { it.isGeneric && !it.isHidden && it.category != DrinkCategory.UNITS }
+                .sortedBy { it.sortOrder }
+                .map(::Serve)
+            val live = drinks.associateBy { it.id }
+            val serves = HashMap<String, Serve>()
+            for ((key, pour) in usual.pours) {
+                val drink = live[pour.drinkId]?.takeIf { !it.isHidden } ?: continue
+                serves[key] = Serve(drink, pour.vessel, pour.volumeMl)
             }
-            list
-        } else {
-            drinks
-                .filter { !it.isHidden && (it.name.searchFolded.contains(folded) || it.category.label.searchFolded.contains(folded)) }
-                .flatMap { drink ->
-                    // Every size it comes in, not only the one it was added as, so a drink found by name can be logged at
-                    // any size without going through the options sheet.
-                    val pinned = shown.filter { it.drink.id == drink.id }
-                    drink.sizes(ServeSize(drink.vessel, drink.volumeMl)).map { size ->
-                        pinned.firstOrNull { it.favourite.vessel == size.vessel && it.favourite.volumeMl == size.ml }?.serve
-                            ?: Serve(drink, size.vessel, size.ml)
-                    }
+            for (serve in generics) serves[serve.id] = serve
+            for (entry in pours) serves[entry.serveKey] = Serve(entry.drink, entry.vessel, entry.volumeMl, entry.price)
+            for (item in shown) serves[item.serve.id] = item.serve
+            val added = recency.entries.sortedByDescending { it.value }.map { it.key }
+            return usual.picker.tiles(added, order, generics.map { it.id }, pours.map { it.serveKey }).mapNotNull { serves[it] }
+        }
+        val serves = drinks
+            .filter { !it.isHidden && (it.name.searchFolded.contains(folded) || it.category.label.searchFolded.contains(folded)) }
+            .flatMap { drink ->
+                // Every size it comes in, not only the one it was added as, so a drink found by name can be logged at
+                // any size without going through the options sheet.
+                val pinned = shown.filter { it.drink.id == drink.id }
+                drink.sizes(ServeSize(drink.vessel, drink.volumeMl)).map { size ->
+                    pinned.firstOrNull { it.favourite.vessel == size.vessel && it.favourite.volumeMl == size.ml }?.serve
+                        ?: Serve(drink, size.vessel, size.ml)
                 }
-        }
-        val order = HashMap<String, Int>()
-        shown.forEachIndexed { index, item -> order.putIfAbsent(item.serve.id, index) }
-        return serves.sortedWith { a, b ->
-            val x = recency[a.id]
-            val y = recency[b.id]
-            when {
-                x != null && y != null -> y.compareTo(x)
-                x != null -> -1
-                y != null -> 1
-                else -> (order[a.id] ?: Int.MAX_VALUE).compareTo(order[b.id] ?: Int.MAX_VALUE)
             }
-        }
+        val byId = serves.associateBy { it.id }
+        return usual.picker.rank(serves.map { it.id }, order).mapNotNull { byId[it] }
     }
 
     /** Catalogue serves matching the search, less brands the user already has as drinks. */
