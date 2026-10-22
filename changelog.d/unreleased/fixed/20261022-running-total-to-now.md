@@ -1,0 +1,1 @@
+- **The week and month charts carry on through dry days.** This week's and this month's lines used to stop at the last drink, so after a few dry days the marker still sat on the day of that drink. The line now holds flat up to the present, with the marker on today.

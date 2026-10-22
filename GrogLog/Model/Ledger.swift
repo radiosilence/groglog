@@ -103,13 +103,14 @@ nonisolated struct Ledger: Equatable {
     func weekBefore(_ day: DayKey) -> ClosedRange<DayKey> { (day - 7)...(day - 1) }
 
     /// Running units total across `days`, stepping at each drink. x is in days, so a heavy night shows as a steep
-    /// climb rather than a single step.
-    func runningTotal(_ entries: [Entry], over days: ClosedRange<DayKey>, through: DayKey? = nil) -> [CurvePoint] {
+    /// climb rather than a single step. `until` is how far into `days` the range has reached; the line holds flat up
+    /// to it through dry days.
+    func runningTotal(_ entries: [Entry], over days: ClosedRange<DayKey>, until: Double? = nil) -> [CurvePoint] {
         core.runningTotal(
             entries: curveInputs(entries, over: days),
             first: Int64(days.lowerBound.number),
             last: Int64(days.upperBound.number),
-            through: through.map { Int64($0.number) }
+            until: until
         ).map(CurvePoint.init)
     }
 

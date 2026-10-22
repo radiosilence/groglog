@@ -693,12 +693,12 @@ private struct WeekCard: View {
         let clock = ledger.clock
         let today = ledger.today
         let start = clock.weekStart(of: today)
-        let current = ledger.runningTotal(entries, over: start...(start + 6), through: today)
+        let into = Double(start.distance(to: today)) + min(1, clock.hours(.now, into: today) / 24)
+        let current = ledger.runningTotal(entries, over: start...(start + 6), until: into)
         let weeks = (1...3).map { ledger.runningTotal(entries, over: (start - 7 * $0)...(start - 7 * $0 + 6)) }
         // A week with nothing logged has no line, and an earlier week does not stand in for it as "last week".
         let earlier = weeks.filter { $0.count > 1 }
         let budget = goal.isEnabled ? ledger.weekBudgetCurve(of: start, goal: goal) : []
-        let into = Double(start.distance(to: today)) + min(1, clock.hours(.now, into: today) / 24)
         let lastWeek = weeks[0].count > 1 ? weeks[0].last { $0.x <= into }?.units : nil
         let now = current.last?.units ?? 0
 
@@ -802,7 +802,8 @@ private struct MonthCard: View {
         let today = ledger.today
         let thisMonth = today.monthStart
         let lastMonth = (thisMonth - 1).monthStart
-        let current = ledger.runningTotal(entries, over: thisMonth...(thisMonth + thisMonth.daysInMonth - 1), through: today)
+        let into = Double(thisMonth.distance(to: today)) + min(1, ledger.clock.hours(.now, into: today) / 24)
+        let current = ledger.runningTotal(entries, over: thisMonth...(thisMonth + thisMonth.daysInMonth - 1), until: into)
         let previous = ledger.runningTotal(entries, over: lastMonth...(thisMonth - 1))
         let dayOfMonth = today.components.day
         let lastAtSameDay = previous.last { $0.x <= Double(dayOfMonth) }?.units ?? 0

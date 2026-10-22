@@ -169,9 +169,11 @@ impl CoreLedger {
     }
 
     /// Running units total across the days `first...last`, stepping at each drink. x is in days, so a heavy night shows
-    /// as a steep climb rather than a single step.
-    pub fn running_total(&self, entries: Vec<CurveInput>, first: i64, last: i64, through: Option<i64>) -> Vec<PointRow> {
-        let through = through.unwrap_or(last);
+    /// as a steep climb rather than a single step. `until` is the point the range has reached, in days into it: drinks
+    /// on later days are left out, and the total holds flat up to it, so dry days since the last drink still move the
+    /// line along.
+    pub fn running_total(&self, entries: Vec<CurveInput>, first: i64, last: i64, until: Option<f64>) -> Vec<PointRow> {
+        let through = until.map_or(last, |until| first + until.floor() as i64);
         let mut kept: Vec<&CurveInput> = entries.iter().filter(|e| e.day >= first && e.day <= last && e.day <= through).collect();
         kept.sort_by(|a, b| a.order.total_cmp(&b.order));
         let mut total = 0.0;
@@ -180,6 +182,9 @@ impl CoreLedger {
             total += entry.units;
             let into = (entry.day - first) as f64 + (entry.hours / 24.0).clamp(0.0, 1.0);
             points.push(PointRow { x: into, units: total });
+        }
+        if let Some(until) = until.filter(|until| points.last().is_some_and(|point| *until > point.x)) {
+            points.push(PointRow { x: until.min((last - first + 1) as f64), units: total });
         }
         points
     }
@@ -419,6 +424,19 @@ mod tests {
         assert_eq!(points.iter().map(|p| p.units).collect::<Vec<_>>(), vec![0.0, 1.0, 3.0]);
         assert_eq!(points[1].x, 1.0, "past 24 hours it stays on the day's right edge");
         assert_eq!(points[2].x, 1.5);
+    }
+
+    #[test]
+    fn the_running_total_holds_flat_through_dry_days_up_to_now() {
+        let monday = day_number(2026, 9, 14);
+        let entries = vec![
+            CurveInput { day: monday, hours: 12.0, units: 2.0, order: 1.0 },
+            CurveInput { day: monday + 4, hours: 12.0, units: 5.0, order: 2.0 },
+        ];
+        let points = ledger(vec![]).running_total(entries, monday, monday + 6, Some(3.5));
+        assert_eq!(points.iter().map(|p| (p.x, p.units)).collect::<Vec<_>>(), vec![(0.0, 0.0), (0.5, 2.0), (3.5, 2.0)]);
+        let empty = ledger(vec![]).running_total(vec![], monday, monday + 6, Some(2.25));
+        assert_eq!(empty.iter().map(|p| (p.x, p.units)).collect::<Vec<_>>(), vec![(0.0, 0.0), (2.25, 0.0)]);
     }
 
     /// The week line is smoothed only lightly, which must not cost it the two things that make it a running total: it

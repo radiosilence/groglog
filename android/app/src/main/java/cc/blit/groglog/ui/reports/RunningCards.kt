@@ -67,12 +67,12 @@ fun WeekCard(ledger: Ledger, goal: Goal, entries: List<Entry>) {
     val clock = ledger.clock
     val today = ledger.today
     val start = clock.weekStart(today)
-    val current = ledger.runningTotal(entries, start..(start + 6), through = today)
+    val into = start.distanceTo(today) + min(1.0, clock.hours(Instant.now(), today) / 24)
+    val current = ledger.runningTotal(entries, start..(start + 6), until = into)
     val weeks = (1..3).map { ledger.runningTotal(entries, (start - 7 * it)..(start - 7 * it + 6)) }
     // A week with nothing logged has no line, and an earlier week does not stand in for it as "last week".
     val earlier = weeks.withIndex().filter { it.value.size > 1 }
     val budget = if (goal.isEnabled) ledger.weekBudgetCurve(start, goal) else emptyList()
-    val into = start.distanceTo(today) + min(1.0, clock.hours(Instant.now(), today) / 24)
     val lastWeek = if (weeks[0].size > 1) weeks[0].lastOrNull { it.x <= into }?.units else null
     val now = current.lastOrNull()?.units ?: 0.0
 
@@ -114,7 +114,8 @@ fun MonthCard(ledger: Ledger, entries: List<Entry>) {
     val today = ledger.today
     val thisMonth = today.monthStart
     val lastMonth = (thisMonth - 1).monthStart
-    val current = ledger.runningTotal(entries, thisMonth..(thisMonth + thisMonth.daysInMonth - 1), through = today)
+    val into = thisMonth.distanceTo(today) + min(1.0, ledger.clock.hours(Instant.now(), today) / 24)
+    val current = ledger.runningTotal(entries, thisMonth..(thisMonth + thisMonth.daysInMonth - 1), until = into)
     val previous = ledger.runningTotal(entries, lastMonth..(thisMonth - 1))
     val dayOfMonth = today.components.day
     val lastAtSameDay = previous.lastOrNull { it.x <= dayOfMonth }?.units ?: 0.0

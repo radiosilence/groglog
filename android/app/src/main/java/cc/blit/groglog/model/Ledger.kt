@@ -106,10 +106,11 @@ class Ledger(rows: List<Day>, val clock: DayClock) {
 
     /**
      * Running units total across `days`, stepping at each drink. x is in days, so a heavy night shows as a steep climb
-     * rather than a single step.
+     * rather than a single step. `until` is how far into `days` the range has reached; the line holds flat up to it
+     * through dry days.
      */
-    fun runningTotal(entries: List<Entry>, days: DayRange, through: DayKey? = null): List<CurvePoint> =
-        core.runningTotal(curveInputs(entries), days.start.number.toLong(), days.endInclusive.number.toLong(), through?.number?.toLong())
+    fun runningTotal(entries: List<Entry>, days: DayRange, until: Double? = null): List<CurvePoint> =
+        core.runningTotal(curveInputs(entries), days.start.number.toLong(), days.endInclusive.number.toLong(), until)
             .map(::CurvePoint)
 
     /** The week's budget as a running total, for comparing with `runningTotal`. */
