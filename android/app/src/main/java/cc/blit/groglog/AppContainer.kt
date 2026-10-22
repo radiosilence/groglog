@@ -53,7 +53,6 @@ class AppContainer(private val context: Context) {
     init {
         scope.launch {
             prefs.finishDayEndMove(database)
-            Seed.drinksIfNeeded(logbook())
             if (isDemo) {
                 val logbook = logbook()
                 Seed.sample(logbook)

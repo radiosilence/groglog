@@ -24,21 +24,24 @@ class PickerTests {
     private fun pinned(drink: Drink, order: Int, used: java.time.Instant? = null) =
         FavouriteItem(Favourite(drinkId = drink.id, vessel = drink.vessel, volumeMl = drink.volumeMl, price = drink.price, sortOrder = order, lastUsed = used), drink)
 
+    /** The tiles less the built-in generics, which end every grid. */
+    private fun List<cc.blit.groglog.model.Serve>.mine() = filterNot { it.drink.isGeneric }
+
     private fun entry(drink: Drink, at: java.time.Instant) =
         Entry(Pour(drinkId = drink.id, timestamp = at, day = clock.day(at).number, vessel = drink.vessel, volumeMl = drink.volumeMl, price = drink.price), drink)
 
     @Test fun withoutRecencyTilesKeepFavouriteOrder() {
         val tiles = Picker.tiles("", listOf(pinned(lager, 0), pinned(rioja, 1)), listOf(lager, rioja), emptyList(), emptyMap(), Usual.none)
-        assertEquals(listOf("Staropramen", "Rioja"), tiles.map { it.drink.name })
+        assertEquals(listOf("Staropramen", "Rioja"), tiles.mine().map { it.drink.name })
     }
 
     @Test fun theDaysDrinksComeFirstAndFavouritesKeepTheirPinnedOrder() {
         val favourites = listOf(pinned(lager, 0, used = date(2026, 3, 5, 21)), pinned(rioja, 1, used = date(2026, 3, 6, 21)))
-        assertEquals(listOf("Staropramen", "Rioja"), Picker.tiles("", favourites, listOf(lager, rioja), emptyList(), emptyMap(), Usual.none).map { it.drink.name })
+        assertEquals(listOf("Staropramen", "Rioja"), Picker.tiles("", favourites, listOf(lager, rioja), emptyList(), emptyMap(), Usual.none).mine().map { it.drink.name })
 
         val pours = listOf(entry(rioja, date(2026, 3, 6, 21)))
         val tiles = Picker.tiles("", favourites, listOf(lager, rioja), pours, Picker.recency(pours), Usual.none)
-        assertEquals(listOf("Rioja", "Staropramen"), tiles.map { it.drink.name })
+        assertEquals(listOf("Rioja", "Staropramen"), tiles.mine().map { it.drink.name })
     }
 
     @Test fun usualDrinksFollowTheFavouritesAndGenericsComeLast() {
@@ -48,10 +51,39 @@ class PickerTests {
         val fridays = (1L..4L).map { week -> entry(rioja, date(2026, 3, 6, 20).minus(Duration.ofDays(7 * week))).pour }
         val usual = Usual.of(fridays, drinks, clock, friday, date(2026, 3, 6, 20))
         val tiles = Picker.tiles("", listOf(pinned(lager, 0)), drinks, emptyList(), emptyMap(), usual)
-        assertEquals(listOf("Staropramen", "Rioja", "Cider", "Beer"), tiles.map { it.drink.name })
+        assertEquals(listOf("Staropramen", "Rioja"), tiles.take(2).map { it.drink.name })
+        // The stored generics stand in for their kinds, in the core's order.
+        assertEquals(List(6) { beer.id }, tiles.drop(2).take(6).map { it.drink.id })
+        assertTrue(tiles.drop(2).all { it.drink.isGeneric } && tiles.any { it.drink.id == cider.id })
 
         val searched = Picker.tiles("r", emptyList(), drinks, emptyList(), emptyMap(), usual)
         assertEquals("Rioja", searched.first().drink.name)
+    }
+
+    @Test fun withNothingPinnedTheGenericsShowInTheirCommonSizesThenUnits() {
+        val beer = lager.copy(id = java.util.UUID.randomUUID(), name = "Beer", isGeneric = true, sortOrder = 100)
+        val wine = rioja.copy(id = java.util.UUID.randomUUID(), name = "Red wine", isGeneric = true, sortOrder = 101)
+        val units = Drink(name = "Units", category = DrinkCategory.UNITS, abv = 100.0, vessel = Vessel.SHOT, volumeMl = 10.0, isGeneric = true, sortOrder = 99)
+        val tiles = Picker.tiles("", emptyList(), listOf(units, wine, beer, lager), emptyList(), emptyMap(), Usual.none)
+        assertEquals(listOf(568.0, 284.0, 440.0, 500.0, 330.0, 660.0), tiles.filter { it.drink.id == beer.id }.map { it.volumeMl })
+        assertEquals(listOf(175.0, 250.0, 750.0), tiles.filter { it.drink.id == wine.id }.map { it.volumeMl })
+        assertEquals("Units", tiles.last().drink.name)
+        assertTrue(tiles.none { it.drink.id == lager.id })
+    }
+
+    @Test fun aPinnedUnitsTileStaysAfterTheGenerics() {
+        val units = Drink(name = "Units", category = DrinkCategory.UNITS, abv = 100.0, vessel = Vessel.SHOT, volumeMl = 10.0, isGeneric = true, sortOrder = 99)
+        val tiles = Picker.tiles("", listOf(pinned(units, 0), pinned(lager, 1)), listOf(units, lager), emptyList(), emptyMap(), Usual.none)
+        assertEquals("Staropramen", tiles.first().drink.name)
+        assertEquals("Units", tiles.last().drink.name)
+        assertEquals(1, tiles.count { it.drink.category == DrinkCategory.UNITS })
+    }
+
+    @Test fun aHiddenGenericTakesItsTilesWithIt() {
+        val beer = lager.copy(id = java.util.UUID.randomUUID(), name = "Beer", isGeneric = true, isHidden = true)
+        val tiles = Picker.tiles("", emptyList(), listOf(beer), emptyList(), emptyMap(), Usual.none)
+        assertTrue(tiles.none { it.drink.category == DrinkCategory.BEER })
+        assertTrue(tiles.any { it.drink.category == DrinkCategory.STOUT })
     }
 
     @Test fun aHiddenDrinkIsNeverUsual() {
@@ -61,17 +93,17 @@ class PickerTests {
 
     @Test fun aHiddenDrinkShowsOnlyOnTheDayItWasLogged() {
         val favourites = listOf(pinned(lager, 0), pinned(hidden, 1))
-        assertEquals(listOf("Staropramen"), Picker.tiles("", favourites, listOf(lager, hidden), emptyList(), emptyMap(), Usual.none).map { it.drink.name })
+        assertEquals(listOf("Staropramen"), Picker.tiles("", favourites, listOf(lager, hidden), emptyList(), emptyMap(), Usual.none).mine().map { it.drink.name })
 
         val pours = listOf(entry(hidden, date(2026, 3, 6, 20)))
         val tiles = Picker.tiles("", favourites, listOf(lager, hidden), pours, Picker.recency(pours), Usual.none)
-        assertEquals(listOf("Old lager", "Staropramen"), tiles.map { it.drink.name })
+        assertEquals(listOf("Old lager", "Staropramen"), tiles.mine().map { it.drink.name })
     }
 
     @Test fun aDrinkLoggedInAnotherSizeGetsItsOwnTile() {
         val half = entry(lager, date(2026, 3, 6, 20)).let { it.copy(pour = it.pour.copy(vessel = Vessel.HALF, volumeMl = 284.0)) }
         val tiles = Picker.tiles("", listOf(pinned(lager, 0)), listOf(lager), listOf(half), emptyMap(), Usual.none)
-        assertEquals(listOf(Vessel.PINT, Vessel.HALF), tiles.map { it.vessel })
+        assertEquals(listOf(Vessel.PINT, Vessel.HALF), tiles.mine().map { it.vessel })
     }
 
     @Test fun searchOffersEverySizeAtThePinnedPrice() {
@@ -85,7 +117,7 @@ class PickerTests {
     @Test fun searchFindsByTypeIgnoringAccents() {
         val rose = rioja.copy(id = java.util.UUID.randomUUID(), name = "Whispering Angel", category = DrinkCategory.ROSE)
         val tiles = Picker.tiles("rose", emptyList(), listOf(lager, rose), emptyList(), emptyMap(), Usual.none)
-        assertTrue(tiles.isNotEmpty() && tiles.all { it.drink.name == "Whispering Angel" })
+        assertTrue(tiles.any { it.drink.name == "Whispering Angel" } && tiles.all { it.drink.category == DrinkCategory.ROSE })
     }
 
     @Test fun theCatalogueLeavesOutBrandsAlreadyAdopted() {

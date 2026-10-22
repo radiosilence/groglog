@@ -67,7 +67,6 @@ class DemoTests {
 
     @Test fun samplesNightsThatFollowTheLog() = runBlocking {
         val (logbook, _) = logbook()
-        Seed.drinksIfNeeded(logbook)
         Seed.sample(logbook)
         val ledger = Ledger(logbook.rows.days(), logbook.clock)
         val nights = Seed.nights(ledger)

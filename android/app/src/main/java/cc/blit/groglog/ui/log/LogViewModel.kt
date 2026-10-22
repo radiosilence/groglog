@@ -20,6 +20,7 @@ import cc.blit.groglog.model.Drink
 import cc.blit.groglog.model.DrinkCategory
 import cc.blit.groglog.model.Entry
 import cc.blit.groglog.model.Favourite
+import cc.blit.groglog.model.Generics
 import cc.blit.groglog.model.FavouriteItem
 import cc.blit.groglog.model.HourCounter
 import cc.blit.groglog.model.Ledger
@@ -187,6 +188,9 @@ class LogViewModel(
      */
     fun log(serve: Serve, onLogged: (List<Pour>?) -> Unit = {}) {
         val state = state.value ?: return
+        // A search result is a deliberate pick, so it comes to the front rather than joining the end once the search
+        // is cleared.
+        if (search.isNotBlank()) bringForward(serve.id)
         pulse(serve.id)
         val time = state.suggestedTime
         viewModelScope.launch { onLogged(logbook().log(serve, listOf(time))) }
@@ -331,19 +335,17 @@ object Picker {
     }
 
     /**
-     * The day's drinks, most recent first, then the favourites in pinned order, the serves usually drunk at this time and
-     * the generic drinks, each shown once. When searching, every size of every matching drink, its pinned price where it
-     * has one, those usually drunk at this time first. Hidden drinks show only if logged that day.
+     * The day's drinks, most recent first, then the favourites in pinned order, the serves usually drunk at this time,
+     * the generic drinks in their common sizes and Units, each shown once. When searching, every size of every matching
+     * drink, its pinned price where it has one, those usually drunk at this time first. Hidden drinks show only if logged that day.
      */
     fun tiles(query: String, favourites: List<FavouriteItem>, drinks: List<Drink>, pours: List<Entry>, recency: Map<String, Instant>, usual: Usual): List<Serve> {
         val folded = query.trim().searchFolded
         val shown = favourites.filter { !it.drink.isHidden }
-        val order = shown.map { it.serve.id }
+        // Units was pinned on installs that seeded it and cannot be unpinned, so it keeps its place after the generics.
+        val order = shown.filter { it.drink.category != DrinkCategory.UNITS }.map { it.serve.id }
         if (folded.isEmpty()) {
-            val generics = drinks
-                .filter { it.isGeneric && !it.isHidden && it.category != DrinkCategory.UNITS }
-                .sortedBy { it.sortOrder }
-                .map(::Serve)
+            val generics = Generics.serves(drinks)
             val live = drinks.associateBy { it.id }
             val serves = HashMap<String, Serve>()
             for ((key, pour) in usual.pours) {
@@ -356,7 +358,7 @@ object Picker {
             val added = recency.entries.sortedByDescending { it.value }.map { it.key }
             return usual.picker.tiles(added, order, generics.map { it.id }, pours.map { it.serveKey }).mapNotNull { serves[it] }
         }
-        val serves = drinks
+        val serves = (drinks + Generics.unstored(drinks))
             .filter { !it.isHidden && (it.name.searchFolded.contains(folded) || it.category.label.searchFolded.contains(folded)) }
             .flatMap { drink ->
                 // Every size it comes in, not only the one it was added as, so a drink found by name can be logged at
@@ -386,7 +388,7 @@ object Picker {
         val folded = query.trim().searchFolded
         fun matches(name: String) = folded.isEmpty() || name.searchFolded.contains(folded)
         val kind = base.category
-        val yours = drinks
+        val yours = (drinks + Generics.unstored(drinks))
             .filter { it.id != base.id && it.category == kind && !it.isHidden && matches(it.name) }
             .sortedWith(compareBy<Drink> { !it.isGeneric }.thenBy { it.name })
         val owned = drinks.mapTo(HashSet()) { Catalog.key(it.name, it.category) }

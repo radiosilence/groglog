@@ -4,8 +4,8 @@ import GrogLogCore
 import SwiftUI
 
 /// The logging surface: anything already logged that day, the Log-grid favourites, what is usually drunk at this time,
-/// then the generic drinks, each a drink in a size. Tap logs one now; long-press to change the drink, size, time or
-/// count.
+/// then the generic drinks in their common sizes and Units, each a drink in a size. Tap logs one now; long-press to
+/// change the drink, size, time or count.
 struct DrinkPicker: View {
     let day: DayKey
     let ledger: Ledger
@@ -49,7 +49,7 @@ struct DrinkPicker: View {
                 ForEach(tiles) { serve in
                     let isUnits = serve.drink.category == .units
                     DrinkTile(serve: serve, count: counts[serve.id] ?? 0, pulse: pulses[serve.id] ?? 0)
-                        .onTapGesture { isUnits ? countingUnits = true : log(serve) }
+                        .onTapGesture { isUnits ? countingUnits = true : log(serve, picked: !search.isEmpty) }
                         .onLongPressGesture(minimumDuration: 0.35) { isUnits ? countingUnits = true : (options = serve) }
                         .accessibilityAction(named: "Options") { isUnits ? countingUnits = true : (options = serve) }
                 }
@@ -121,19 +121,17 @@ struct DrinkPicker: View {
         }
     }
 
-    /// The day's drinks, most recent first, then the favourites in pinned order, the serves usually drunk at this time
-    /// and the generic drinks, each shown once. When searching, the Log-grid sizes (or default size) of every matching
-    /// drink, those usually drunk at this time first. Hidden drinks show only if logged that day.
+    /// The day's drinks, most recent first, then the favourites in pinned order, the serves usually drunk at this time,
+    /// the generic drinks in their common sizes and Units, each shown once. When searching, the Log-grid sizes (or
+    /// default size) of every matching drink, those usually drunk at this time first. Hidden drinks show only if logged that day.
     private var tiles: [Serve] {
         guard let picker else { return [] }
         let query = search.trimmingCharacters(in: .whitespaces)
         let favourites = favourites.filter { !$0.drink.isHidden }
-        let order = favourites.map(\.serve.id)
+        // Units was pinned on installs that seeded it and cannot be unpinned, so it keeps its place after the generics.
+        let order = favourites.filter { $0.drink.category != .units }.map(\.serve.id)
         if query.isEmpty {
-            let generics = drinks
-                .filter { $0.isGeneric && !$0.isHidden && $0.category != .units }
-                .sorted { $0.sortOrder < $1.sortOrder }
-                .map { Serve($0) }
+            let generics = Generics.serves(drinks)
             // Built from the drinks as they are now, so an edit or a hide made with the screen open shows at once.
             let live = Dictionary(drinks.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             var serves: [String: Serve] = [:]
@@ -148,7 +146,7 @@ struct DrinkPicker: View {
             return picker.tiles(added: added, favourites: order, generics: generics.map(\.id), logged: pours.map(\.serveKey))
                 .compactMap { serves[$0] }
         }
-        let serves = drinks
+        let serves = (drinks + Generics.unstored(drinks))
             .filter { !$0.isHidden && ($0.name.localizedStandardContains(query) || $0.category.label.localizedStandardContains(query)) }
             .flatMap { drink -> [Serve] in
                 // Every size it comes in, not only the one it was added as, so a drink found by name can
@@ -199,7 +197,10 @@ struct DrinkPicker: View {
 
     /// The write is a transaction on the main thread, well inside a frame however long the log (`ScaleTests` times
     /// it), so the pour and the drink landing are the same frame.
-    private func log(_ serve: Serve) {
+    /// A search result is a deliberate pick, so it comes to the front like one from the long-press sheet rather than
+    /// joining the end of the grid once the search is cleared.
+    private func log(_ serve: Serve, picked: Bool = false) {
+        if picked { recency[serve.id] = .now }
         pulses[serve.id, default: 0] += 1
         logged += 1
         database.logbook(prefs).log(serve, at: [ledger.clock.suggestedTime(for: day, after: pours.last?.timestamp)])

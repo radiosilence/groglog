@@ -90,7 +90,7 @@ class QuickLogTests {
 
         QuickLog.log(Serve(wine).id, database, Settings(), now)
 
-        assertEquals(listOf("Red wine", "Staropramen"), Serves.grid(database).map { it.drink.name })
+        assertEquals(listOf("Red wine", "Staropramen"), Serves.grid(database).filterNot { it.drink.isGeneric }.map { it.drink.name })
     }
 
     @Test fun theWidgetsSeeATileTapAtOnce() = runBlocking {
@@ -105,7 +105,7 @@ class QuickLogTests {
 
         val after = today.first()
         assertTrue(near(2.84, after.units))
-        assertEquals(listOf("Staropramen"), after.tiles.map { it.drink.name })
+        assertEquals(listOf("Staropramen"), after.tiles.filterNot { it.drink.isGeneric }.map { it.drink.name })
         assertTrue(near(2.84, after.curve.last().units))
     }
 
@@ -118,7 +118,7 @@ class QuickLogTests {
             database.rows().insert(Favourite(drinkId = drink.id, vessel = drink.vessel, volumeMl = drink.volumeMl, price = drink.price))
         }
 
-        assertEquals(listOf("Staropramen"), Today.observe(database, prefs()).first().tiles.map { it.drink.name })
+        assertEquals(listOf("Staropramen"), Today.observe(database, prefs()).first().tiles.filterNot { it.drink.isGeneric }.map { it.drink.name })
     }
 
     @Test fun aWriteThatFailsIsNotReportedAsLogged() = runBlocking {

@@ -11,6 +11,7 @@ import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -72,6 +73,16 @@ class ServeKeyTests {
         rows.insert(Favourite(drinkId = wine.id, vessel = Vessel.WINE_GLASS, volumeMl = 175.0, price = 7.0, sortOrder = 1, lastUsed = Instant.now()))
         rows.insert(Favourite(drinkId = gone.id, vessel = Vessel.PINT, volumeMl = 568.0, price = 5.0, sortOrder = 2, lastUsed = Instant.now()))
 
-        assertEquals(listOf("Wine", "Lager"), Serves.grid(database).map { it.drink.name })
+        assertEquals(listOf("Wine", "Lager"), Serves.grid(database).filterNot { it.drink.isGeneric }.map { it.drink.name })
+    }
+
+    @Test fun withNothingStoredSuggestionsOfferTheGenericsAndLogThem() = runBlocking {
+        val database = database()
+        val grid = Serves.grid(database)
+        assertEquals(listOf("Beer", "Stout", "Cider"), grid.take(3).map { it.drink.name })
+        assertTrue(grid.none { it.drink.category == DrinkCategory.UNITS })
+
+        val beer = Serves.matching(grid.first().id, database)!!
+        assertEquals(grid.first().drink.id, beer.drink.id)
     }
 }

@@ -57,7 +57,6 @@ class ReportsShots {
 
     private fun demo(): ReportsState = runBlocking {
         val logbook = Logbook(database(), clock.copy(zone = java.time.ZoneId.systemDefault()))
-        Seed.drinksIfNeeded(logbook)
         Seed.sample(logbook)
         val ledger = Ledger(logbook.rows.days(), logbook.clock)
         val goal = Goal(isEnabled = true, baselineWeekly = 210.0, start = Instant.now().minus(18, ChronoUnit.DAYS))

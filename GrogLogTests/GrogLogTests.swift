@@ -722,8 +722,7 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         let prefs = prefs()
         let source = try AppDatabase.inMemory()
         let logbook = Logbook(writer: source.writer, clock: prefs.clock)
-        try Seed.drinksIfNeeded(logbook)
-        let beer = try #require(try source.reader.read { try Drink.filter(Column("name") == "Beer").fetchOne($0) })
+        let beer = try #require(Generics.drinks([]).first { $0.name == "Beer" })
         logbook.log(Serve(beer), at: [.now])
         let settings = Exporter.Settings(prefs)
         let data = Exporter.json(try source.reader.read { try Exporter.backup($0, settings: settings) })
@@ -731,12 +730,13 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         let (drinks, favourites) = try source.reader.read { (try Drink.fetchCount($0), try Favourite.fetchCount($0)) }
 
         let fresh = try AppDatabase.inMemory()
-        try Seed.drinksIfNeeded(Logbook(writer: fresh.writer, clock: prefs.clock))
+        // A day before the backup's, since a restore leaves alone a day that already has drinks.
+        Logbook(writer: fresh.writer, clock: prefs.clock).log(Serve(beer), at: [.now.addingTimeInterval(-2 * 86400)])
         try Exporter.restore(data, writer: fresh.writer, prefs: prefs)
         let restored = try fresh.reader.read { db in
             (try Drink.fetchCount(db), try Favourite.fetchCount(db), try Pour.including(required: Pour.drink).fetchCount(db))
         }
-        #expect(restored.0 == drinks && restored.1 == favourites && restored.2 == 1)
+        #expect(restored.0 == drinks && restored.1 == favourites && restored.2 == 2)
     }
 
     @Test func importingADryDayKeepsASpendSetByHand() throws {
@@ -797,6 +797,35 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(Catalog.search("Red wine").allSatisfy { $0.category == .redWine })
         #expect(Catalog.search("  ").isEmpty)
         #expect(Catalog.search("lowenbrau").contains { $0.name == "Löwenbräu Original" })
+    }
+
+    @Test func theGenericsAreOfferedInTheirCommonSizesWithNothingStored() throws {
+        let tiles = Generics.serves([])
+        #expect(tiles.filter { $0.drink.name == "Beer" }.map(\.volumeMl) == [568, 284, 440, 500, 330, 660])
+        #expect(tiles.filter { $0.drink.name == "Red wine" }.map(\.volumeMl) == [175, 250, 750])
+        #expect(tiles.last?.drink.category == .units)
+        let database = try AppDatabase.inMemory()
+        #expect(try database.reader.read { try Serve.grid($0) }.first?.drink.name == "Beer")
+    }
+
+    @Test func aGenericIsStoredUnderItsFixedIdWhenFirstLogged() throws {
+        let database = try AppDatabase.inMemory()
+        let logbook = Logbook(writer: database.writer, clock: clock)
+        let beer = try #require(Generics.drinks([]).first)
+        #expect(try database.reader.read { try Drink.fetchCount($0) } == 0)
+        logbook.log(Serve(beer, .half, 284), at: [.now])
+        logbook.log(Serve(beer), at: [.now])
+        let stored = try database.reader.read { try Drink.fetchAll($0) }
+        #expect(stored.map(\.id) == [beer.id])
+        #expect(Generics.drinks(stored).first == stored.first)
+    }
+
+    @Test func aStoredGenericTakesThePlaceOfItsKindAndHidingItHidesTheTiles() throws {
+        var mine = Drink(name: "Lager", category: .beer, abv: 4.2, vessel: .pint, volumeMl: 568, isGeneric: true)
+        #expect(Generics.drinks([mine]).first == mine)
+        mine.isHidden = true
+        #expect(!Generics.serves([mine]).contains { $0.drink.category == .beer })
+        #expect(Generics.drinks([mine], includingHidden: true).first == mine)
     }
 }
 

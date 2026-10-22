@@ -6,6 +6,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -13,6 +14,7 @@ import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
@@ -177,6 +179,8 @@ class LogScreenTests {
     }
 
     @Test fun theUnitsTileAsksForAnAmount() {
+        // Units ends the grid, after the generic drinks.
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasContentDescription("Units"))
         compose.onNodeWithContentDescription("Units").performClick()
         compose.waitUntilAtLeastOneExists(hasText("units"))
         compose.onNode(hasContentDescription("Units") and hasSetTextAction()).performTextInput("3.5")

@@ -70,6 +70,6 @@ import Testing
         }
 
         let grid = try writer.read { try Serve.grid($0) }
-        #expect(grid.map(\.drink.name) == ["Wine", "Lager"])
+        #expect(grid.filter { !$0.drink.isGeneric }.map(\.drink.name) == ["Wine", "Lager"])
     }
 }

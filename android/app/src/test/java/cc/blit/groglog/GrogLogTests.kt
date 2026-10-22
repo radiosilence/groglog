@@ -28,7 +28,6 @@ import cc.blit.groglog.core.unitsUnitMl
 import cc.blit.groglog.core.unitsWeeklyGuideline
 import cc.blit.groglog.export.Exporter
 import cc.blit.groglog.data.Logbook
-import cc.blit.groglog.data.Seed
 import cc.blit.groglog.data.Settings
 import cc.blit.groglog.model.Catalog
 import cc.blit.groglog.model.Day
@@ -37,6 +36,7 @@ import cc.blit.groglog.model.DayKey
 import cc.blit.groglog.model.DayStatus
 import cc.blit.groglog.model.Drink
 import cc.blit.groglog.model.DrinkCategory
+import cc.blit.groglog.model.Generics
 import cc.blit.groglog.model.Entry
 import cc.blit.groglog.model.Goal
 import cc.blit.groglog.model.GoalSerializer
@@ -815,20 +815,31 @@ class BackupTests {
         val prefs = prefs()
         val settings = prefs.current()
         val logbook = Logbook(database(), settings.clock)
-        Seed.drinksIfNeeded(logbook)
-        val beer = logbook.rows.drink("Beer", DrinkCategory.BEER.raw)!!
+        val beer = Generics.drinks(emptyList()).first { it.name == "Beer" }
         logbook.log(Serve(beer), listOf(Instant.now()))
         val data = Exporter.json(Exporter.backup(logbook.database, settings))
         val drinks = logbook.rows.drinkCount()
         val favourites = logbook.rows.favouriteCount()
 
         val fresh = database()
-        Seed.drinksIfNeeded(Logbook(fresh, settings.clock))
+        // A day before the backup's, since a restore leaves alone a day that already has drinks.
+        Logbook(fresh, settings.clock).log(Serve(beer), listOf(Instant.now().minus(java.time.Duration.ofDays(2))))
         Exporter.restore(data, fresh, prefs)
         val rows = fresh.rows()
         assertEquals(drinks, rows.drinkCount())
         assertEquals(favourites, rows.favouriteCount())
-        assertEquals(1, rows.entries().size)
+        assertEquals(2, rows.entries().size)
+    }
+
+    @Test fun aGenericIsStoredUnderItsFixedIdWhenFirstLogged() = runBlocking {
+        val logbook = Logbook(database(), prefs().current().clock)
+        val beer = Generics.drinks(emptyList()).first()
+        assertEquals(0, logbook.rows.drinkCount())
+        logbook.log(Serve(beer, Vessel.HALF, 284.0), listOf(Instant.now()))
+        logbook.log(Serve(beer), listOf(Instant.now()))
+        val stored = logbook.rows.drinks()
+        assertEquals(listOf(beer.id), stored.map { it.id })
+        assertEquals(stored.first(), Generics.drinks(stored).first())
     }
 
     @Test fun importingADryDayKeepsASpendSetByHand() = runBlocking {

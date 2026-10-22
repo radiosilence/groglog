@@ -1,10 +1,7 @@
 package cc.blit.groglog.data
 
-import androidx.room.withTransaction
-import cc.blit.groglog.core.catalogGenerics
 import cc.blit.groglog.model.Day
 import cc.blit.groglog.model.DayKey
-import cc.blit.groglog.model.Drink
 import cc.blit.groglog.model.DrinkCategory
 import cc.blit.groglog.model.Favourite
 import cc.blit.groglog.model.Ledger
@@ -21,39 +18,6 @@ import cc.blit.groglog.model.Goal
 import kotlin.math.roundToInt
 
 object Seed {
-    private class Generic(val name: String, val category: DrinkCategory, val serves: List<Triple<Vessel, Double, Double>>)
-
-    /**
-     * Generic drinks at Drinkaware's standard strengths, with the sizes that start out on the Log grid, from the shared
-     * core.
-     */
-    private val generics: List<Generic> by lazy {
-        catalogGenerics().map { record ->
-            Generic(record.name, DrinkCategory.of(record.category), record.serves.map { Triple(Vessel.of(it.vessel), it.ml, it.price) })
-        }
-    }
-
-    /** Generic drinks and their starting Log-grid tiles, on a fresh install. */
-    suspend fun drinksIfNeeded(logbook: Logbook) {
-        val rows = logbook.rows
-        if (rows.drinkCount() != 0) return
-        logbook.database.withTransaction {
-            if (rows.drinkCount() != 0) return@withTransaction
-            val units = logbook.unitsDrink()
-            rows.insert(Favourite(drinkId = units.id, vessel = Vessel.SHOT, volumeMl = 10.0, price = 0.0, sortOrder = 99))
-            var order = 100
-            for (generic in generics) {
-                val (vessel, ml, price) = generic.serves[0]
-                val drink = Drink(name = generic.name, category = generic.category, abv = generic.category.defaultABV, vessel = vessel, volumeMl = ml, price = price, isGeneric = true, sortOrder = order)
-                rows.insert(drink)
-                for ((servedIn, servedMl, servedPrice) in generic.serves) {
-                    rows.insert(Favourite(drinkId = drink.id, vessel = servedIn, volumeMl = servedMl, price = servedPrice, sortOrder = order))
-                    order += 1
-                }
-            }
-        }
-    }
-
     /**
      * The demo's goal over `sample`'s log: a taper begun two weeks ago, from what the sample's first four weeks averaged
      * rounded to a whole unit a day (as "Use my last 4 weeks" sets it), so Reports and the Day tab show a budget part
