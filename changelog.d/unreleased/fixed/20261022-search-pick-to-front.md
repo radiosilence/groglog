@@ -1,0 +1,1 @@
+- **A drink logged from search comes to the front of the grid.** It used to join the end once the search was cleared, behind the favourites. Units, which older installs had pinned and could not unpin, now keeps its place after the generic drinks.

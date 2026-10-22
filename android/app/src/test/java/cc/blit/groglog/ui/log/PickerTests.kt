@@ -71,6 +71,14 @@ class PickerTests {
         assertTrue(tiles.none { it.drink.id == lager.id })
     }
 
+    @Test fun aPinnedUnitsTileStaysAfterTheGenerics() {
+        val units = Drink(name = "Units", category = DrinkCategory.UNITS, abv = 100.0, vessel = Vessel.SHOT, volumeMl = 10.0, isGeneric = true, sortOrder = 99)
+        val tiles = Picker.tiles("", listOf(pinned(units, 0), pinned(lager, 1)), listOf(units, lager), emptyList(), emptyMap(), Usual.none)
+        assertEquals("Staropramen", tiles.first().drink.name)
+        assertEquals("Units", tiles.last().drink.name)
+        assertEquals(1, tiles.count { it.drink.category == DrinkCategory.UNITS })
+    }
+
     @Test fun aHiddenGenericTakesItsTilesWithIt() {
         val beer = lager.copy(id = java.util.UUID.randomUUID(), name = "Beer", isGeneric = true, isHidden = true)
         val tiles = Picker.tiles("", emptyList(), listOf(beer), emptyList(), emptyMap(), Usual.none)

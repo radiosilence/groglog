@@ -188,6 +188,9 @@ class LogViewModel(
      */
     fun log(serve: Serve, onLogged: (List<Pour>?) -> Unit = {}) {
         val state = state.value ?: return
+        // A search result is a deliberate pick, so it comes to the front rather than joining the end once the search
+        // is cleared.
+        if (search.isNotBlank()) bringForward(serve.id)
         pulse(serve.id)
         val time = state.suggestedTime
         viewModelScope.launch { onLogged(logbook().log(serve, listOf(time))) }
@@ -339,7 +342,8 @@ object Picker {
     fun tiles(query: String, favourites: List<FavouriteItem>, drinks: List<Drink>, pours: List<Entry>, recency: Map<String, Instant>, usual: Usual): List<Serve> {
         val folded = query.trim().searchFolded
         val shown = favourites.filter { !it.drink.isHidden }
-        val order = shown.map { it.serve.id }
+        // Units was pinned on installs that seeded it and cannot be unpinned, so it keeps its place after the generics.
+        val order = shown.filter { it.drink.category != DrinkCategory.UNITS }.map { it.serve.id }
         if (folded.isEmpty()) {
             val generics = Generics.serves(drinks)
             val live = drinks.associateBy { it.id }

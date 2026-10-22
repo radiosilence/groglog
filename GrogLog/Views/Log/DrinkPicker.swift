@@ -49,7 +49,7 @@ struct DrinkPicker: View {
                 ForEach(tiles) { serve in
                     let isUnits = serve.drink.category == .units
                     DrinkTile(serve: serve, count: counts[serve.id] ?? 0, pulse: pulses[serve.id] ?? 0)
-                        .onTapGesture { isUnits ? countingUnits = true : log(serve) }
+                        .onTapGesture { isUnits ? countingUnits = true : log(serve, picked: !search.isEmpty) }
                         .onLongPressGesture(minimumDuration: 0.35) { isUnits ? countingUnits = true : (options = serve) }
                         .accessibilityAction(named: "Options") { isUnits ? countingUnits = true : (options = serve) }
                 }
@@ -128,7 +128,8 @@ struct DrinkPicker: View {
         guard let picker else { return [] }
         let query = search.trimmingCharacters(in: .whitespaces)
         let favourites = favourites.filter { !$0.drink.isHidden }
-        let order = favourites.map(\.serve.id)
+        // Units was pinned on installs that seeded it and cannot be unpinned, so it keeps its place after the generics.
+        let order = favourites.filter { $0.drink.category != .units }.map(\.serve.id)
         if query.isEmpty {
             let generics = Generics.serves(drinks)
             // Built from the drinks as they are now, so an edit or a hide made with the screen open shows at once.
@@ -196,7 +197,10 @@ struct DrinkPicker: View {
 
     /// The write is a transaction on the main thread, well inside a frame however long the log (`ScaleTests` times
     /// it), so the pour and the drink landing are the same frame.
-    private func log(_ serve: Serve) {
+    /// A search result is a deliberate pick, so it comes to the front like one from the long-press sheet rather than
+    /// joining the end of the grid once the search is cleared.
+    private func log(_ serve: Serve, picked: Bool = false) {
+        if picked { recency[serve.id] = .now }
         pulses[serve.id, default: 0] += 1
         logged += 1
         database.logbook(prefs).log(serve, at: [ledger.clock.suggestedTime(for: day, after: pours.last?.timestamp)])
