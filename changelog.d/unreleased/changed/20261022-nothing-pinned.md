@@ -1,0 +1,1 @@
+- **A fresh install starts with nothing pinned.** The Log grid always ends with the generic drinks in their common sizes (a pint, a half, cans and bottles of beer; 125, 175 and 250 ml glasses and a bottle of wine) and Units, so favourites are only the drinks you star. Widgets and shortcuts offer the generic drinks until something is pinned.

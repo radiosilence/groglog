@@ -798,6 +798,20 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         #expect(Catalog.search("  ").isEmpty)
         #expect(Catalog.search("lowenbrau").contains { $0.name == "Löwenbräu Original" })
     }
+
+    @Test func aFreshInstallPinsNothingAndTheGridStillOffersTheGenerics() throws {
+        let database = try AppDatabase.inMemory()
+        try Seed.drinksIfNeeded(Logbook(writer: database.writer, clock: clock))
+        let drinks = try database.reader.read { db in
+            #expect(try Favourite.fetchCount(db) == 0)
+            return try Drink.fetchAll(db)
+        }
+        let tiles = DrinkPicker.generics(drinks)
+        #expect(tiles.filter { $0.drink.name == "Beer" }.map(\.volumeMl) == [568, 284, 440, 500, 330, 660])
+        #expect(tiles.filter { $0.drink.name == "Red wine" }.map(\.volumeMl) == [175, 250, 750])
+        #expect(tiles.last?.drink.category == .units)
+        #expect(try database.reader.read { try Serve.grid($0) }.first?.drink.name == "Beer")
+    }
 }
 
 /// The `pour` table is the only one that grows without bound, a row per drink. Every other table holds a few

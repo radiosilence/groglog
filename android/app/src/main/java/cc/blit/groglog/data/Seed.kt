@@ -21,35 +21,30 @@ import cc.blit.groglog.model.Goal
 import kotlin.math.roundToInt
 
 object Seed {
-    private class Generic(val name: String, val category: DrinkCategory, val serves: List<Triple<Vessel, Double, Double>>)
+    private class Generic(val name: String, val category: DrinkCategory, val vessel: Vessel, val ml: Double, val price: Double)
 
-    /**
-     * Generic drinks at Drinkaware's standard strengths, with the sizes that start out on the Log grid, from the shared
-     * core.
-     */
+    /** Generic drinks at Drinkaware's standard strengths, each in its first size, from the shared core. */
     private val generics: List<Generic> by lazy {
         catalogGenerics().map { record ->
-            Generic(record.name, DrinkCategory.of(record.category), record.serves.map { Triple(Vessel.of(it.vessel), it.ml, it.price) })
+            val serve = record.serves.first()
+            Generic(record.name, DrinkCategory.of(record.category), Vessel.of(serve.vessel), serve.ml, serve.price)
         }
     }
 
-    /** Generic drinks and their starting Log-grid tiles, on a fresh install. */
+    /**
+     * Generic drinks and Units, on a fresh install. Nothing is pinned: the Log grid always offers the generics in their
+     * common sizes, so favourites are only what the user stars.
+     */
     suspend fun drinksIfNeeded(logbook: Logbook) {
         val rows = logbook.rows
         if (rows.drinkCount() != 0) return
         logbook.database.withTransaction {
             if (rows.drinkCount() != 0) return@withTransaction
-            val units = logbook.unitsDrink()
-            rows.insert(Favourite(drinkId = units.id, vessel = Vessel.SHOT, volumeMl = 10.0, price = 0.0, sortOrder = 99))
-            var order = 100
-            for (generic in generics) {
-                val (vessel, ml, price) = generic.serves[0]
-                val drink = Drink(name = generic.name, category = generic.category, abv = generic.category.defaultABV, vessel = vessel, volumeMl = ml, price = price, isGeneric = true, sortOrder = order)
-                rows.insert(drink)
-                for ((servedIn, servedMl, servedPrice) in generic.serves) {
-                    rows.insert(Favourite(drinkId = drink.id, vessel = servedIn, volumeMl = servedMl, price = servedPrice, sortOrder = order))
-                    order += 1
-                }
+            logbook.unitsDrink()
+            generics.forEachIndexed { index, generic ->
+                rows.insert(
+                    Drink(name = generic.name, category = generic.category, abv = generic.category.defaultABV, vessel = generic.vessel, volumeMl = generic.ml, price = generic.price, isGeneric = true, sortOrder = 100 + index),
+                )
             }
         }
     }

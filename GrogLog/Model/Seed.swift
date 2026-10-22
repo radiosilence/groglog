@@ -3,35 +3,23 @@ import GRDB
 import GrogLogCore
 
 nonisolated enum Seed {
-    /// Generic drinks at Drinkaware's standard strengths, with the sizes that start out on the Log grid, from the
-    /// shared core.
-    private static let generics: [(name: String, category: DrinkCategory, serves: [(Vessel, Double, Double)])] = catalogGenerics().map { record in
-        (record.name, DrinkCategory(record.category), record.serves.map { (Vessel($0.vessel), $0.ml, $0.price) })
+    /// Generic drinks at Drinkaware's standard strengths, each in its first size, from the shared core.
+    private static let generics: [(name: String, category: DrinkCategory, serve: (Vessel, Double, Double))] = catalogGenerics().map { record in
+        (record.name, DrinkCategory(record.category), (Vessel(record.serves[0].vessel), record.serves[0].ml, record.serves[0].price))
     }
 
-    /// Generic drinks and their starting Log-grid tiles, on a fresh install.
+    /// Generic drinks and Units, on a fresh install. Nothing is pinned: the Log grid always offers the generics in their
+    /// common sizes, so favourites are only what the user stars.
     static func drinksIfNeeded(_ logbook: Logbook) throws {
         // Every process start comes here, widget refreshes included; a read does not take the write lock the
         // other process may want.
         guard try logbook.writer.read({ try Drink.fetchCount($0) }) == 0 else { return }
         try logbook.writer.write { db in
             guard try Drink.fetchCount(db) == 0 else { return }
-            // Tiles are marked for sync, which keeps them back until it knows whether iCloud already holds a grid.
-            func tile(_ favourite: Favourite) throws {
-                try favourite.insert(db)
-                try db.execute(sql: "INSERT INTO syncSeeded (recordName) SELECT 'favourite-' || hex(id) FROM favourite WHERE id = ?", arguments: [favourite.id])
-            }
-            let units = try logbook.unitsDrink(db)
-            try tile(Favourite(drinkId: units.id, vessel: .shot, volumeMl: 10, price: 0, sortOrder: 99))
-            var order = 100
-            for generic in generics {
-                let (vessel, ml, price) = generic.serves[0]
-                let drink = Drink(name: generic.name, category: generic.category, abv: generic.category.defaultABV, vessel: vessel, volumeMl: ml, price: price, isGeneric: true, sortOrder: order)
-                try drink.insert(db)
-                for (vessel, ml, price) in generic.serves {
-                    try tile(Favourite(drinkId: drink.id, vessel: vessel, volumeMl: ml, price: price, sortOrder: order))
-                    order += 1
-                }
+            _ = try logbook.unitsDrink(db)
+            for (order, generic) in generics.enumerated() {
+                let (vessel, ml, price) = generic.serve
+                try Drink(name: generic.name, category: generic.category, abv: generic.category.defaultABV, vessel: vessel, volumeMl: ml, price: price, isGeneric: true, sortOrder: 100 + order).insert(db)
             }
         }
     }

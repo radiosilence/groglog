@@ -118,17 +118,25 @@ nonisolated struct DrinkGone: Error, CustomLocalizedStringResourceConvertible {
 }
 
 nonisolated extension Serve {
-    /// The tiles an intent offers: pinned drinks, most recently drunk first, excluding hidden drinks and Units,
-    /// which in the app asks for an amount and here could only log one. Unlike the Log grid, today's other drinks
-    /// are not included, since suggestions need not track the day.
+    /// The tiles an intent offers: pinned drinks, most recently drunk first, then the generic drinks in their own
+    /// sizes, so there is something to offer with nothing pinned. Hidden drinks and Units are left out, since Units in
+    /// the app asks for an amount and here could only log one. Unlike the Log grid, today's other drinks are not
+    /// included, since suggestions need not track the day.
     static func grid(_ db: Database) throws -> [Serve] {
-        try Favourite
+        let pinned = try Favourite
             .including(required: Favourite.drink)
             .order(Column("lastUsed").desc, Column("sortOrder"))
             .asRequest(of: FavouriteItem.self)
             .fetchAll(db)
-            .filter { !$0.drink.isHidden && $0.drink.category != .units }
+            .filter { !$0.drink.isHidden }
             .map(\.serve)
+        let generics = try Drink
+            .filter(Column("isGeneric") && !Column("isHidden"))
+            .order(Column("sortOrder"))
+            .fetchAll(db)
+            .map { Serve($0) }
+        var seen = Set<String>()
+        return (pinned + generics).filter { $0.drink.category != .units && seen.insert($0.id).inserted }
     }
 
     /// The inverse of `key`: a drink in a size at its pinned price, or the drink's derived price at that size if it

@@ -4,8 +4,8 @@ import GrogLogCore
 import SwiftUI
 
 /// The logging surface: anything already logged that day, the Log-grid favourites, what is usually drunk at this time,
-/// then the generic drinks, each a drink in a size. Tap logs one now; long-press to change the drink, size, time or
-/// count.
+/// then the generic drinks in their common sizes and Units, each a drink in a size. Tap logs one now; long-press to
+/// change the drink, size, time or count.
 struct DrinkPicker: View {
     let day: DayKey
     let ledger: Ledger
@@ -121,19 +121,16 @@ struct DrinkPicker: View {
         }
     }
 
-    /// The day's drinks, most recent first, then the favourites in pinned order, the serves usually drunk at this time
-    /// and the generic drinks, each shown once. When searching, the Log-grid sizes (or default size) of every matching
-    /// drink, those usually drunk at this time first. Hidden drinks show only if logged that day.
+    /// The day's drinks, most recent first, then the favourites in pinned order, the serves usually drunk at this time,
+    /// the generic drinks in their common sizes and Units, each shown once. When searching, the Log-grid sizes (or
+    /// default size) of every matching drink, those usually drunk at this time first. Hidden drinks show only if logged that day.
     private var tiles: [Serve] {
         guard let picker else { return [] }
         let query = search.trimmingCharacters(in: .whitespaces)
         let favourites = favourites.filter { !$0.drink.isHidden }
         let order = favourites.map(\.serve.id)
         if query.isEmpty {
-            let generics = drinks
-                .filter { $0.isGeneric && !$0.isHidden && $0.category != .units }
-                .sorted { $0.sortOrder < $1.sortOrder }
-                .map { Serve($0) }
+            let generics = Self.generics(drinks)
             // Built from the drinks as they are now, so an edit or a hide made with the screen open shows at once.
             let live = Dictionary(drinks.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             var serves: [String: Serve] = [:]
@@ -161,6 +158,19 @@ struct DrinkPicker: View {
             }
         let byId = Dictionary(serves.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         return picker.rank(keys: serves.map(\.id), favourites: order).compactMap { byId[$0] }
+    }
+
+    /// Every generic drink in its own size, then the other sizes it is commonly drunk in, then Units, so the grid can
+    /// log anything with nothing pinned.
+    nonisolated static func generics(_ drinks: [Drink]) -> [Serve] {
+        let shown = drinks.filter { $0.isGeneric && !$0.isHidden }.sorted { $0.sortOrder < $1.sortOrder }
+        let sized = shown.filter { $0.category != .units }.flatMap { drink in
+            var seen = Set<ServeSize>()
+            return ([ServeSize(drink.vessel, drink.volumeMl)] + Catalog.genericSizes(drink.category))
+                .filter { seen.insert($0).inserted }
+                .map { Serve(drink, $0.vessel, $0.ml) }
+        }
+        return sized + shown.filter { $0.category == .units }.map { Serve($0) }
     }
 
     /// Scores every serve ever logged for when the next drink would go: now for today, or that evening on a past day.

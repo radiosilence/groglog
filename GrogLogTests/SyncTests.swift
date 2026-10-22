@@ -76,9 +76,9 @@ private let evening = london.date(from: DateComponents(year: 2026, month: 9, day
         #expect(try phone.records.pending().isEmpty)
 
         phone.logbook.log(Serve(try phone.drink("Beer")), at: [evening])
-        // The entry, and the tile whose last-used time moved; not the day, whose totals each phone works out.
+        // The entry, and not the day, whose totals each phone works out.
         let pending = try phone.records.pending().map { SyncRecords.kind(of: $0.id.recordName) }
-        #expect(pending.sorted { $0.rawValue < $1.rawValue } == [.favourite, .pour])
+        #expect(pending == [.pour])
     }
 
     @Test func twoPhonesConvergeWithTheirSeedsMerged() throws {
@@ -216,39 +216,21 @@ private let evening = london.date(from: DateComponents(year: 2026, month: 9, day
         #expect(try phone.days().map(\.isAlcoholFree) == [false, true])
     }
 
-    @Test func aFreshInstallDoesNotBringBackATileUnpinnedElsewhere() throws {
+    @Test func aFreshInstallPinsNothingAndTakesTheGridFromICloud() throws {
         let a = try Phone()
         let beer = try a.drink("Beer")
-        let can = try #require(try a.tiles().first { $0.drinkId == beer.id && $0.vessel == .can && $0.volumeMl == 440 })
-        a.logbook.unpin(can)
+        a.logbook.pin(Serve(beer, .can, 440))
         try a.records.queueEverything()
 
-        // A reinstall seeds the can again, then syncs. Its seeded tiles wait for the fetch.
         let b = try Phone(fresh: true)
+        #expect(try b.tiles().isEmpty)
         try b.records.queueEverything()
-        let early = try b.send()
-        #expect(!early.saved.contains { $0.recordID.recordName.hasPrefix("favourite-") })
-        try a.receive(early)
+        try a.receive(try b.send())
         try b.receive(try a.send())
         try b.records.finishFetch()
         try settle(a, b)
 
-        let isCan = { (tile: Favourite) in tile.vessel == .can && tile.volumeMl == 440 }
-        #expect(try !a.tiles().contains(where: isCan))
-        #expect(try !b.tiles().contains(where: isCan))
+        #expect(try b.tiles().count == 1)
         #expect(Set(try a.tiles().map(\.id)) == Set(try b.tiles().map(\.id)))
-    }
-
-    @Test func aFreshInstallWithNothingInICloudKeepsAndSendsItsTiles() throws {
-        let phone = try Phone(fresh: true)
-        try phone.records.queueEverything()
-        let tiles = try phone.tiles().count
-        #expect(try !phone.send().saved.contains { $0.recordID.recordName.hasPrefix("favourite-") })
-
-        try phone.receive(([], []))
-        try phone.records.finishFetch()
-
-        #expect(try phone.tiles().count == tiles)
-        #expect(try phone.send().saved.filter { $0.recordID.recordName.hasPrefix("favourite-") }.count == tiles)
     }
 }

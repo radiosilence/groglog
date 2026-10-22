@@ -331,8 +331,8 @@ object Picker {
     }
 
     /**
-     * The day's drinks, most recent first, then the favourites in pinned order, the serves usually drunk at this time and
-     * the generic drinks, each shown once. When searching, every size of every matching drink, its pinned price where it
+     * The day's drinks, most recent first, then the favourites in pinned order, the serves usually drunk at this time,
+     * the generic drinks in their common sizes and Units, each shown once. When searching, every size of every matching drink, its pinned price where it
      * has one, those usually drunk at this time first. Hidden drinks show only if logged that day.
      */
     fun tiles(query: String, favourites: List<FavouriteItem>, drinks: List<Drink>, pours: List<Entry>, recency: Map<String, Instant>, usual: Usual): List<Serve> {
@@ -340,10 +340,7 @@ object Picker {
         val shown = favourites.filter { !it.drink.isHidden }
         val order = shown.map { it.serve.id }
         if (folded.isEmpty()) {
-            val generics = drinks
-                .filter { it.isGeneric && !it.isHidden && it.category != DrinkCategory.UNITS }
-                .sortedBy { it.sortOrder }
-                .map(::Serve)
+            val generics = generics(drinks)
             val live = drinks.associateBy { it.id }
             val serves = HashMap<String, Serve>()
             for ((key, pour) in usual.pours) {
@@ -369,6 +366,19 @@ object Picker {
             }
         val byId = serves.associateBy { it.id }
         return usual.picker.rank(serves.map { it.id }, order).mapNotNull { byId[it] }
+    }
+
+    /**
+     * Every generic drink in its own size, then the other sizes it is commonly drunk in, then Units, so the grid can log
+     * anything with nothing pinned.
+     */
+    fun generics(drinks: List<Drink>): List<Serve> {
+        val shown = drinks.filter { it.isGeneric && !it.isHidden }.sortedBy { it.sortOrder }
+        val (units, kinds) = shown.partition { it.category == DrinkCategory.UNITS }
+        val sized = kinds.flatMap { drink ->
+            (listOf(ServeSize(drink.vessel, drink.volumeMl)) + Catalog.genericSizes(drink.category)).distinct().map { Serve(drink, it.vessel, it.ml) }
+        }
+        return sized + units.map(::Serve)
     }
 
     /** Catalogue serves matching the search, less brands the user already has as drinks. */

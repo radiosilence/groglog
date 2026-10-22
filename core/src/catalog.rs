@@ -182,7 +182,7 @@ fn find(name: &str, category: CategoryKind) -> Option<&'static Brand> {
     Some(&catalogue.brands[index])
 }
 
-/// A generic drink: a kind at its standard strength, with the sizes that start out on the Log grid.
+/// A generic drink: a kind at its standard strength, with the sizes it is always offered in on the Log grid.
 struct Generic {
     name: &'static str,
     category: CategoryKind,
@@ -379,7 +379,7 @@ pub fn catalog_brand_price(name: String, category: CategoryKind, vessel: VesselK
     find(&name, category).map_or(0.0, |brand| brand.price(vessel, ml, &currency))
 }
 
-/// The generic drinks a fresh install starts with, and their Log-grid sizes.
+/// The generic drinks a fresh install starts with, and the sizes the Log grid offers them in.
 #[uniffi::export]
 pub fn catalog_generics() -> Vec<GenericRecord> {
     GENERICS
@@ -394,6 +394,17 @@ pub fn catalog_generics() -> Vec<GenericRecord> {
                 .collect(),
         })
         .collect()
+}
+
+/// The sizes the generic drink of a kind is always offered in on the Log grid, empty for a kind with no generic. A
+/// generic's name can be edited and its kind cannot, so the kind finds it.
+#[uniffi::export]
+pub fn catalog_generic_sizes(category: CategoryKind) -> Vec<SizeRecord> {
+    GENERICS
+        .iter()
+        .find(|generic| generic.category == category)
+        .map(|generic| generic.serves.iter().map(|(vessel, ml, _)| SizeRecord { vessel: *vessel, ml: *ml }).collect())
+        .unwrap_or_default()
 }
 
 /// A generic's starting price for a vessel and size, or none when the generic has no such serve.
@@ -537,6 +548,9 @@ mod tests {
         assert!(generics.iter().all(|g| !g.serves.is_empty() && g.serves.iter().all(|s| s.price > 0.0)));
         assert_eq!(catalog_sizes("Stella Artois".into(), CategoryKind::Beer).len(), 4);
         assert!(catalog_sizes("Nope".into(), CategoryKind::Beer).is_empty());
+        assert_eq!(catalog_generic_sizes(CategoryKind::Beer).len(), 6);
+        assert_eq!(catalog_generic_sizes(CategoryKind::Beer)[0], SizeRecord { vessel: VesselKind::Pint, ml: 568.0 });
+        assert!(catalog_generic_sizes(CategoryKind::Units).is_empty());
     }
 
     #[test]

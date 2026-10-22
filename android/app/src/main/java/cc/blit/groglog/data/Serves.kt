@@ -11,14 +11,17 @@ import java.util.UUID
  */
 object Serves {
     /**
-     * The tiles to offer outside the app: pinned drinks, most recently drunk first, excluding hidden drinks and Units,
-     * which in the app asks for an amount and here could only log one. Unlike the Log grid, today's other drinks are not
+     * The tiles to offer outside the app: pinned drinks, most recently drunk first, then the generic drinks in their own
+     * sizes, so there is something to offer with nothing pinned. Hidden drinks and Units are left out, since Units in
+     * the app asks for an amount and here could only log one. Unlike the Log grid, today's other drinks are not
      * included, since suggestions need not track the day.
      */
-    suspend fun grid(database: AppDatabase): List<Serve> =
-        database.rows().favouritesByUse()
-            .filter { !it.drink.isHidden && it.drink.category != DrinkCategory.UNITS }
-            .map { it.serve }
+    suspend fun grid(database: AppDatabase): List<Serve> {
+        val rows = database.rows()
+        val pinned = rows.favouritesByUse().filter { !it.drink.isHidden }.map { it.serve }
+        val generics = rows.drinks().filter { it.isGeneric && !it.isHidden }.sortedBy { it.sortOrder }.map(::Serve)
+        return (pinned + generics).filter { it.drink.category != DrinkCategory.UNITS }.distinctBy { it.id }
+    }
 
     /**
      * The inverse of `Serve.key`: a drink in a size at its pinned price, or the drink's derived price at that size if it

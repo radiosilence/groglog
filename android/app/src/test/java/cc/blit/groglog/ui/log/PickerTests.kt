@@ -48,10 +48,21 @@ class PickerTests {
         val fridays = (1L..4L).map { week -> entry(rioja, date(2026, 3, 6, 20).minus(Duration.ofDays(7 * week))).pour }
         val usual = Usual.of(fridays, drinks, clock, friday, date(2026, 3, 6, 20))
         val tiles = Picker.tiles("", listOf(pinned(lager, 0)), drinks, emptyList(), emptyMap(), usual)
-        assertEquals(listOf("Staropramen", "Rioja", "Cider", "Beer"), tiles.map { it.drink.name })
+        assertEquals(listOf("Staropramen", "Rioja") + List(2) { "Cider" } + List(6) { "Beer" }, tiles.map { it.drink.name })
 
         val searched = Picker.tiles("r", emptyList(), drinks, emptyList(), emptyMap(), usual)
         assertEquals("Rioja", searched.first().drink.name)
+    }
+
+    @Test fun withNothingPinnedTheGenericsShowInTheirCommonSizesThenUnits() {
+        val beer = lager.copy(id = java.util.UUID.randomUUID(), name = "Beer", isGeneric = true, sortOrder = 100)
+        val wine = rioja.copy(id = java.util.UUID.randomUUID(), name = "Red wine", isGeneric = true, sortOrder = 101)
+        val units = Drink(name = "Units", category = DrinkCategory.UNITS, abv = 100.0, vessel = Vessel.SHOT, volumeMl = 10.0, isGeneric = true, sortOrder = 99)
+        val tiles = Picker.tiles("", emptyList(), listOf(units, wine, beer, lager), emptyList(), emptyMap(), Usual.none)
+        assertEquals(listOf(568.0, 284.0, 440.0, 500.0, 330.0, 660.0), tiles.filter { it.drink.id == beer.id }.map { it.volumeMl })
+        assertEquals(listOf(175.0, 250.0, 750.0), tiles.filter { it.drink.id == wine.id }.map { it.volumeMl })
+        assertEquals("Units", tiles.last().drink.name)
+        assertTrue(tiles.none { it.drink.id == lager.id })
     }
 
     @Test fun aHiddenDrinkIsNeverUsual() {

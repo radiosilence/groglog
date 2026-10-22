@@ -74,4 +74,14 @@ class ServeKeyTests {
 
         assertEquals(listOf("Wine", "Lager"), Serves.grid(database).map { it.drink.name })
     }
+
+    @Test fun withNothingPinnedSuggestionsOfferTheGenerics() = runBlocking {
+        val database = database()
+        val rows = database.rows()
+        rows.insert(Drink(name = "Cider", category = DrinkCategory.CIDER, abv = 4.5, vessel = Vessel.PINT, volumeMl = 568.0, isGeneric = true, sortOrder = 102))
+        rows.insert(Drink(name = "Beer", category = DrinkCategory.BEER, abv = 4.0, vessel = Vessel.PINT, volumeMl = 568.0, isGeneric = true, sortOrder = 100))
+        rows.insert(Drink(name = "Units", category = DrinkCategory.UNITS, abv = 100.0, vessel = Vessel.SHOT, volumeMl = 10.0, isGeneric = true, sortOrder = 99))
+
+        assertEquals(listOf("Beer", "Cider"), Serves.grid(database).map { it.drink.name })
+    }
 }
