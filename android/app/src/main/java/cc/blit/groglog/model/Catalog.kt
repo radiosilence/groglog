@@ -8,7 +8,6 @@ import cc.blit.groglog.core.catalogHolds
 import cc.blit.groglog.core.catalogItems
 import cc.blit.groglog.core.catalogPrice
 import cc.blit.groglog.core.catalogSearch
-import cc.blit.groglog.core.catalogGenericSizes
 import cc.blit.groglog.core.catalogSizes
 import java.text.Normalizer
 import java.util.Currency
@@ -80,9 +79,6 @@ object Catalog {
     /** The sizes a drink of this name and kind is listed in, or none for a drink the catalogue does not know. */
     fun sizes(name: String, category: DrinkCategory): List<ServeSize> =
         sizesByKey.getOrPut(key(name, category)) { catalogSizes(name, category.kind).map { serveSize(it.vessel, it.ml) } }
-
-    /** The sizes the generic drink of a kind is always offered in on the Log grid. */
-    fun genericSizes(category: DrinkCategory): List<ServeSize> = catalogGenericSizes(category.kind).map { serveSize(it.vessel, it.ml) }
 
     /**
      * The normal price of a drink of this name in this size: a brand's own price, else a generic's starting price. Null

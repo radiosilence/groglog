@@ -17,7 +17,6 @@ class DemoGoalTests {
         val prefs = Prefs.demo()
         val database = database()
         val logbook = Logbook(database, prefs.current().clock)
-        Seed.drinksIfNeeded(logbook)
         Seed.sample(logbook)
         val ledger = Ledger(database.rows().days(), logbook.clock)
         val goal = Seed.demoGoal(ledger, prefs.current().goal)

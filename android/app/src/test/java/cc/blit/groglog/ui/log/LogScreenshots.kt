@@ -60,7 +60,6 @@ class LogScreenshots {
         val prefs = prefs()
         val logbook = runBlocking { Logbook(database, prefs.current().clock) }
         runBlocking {
-            Seed.drinksIfNeeded(logbook)
             Seed.sample(logbook, days = 30)
             val now = Instant.now()
             val grid = cc.blit.groglog.data.Serves.grid(database)

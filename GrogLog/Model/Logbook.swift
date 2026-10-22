@@ -22,6 +22,7 @@ nonisolated struct Logbook: Sendable {
         defer { mirror(Set(times.map { clock.day(for: $0) })) }
         let abvOverride = logbookAbvOverride(drinkAbv: serve.drink.abv, abv: abv)
         write { db in
+            try store(serve.drink, db)
             for time in times {
                 try Pour(drinkId: serve.drink.id, timestamp: time, day: clock.day(for: time).number, vessel: serve.vessel, volumeMl: serve.volumeMl, price: serve.price, abvOverride: abvOverride).insert(db)
             }
@@ -130,7 +131,16 @@ nonisolated struct Logbook: Sendable {
     }
 
     func pin(_ serve: Serve) {
-        write { db in try Favourite(drinkId: serve.drink.id, vessel: serve.vessel, volumeMl: serve.volumeMl, price: serve.price).insert(db) }
+        write { db in
+            try store(serve.drink, db)
+            try Favourite(drinkId: serve.drink.id, vessel: serve.vessel, volumeMl: serve.volumeMl, price: serve.price).insert(db)
+        }
+    }
+
+    /// Stores a generic drink the grid offered before it was ever used (`Generics`), under its fixed id.
+    private func store(_ drink: Drink, _ db: Database) throws {
+        guard drink.isGeneric, try !Drink.exists(db, key: drink.id) else { return }
+        try drink.insert(db)
     }
 
     func unpin(_ favourite: Favourite) {
@@ -235,9 +245,8 @@ nonisolated struct Logbook: Sendable {
 
     func unitsDrink(_ db: Database) throws -> Drink {
         if let drink = try Drink.filter(Column("category") == DrinkCategory.units.rawValue).fetchOne(db) { return drink }
-        let drink = Drink(name: "Units", category: .units, abv: 100, vessel: .shot, volumeMl: 10, isGeneric: true, sortOrder: 99)
-        try drink.insert(db)
-        return drink
+        try Generics.units.insert(db)
+        return Generics.units
     }
 
     private func entries(in days: ClosedRange<DayKey>?, _ db: Database) throws -> [Entry] {

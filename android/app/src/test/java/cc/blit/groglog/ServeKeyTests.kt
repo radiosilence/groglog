@@ -11,6 +11,7 @@ import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -75,13 +76,13 @@ class ServeKeyTests {
         assertEquals(listOf("Wine", "Lager"), Serves.grid(database).map { it.drink.name })
     }
 
-    @Test fun withNothingPinnedSuggestionsOfferTheGenerics() = runBlocking {
+    @Test fun withNothingStoredSuggestionsOfferTheGenericsAndLogThem() = runBlocking {
         val database = database()
-        val rows = database.rows()
-        rows.insert(Drink(name = "Cider", category = DrinkCategory.CIDER, abv = 4.5, vessel = Vessel.PINT, volumeMl = 568.0, isGeneric = true, sortOrder = 102))
-        rows.insert(Drink(name = "Beer", category = DrinkCategory.BEER, abv = 4.0, vessel = Vessel.PINT, volumeMl = 568.0, isGeneric = true, sortOrder = 100))
-        rows.insert(Drink(name = "Units", category = DrinkCategory.UNITS, abv = 100.0, vessel = Vessel.SHOT, volumeMl = 10.0, isGeneric = true, sortOrder = 99))
+        val grid = Serves.grid(database)
+        assertEquals(listOf("Beer", "Stout", "Cider"), grid.take(3).map { it.drink.name })
+        assertTrue(grid.none { it.drink.category == DrinkCategory.UNITS })
 
-        assertEquals(listOf("Beer", "Cider"), Serves.grid(database).map { it.drink.name })
+        val beer = Serves.matching(grid.first().id, database)!!
+        assertEquals(grid.first().drink.id, beer.drink.id)
     }
 }

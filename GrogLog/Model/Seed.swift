@@ -3,27 +3,6 @@ import GRDB
 import GrogLogCore
 
 nonisolated enum Seed {
-    /// Generic drinks at Drinkaware's standard strengths, each in its first size, from the shared core.
-    private static let generics: [(name: String, category: DrinkCategory, serve: (Vessel, Double, Double))] = catalogGenerics().map { record in
-        (record.name, DrinkCategory(record.category), (Vessel(record.serves[0].vessel), record.serves[0].ml, record.serves[0].price))
-    }
-
-    /// Generic drinks and Units, on a fresh install. Nothing is pinned: the Log grid always offers the generics in their
-    /// common sizes, so favourites are only what the user stars.
-    static func drinksIfNeeded(_ logbook: Logbook) throws {
-        // Every process start comes here, widget refreshes included; a read does not take the write lock the
-        // other process may want.
-        guard try logbook.writer.read({ try Drink.fetchCount($0) }) == 0 else { return }
-        try logbook.writer.write { db in
-            guard try Drink.fetchCount(db) == 0 else { return }
-            _ = try logbook.unitsDrink(db)
-            for (order, generic) in generics.enumerated() {
-                let (vessel, ml, price) = generic.serve
-                try Drink(name: generic.name, category: generic.category, abv: generic.category.defaultABV, vessel: vessel, volumeMl: ml, price: price, isGeneric: true, sortOrder: 100 + order).insert(db)
-            }
-        }
-    }
-
     #if DEBUG
     /// Sample history for demo mode's in-memory database. The current month shows a heavy first week, a failed dry
     /// spell, a binge starting at 5am on wine, then a taper of beers starting later each evening. Earlier months

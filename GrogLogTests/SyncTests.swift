@@ -12,7 +12,7 @@ private let london: Calendar = {
 
 private let clock = DayClock(rolloverHour: 5, calendar: london)
 
-/// One phone: its own log, seeded as a fresh install is, and the sync records over it. iCloud is played by handing
+/// One phone: its own log, empty as a fresh install is, and the sync records over it. iCloud is played by handing
 /// one phone's outgoing records to the other. A phone is taken to have finished its first fetch unless `fresh`.
 private struct Phone {
     let logbook: Logbook
@@ -22,12 +22,13 @@ private struct Phone {
         let database = try AppDatabase.inMemory()
         logbook = Logbook(writer: database.writer, clock: clock)
         records = SyncRecords(writer: database.writer, clock: clock)
-        try Seed.drinksIfNeeded(logbook)
         if !fresh { try records.finishFetch() }
     }
 
+    /// A drink by name, stored or one of the generics the grid offers.
     func drink(_ name: String) throws -> Drink {
-        try logbook.writer.read { try Drink.filter(Column("name") == name).fetchOne($0)! }
+        let stored = try logbook.writer.read { try Drink.fetchAll($0) }
+        return Generics.drinks(stored).first { $0.name == name } ?? stored.first { $0.name == name }!
     }
 
     func pours() throws -> [Pour] { try logbook.writer.read { try Pour.fetchAll($0) } }
@@ -76,9 +77,9 @@ private let evening = london.date(from: DateComponents(year: 2026, month: 9, day
         #expect(try phone.records.pending().isEmpty)
 
         phone.logbook.log(Serve(try phone.drink("Beer")), at: [evening])
-        // The entry, and not the day, whose totals each phone works out.
+        // The entry and the generic drink stored for it; not the day, whose totals each phone works out.
         let pending = try phone.records.pending().map { SyncRecords.kind(of: $0.id.recordName) }
-        #expect(pending == [.pour])
+        #expect(pending.sorted { $0.rawValue < $1.rawValue } == [.drink, .pour])
     }
 
     @Test func twoPhonesConvergeWithTheirSeedsMerged() throws {
@@ -93,7 +94,7 @@ private let evening = london.date(from: DateComponents(year: 2026, month: 9, day
 
         #expect(try a.pours().count == 2)
         #expect(Set(try a.pours().map(\.id)) == Set(try b.pours().map(\.id)))
-        // Each phone seeded its own Beer; one survives, the same one on both.
+        // Each phone stored its own Beer, under the same fixed id; one survives, the same one on both.
         #expect(try a.drinks().filter { $0.name == "Beer" }.count == 1)
         #expect(Set(try a.drinks().map(\.id)) == Set(try b.drinks().map(\.id)))
         #expect(try a.days() == b.days())

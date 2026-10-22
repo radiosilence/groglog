@@ -131,7 +131,7 @@ struct DrinksScreen: View {
         List {
             section("Yours", customised)
             section("From the catalogue", adopted, footer: "Brands copied in as you logged them, exactly as the catalogue lists them. Changing one, such as its strength, moves it up to Yours.")
-            section("Generic", drinks.filter(\.isGeneric))
+            section("Generic", Generics.drinks(drinks, includingHidden: true))
         }
         .navigationTitle("Drinks")
         .toolbar {

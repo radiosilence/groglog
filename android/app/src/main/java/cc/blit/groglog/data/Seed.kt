@@ -1,10 +1,7 @@
 package cc.blit.groglog.data
 
-import androidx.room.withTransaction
-import cc.blit.groglog.core.catalogGenerics
 import cc.blit.groglog.model.Day
 import cc.blit.groglog.model.DayKey
-import cc.blit.groglog.model.Drink
 import cc.blit.groglog.model.DrinkCategory
 import cc.blit.groglog.model.Favourite
 import cc.blit.groglog.model.Ledger
@@ -21,34 +18,6 @@ import cc.blit.groglog.model.Goal
 import kotlin.math.roundToInt
 
 object Seed {
-    private class Generic(val name: String, val category: DrinkCategory, val vessel: Vessel, val ml: Double, val price: Double)
-
-    /** Generic drinks at Drinkaware's standard strengths, each in its first size, from the shared core. */
-    private val generics: List<Generic> by lazy {
-        catalogGenerics().map { record ->
-            val serve = record.serves.first()
-            Generic(record.name, DrinkCategory.of(record.category), Vessel.of(serve.vessel), serve.ml, serve.price)
-        }
-    }
-
-    /**
-     * Generic drinks and Units, on a fresh install. Nothing is pinned: the Log grid always offers the generics in their
-     * common sizes, so favourites are only what the user stars.
-     */
-    suspend fun drinksIfNeeded(logbook: Logbook) {
-        val rows = logbook.rows
-        if (rows.drinkCount() != 0) return
-        logbook.database.withTransaction {
-            if (rows.drinkCount() != 0) return@withTransaction
-            logbook.unitsDrink()
-            generics.forEachIndexed { index, generic ->
-                rows.insert(
-                    Drink(name = generic.name, category = generic.category, abv = generic.category.defaultABV, vessel = generic.vessel, volumeMl = generic.ml, price = generic.price, isGeneric = true, sortOrder = 100 + index),
-                )
-            }
-        }
-    }
-
     /**
      * The demo's goal over `sample`'s log: a taper begun two weeks ago, from what the sample's first four weeks averaged
      * rounded to a whole unit a day (as "Use my last 4 weeks" sets it), so Reports and the Day tab show a budget part

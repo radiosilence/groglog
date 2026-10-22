@@ -23,8 +23,6 @@ struct Store {
     private static func live() throws -> Store {
         let prefs = Prefs()
         let database = try AppDatabase.onDisk()
-        let logbook = Logbook(writer: database.writer, clock: prefs.clock)
-        try Seed.drinksIfNeeded(logbook)
         #if DEBUG
         // `-importBackup <path>` merges a backup file on launch, for moving data between builds.
         if let path = UserDefaults.standard.string(forKey: "importBackup"), let data = FileManager.default.contents(atPath: path) {
@@ -48,7 +46,6 @@ struct Store {
         prefs.goal = Goal(isEnabled: true, reductionPercent: 10, periodDays: 7)
         let database = try! AppDatabase.inMemory()
         let logbook = Logbook(writer: database.writer, clock: prefs.clock)
-        try! Seed.drinksIfNeeded(logbook)
         try! Seed.sample(logbook)
         return Store(database: database, prefs: prefs)
     }

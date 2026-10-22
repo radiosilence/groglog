@@ -130,7 +130,7 @@ struct DrinkPicker: View {
         let favourites = favourites.filter { !$0.drink.isHidden }
         let order = favourites.map(\.serve.id)
         if query.isEmpty {
-            let generics = Self.generics(drinks)
+            let generics = Generics.serves(drinks)
             // Built from the drinks as they are now, so an edit or a hide made with the screen open shows at once.
             let live = Dictionary(drinks.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             var serves: [String: Serve] = [:]
@@ -145,7 +145,7 @@ struct DrinkPicker: View {
             return picker.tiles(added: added, favourites: order, generics: generics.map(\.id), logged: pours.map(\.serveKey))
                 .compactMap { serves[$0] }
         }
-        let serves = drinks
+        let serves = (drinks + Generics.unstored(drinks))
             .filter { !$0.isHidden && ($0.name.localizedStandardContains(query) || $0.category.label.localizedStandardContains(query)) }
             .flatMap { drink -> [Serve] in
                 // Every size it comes in, not only the one it was added as, so a drink found by name can
@@ -158,19 +158,6 @@ struct DrinkPicker: View {
             }
         let byId = Dictionary(serves.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         return picker.rank(keys: serves.map(\.id), favourites: order).compactMap { byId[$0] }
-    }
-
-    /// Every generic drink in its own size, then the other sizes it is commonly drunk in, then Units, so the grid can
-    /// log anything with nothing pinned.
-    nonisolated static func generics(_ drinks: [Drink]) -> [Serve] {
-        let shown = drinks.filter { $0.isGeneric && !$0.isHidden }.sorted { $0.sortOrder < $1.sortOrder }
-        let sized = shown.filter { $0.category != .units }.flatMap { drink in
-            var seen = Set<ServeSize>()
-            return ([ServeSize(drink.vessel, drink.volumeMl)] + Catalog.genericSizes(drink.category))
-                .filter { seen.insert($0).inserted }
-                .map { Serve(drink, $0.vessel, $0.ml) }
-        }
-        return sized + shown.filter { $0.category == .units }.map { Serve($0) }
     }
 
     /// Scores every serve ever logged for when the next drink would go: now for today, or that evening on a past day.

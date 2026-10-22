@@ -182,8 +182,10 @@ fn find(name: &str, category: CategoryKind) -> Option<&'static Brand> {
     Some(&catalogue.brands[index])
 }
 
-/// A generic drink: a kind at its standard strength, with the sizes it is always offered in on the Log grid.
+/// A generic drink: a kind at its standard strength, with the sizes it is always offered in on the Log grid. Its `id`
+/// makes its fixed drink id, the same on every device, so it is kept once given: a new generic takes the next number.
 struct Generic {
+    id: u8,
     name: &'static str,
     category: CategoryKind,
     serves: &'static [(VesselKind, f64, f64)],
@@ -193,6 +195,7 @@ struct Generic {
 /// measure at London bar prices, a can or bottle at supermarket prices. All are editable estimates.
 static GENERICS: &[Generic] = &[
     Generic {
+        id: 1,
         name: "Beer",
         category: CategoryKind::Beer,
         serves: &[
@@ -204,24 +207,26 @@ static GENERICS: &[Generic] = &[
             (VesselKind::Bottle, 660.0, 3.15),
         ],
     },
-    Generic { name: "Stout", category: CategoryKind::Stout, serves: &[(VesselKind::Pint, 568.0, 6.30)] },
-    Generic { name: "Cider", category: CategoryKind::Cider, serves: &[(VesselKind::Pint, 568.0, 6.50), (VesselKind::Bottle, 500.0, 3.10)] },
+    Generic { id: 2, name: "Stout", category: CategoryKind::Stout, serves: &[(VesselKind::Pint, 568.0, 6.30)] },
+    Generic { id: 3, name: "Cider", category: CategoryKind::Cider, serves: &[(VesselKind::Pint, 568.0, 6.50), (VesselKind::Bottle, 500.0, 3.10)] },
     Generic {
+        id: 4,
         name: "Red wine",
         category: CategoryKind::RedWine,
         serves: &[(VesselKind::WineGlass, 175.0, 8.50), (VesselKind::WineGlass, 250.0, 12.00), (VesselKind::WineBottle, 750.0, 9.50)],
     },
     Generic {
+        id: 5,
         name: "White wine",
         category: CategoryKind::WhiteWine,
         serves: &[(VesselKind::WineGlass, 175.0, 8.50), (VesselKind::WineGlass, 125.0, 6.00)],
     },
-    Generic { name: "Rosé", category: CategoryKind::Rose, serves: &[(VesselKind::WineGlass, 175.0, 8.50)] },
-    Generic { name: "Fizz", category: CategoryKind::Bubbles, serves: &[(VesselKind::Flute, 125.0, 8.50), (VesselKind::WineBottle, 750.0, 12.50)] },
-    Generic { name: "Spirits", category: CategoryKind::Spirit, serves: &[(VesselKind::Shot, 25.0, 5.00)] },
-    Generic { name: "Alcopop", category: CategoryKind::Alcopop, serves: &[(VesselKind::Bottle, 275.0, 2.20)] },
-    Generic { name: "Cocktail", category: CategoryKind::Cocktail, serves: &[(VesselKind::Coupe, 150.0, 12.00)] },
-    Generic { name: "Port or sherry", category: CategoryKind::Fortified, serves: &[(VesselKind::WineGlass, 50.0, 5.50)] },
+    Generic { id: 6, name: "Rosé", category: CategoryKind::Rose, serves: &[(VesselKind::WineGlass, 175.0, 8.50)] },
+    Generic { id: 7, name: "Fizz", category: CategoryKind::Bubbles, serves: &[(VesselKind::Flute, 125.0, 8.50), (VesselKind::WineBottle, 750.0, 12.50)] },
+    Generic { id: 8, name: "Spirits", category: CategoryKind::Spirit, serves: &[(VesselKind::Shot, 25.0, 5.00)] },
+    Generic { id: 9, name: "Alcopop", category: CategoryKind::Alcopop, serves: &[(VesselKind::Bottle, 275.0, 2.20)] },
+    Generic { id: 10, name: "Cocktail", category: CategoryKind::Cocktail, serves: &[(VesselKind::Coupe, 150.0, 12.00)] },
+    Generic { id: 11, name: "Port or sherry", category: CategoryKind::Fortified, serves: &[(VesselKind::WineGlass, 50.0, 5.50)] },
 ];
 
 fn generic_price(name: &str, vessel: VesselKind, ml: f64) -> Option<f64> {
@@ -274,6 +279,8 @@ pub struct ItemRecord {
 
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct GenericRecord {
+    /// The drink's id, fixed so a generic logged on two devices is one drink.
+    pub id: String,
     pub name: String,
     pub category: CategoryKind,
     pub serves: Vec<ServeRecord>,
@@ -379,12 +386,25 @@ pub fn catalog_brand_price(name: String, category: CategoryKind, vessel: VesselK
     find(&name, category).map_or(0.0, |brand| brand.price(vessel, ml, &currency))
 }
 
-/// The generic drinks a fresh install starts with, and the sizes the Log grid offers them in.
+/// A fixed drink id: "grog" in hex, then the number.
+fn fixed_id(number: u8) -> String {
+    format!("67726F67-0000-4000-8000-{number:012X}")
+}
+
+/// The id of the Units drink when it is first made, fixed like the generics' so every device makes the same one.
+#[uniffi::export]
+pub fn catalog_units_id() -> String {
+    fixed_id(0)
+}
+
+/// The generic drinks, which the Log grid always offers, and the sizes it offers them in. They are not stored until
+/// first logged or pinned, under their fixed ids.
 #[uniffi::export]
 pub fn catalog_generics() -> Vec<GenericRecord> {
     GENERICS
         .iter()
         .map(|generic| GenericRecord {
+            id: fixed_id(generic.id),
             name: generic.name.to_string(),
             category: generic.category,
             serves: generic
@@ -394,17 +414,6 @@ pub fn catalog_generics() -> Vec<GenericRecord> {
                 .collect(),
         })
         .collect()
-}
-
-/// The sizes the generic drink of a kind is always offered in on the Log grid, empty for a kind with no generic. A
-/// generic's name can be edited and its kind cannot, so the kind finds it.
-#[uniffi::export]
-pub fn catalog_generic_sizes(category: CategoryKind) -> Vec<SizeRecord> {
-    GENERICS
-        .iter()
-        .find(|generic| generic.category == category)
-        .map(|generic| generic.serves.iter().map(|(vessel, ml, _)| SizeRecord { vessel: *vessel, ml: *ml }).collect())
-        .unwrap_or_default()
 }
 
 /// A generic's starting price for a vessel and size, or none when the generic has no such serve.
@@ -545,12 +554,13 @@ mod tests {
     fn the_generics_cover_every_kind_the_log_grid_starts_with() {
         let generics = catalog_generics();
         assert_eq!(generics.len(), 11);
+        let ids: std::collections::HashSet<&String> = generics.iter().map(|g| &g.id).collect();
+        assert_eq!(ids.len(), 11);
+        assert!(!ids.contains(&catalog_units_id()));
+        assert_eq!(generics[0].id, "67726F67-0000-4000-8000-000000000001");
         assert!(generics.iter().all(|g| !g.serves.is_empty() && g.serves.iter().all(|s| s.price > 0.0)));
         assert_eq!(catalog_sizes("Stella Artois".into(), CategoryKind::Beer).len(), 4);
         assert!(catalog_sizes("Nope".into(), CategoryKind::Beer).is_empty());
-        assert_eq!(catalog_generic_sizes(CategoryKind::Beer).len(), 6);
-        assert_eq!(catalog_generic_sizes(CategoryKind::Beer)[0], SizeRecord { vessel: VesselKind::Pint, ml: 568.0 });
-        assert!(catalog_generic_sizes(CategoryKind::Units).is_empty());
     }
 
     #[test]

@@ -130,11 +130,7 @@ nonisolated extension Serve {
             .fetchAll(db)
             .filter { !$0.drink.isHidden }
             .map(\.serve)
-        let generics = try Drink
-            .filter(Column("isGeneric") && !Column("isHidden"))
-            .order(Column("sortOrder"))
-            .fetchAll(db)
-            .map { Serve($0) }
+        let generics = Generics.drinks(try Drink.fetchAll(db)).map { Serve($0) }
         var seen = Set<String>()
         return (pinned + generics).filter { $0.drink.category != .units && seen.insert($0.id).inserted }
     }
@@ -147,7 +143,7 @@ nonisolated extension Serve {
               let drinkId = UUID(uuidString: String(parts[0])),
               let vessel = Vessel(rawValue: String(parts[1])),
               let volumeMl = Double(parts[2]),
-              let drink = try Drink.fetchOne(db, key: drinkId)
+              let drink = try Drink.fetchOne(db, key: drinkId) ?? Generics.drinks(try Drink.fetchAll(db)).first(where: { $0.id == drinkId })
         else { return nil }
         let price = try Favourite
             .filter(Column("drinkId") == drinkId && Column("vessel") == vessel.rawValue && Column("volumeMl") == volumeMl)

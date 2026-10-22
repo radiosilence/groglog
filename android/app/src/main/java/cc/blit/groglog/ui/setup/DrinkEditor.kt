@@ -56,6 +56,7 @@ import cc.blit.groglog.data.Logbook
 import cc.blit.groglog.data.Prefs
 import cc.blit.groglog.model.Catalog
 import cc.blit.groglog.model.Drink
+import cc.blit.groglog.model.Generics
 import cc.blit.groglog.model.DrinkCategory
 import cc.blit.groglog.model.ServeSize
 import cc.blit.groglog.model.Units
@@ -96,9 +97,9 @@ class DrinksViewModel(private val database: AppDatabase, private val prefs: Pref
      * bury the few drinks the user created or changed.
      */
     val drinks: StateFlow<DrinkGroups?> = database.queries().drinks().map { drinks ->
-        val (generic, mine) = drinks.partition { it.isGeneric }
+        val mine = drinks.filter { !it.isGeneric }
         val (adopted, customised) = mine.partition { Catalog.holds(it.name, it.category, it.abv) }
-        DrinkGroups(customised, adopted, generic)
+        DrinkGroups(customised, adopted, Generics.drinks(drinks, includingHidden = true))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun setHidden(drink: Drink, hidden: Boolean) {

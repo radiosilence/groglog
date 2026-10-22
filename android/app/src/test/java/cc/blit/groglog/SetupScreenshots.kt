@@ -69,7 +69,6 @@ class SetupScreenshots {
         val prefs = prefs()
         prefs.setGoal(Goal(isEnabled = true, taper = Taper.DYNAMIC, baselineWeekly = 26 * 7.0))
         val logbook = Logbook(database, prefs.current().clock)
-        Seed.drinksIfNeeded(logbook)
         Seed.sample(logbook)
         Triple(database, prefs, Ledger(database.rows().days(), prefs.current().clock))
     }

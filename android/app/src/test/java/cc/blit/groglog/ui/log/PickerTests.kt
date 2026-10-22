@@ -48,7 +48,10 @@ class PickerTests {
         val fridays = (1L..4L).map { week -> entry(rioja, date(2026, 3, 6, 20).minus(Duration.ofDays(7 * week))).pour }
         val usual = Usual.of(fridays, drinks, clock, friday, date(2026, 3, 6, 20))
         val tiles = Picker.tiles("", listOf(pinned(lager, 0)), drinks, emptyList(), emptyMap(), usual)
-        assertEquals(listOf("Staropramen", "Rioja") + List(2) { "Cider" } + List(6) { "Beer" }, tiles.map { it.drink.name })
+        assertEquals(listOf("Staropramen", "Rioja"), tiles.take(2).map { it.drink.name })
+        // The stored generics stand in for their kinds, in the core's order.
+        assertEquals(List(6) { beer.id }, tiles.drop(2).take(6).map { it.drink.id })
+        assertTrue(tiles.drop(2).all { it.drink.isGeneric } && tiles.any { it.drink.id == cider.id })
 
         val searched = Picker.tiles("r", emptyList(), drinks, emptyList(), emptyMap(), usual)
         assertEquals("Rioja", searched.first().drink.name)
@@ -63,6 +66,13 @@ class PickerTests {
         assertEquals(listOf(175.0, 250.0, 750.0), tiles.filter { it.drink.id == wine.id }.map { it.volumeMl })
         assertEquals("Units", tiles.last().drink.name)
         assertTrue(tiles.none { it.drink.id == lager.id })
+    }
+
+    @Test fun aHiddenGenericTakesItsTilesWithIt() {
+        val beer = lager.copy(id = java.util.UUID.randomUUID(), name = "Beer", isGeneric = true, isHidden = true)
+        val tiles = Picker.tiles("", emptyList(), listOf(beer), emptyList(), emptyMap(), Usual.none)
+        assertTrue(tiles.none { it.drink.category == DrinkCategory.BEER })
+        assertTrue(tiles.any { it.drink.category == DrinkCategory.STOUT })
     }
 
     @Test fun aHiddenDrinkIsNeverUsual() {

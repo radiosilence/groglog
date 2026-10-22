@@ -124,7 +124,7 @@ struct LogOptionsSheet: View {
         let query = search.trimmingCharacters(in: .whitespaces)
         let matches = { (name: String) in query.isEmpty || name.localizedStandardContains(query) }
         let kind = base.drink.category
-        let yours = drinks
+        let yours = (drinks + Generics.unstored(drinks))
             .filter { $0.id != base.drink.id && $0.category == kind && !$0.isHidden && matches($0.name) }
             .sorted { $0.isGeneric != $1.isGeneric ? $0.isGeneric : $0.name < $1.name }
         let owned = Set(drinks.map { Catalog.key($0.name, $0.category) })

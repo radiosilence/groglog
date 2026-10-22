@@ -19,6 +19,7 @@ import cc.blit.groglog.model.DayKey
 import cc.blit.groglog.model.Drink
 import cc.blit.groglog.model.DrinkCategory
 import cc.blit.groglog.model.Favourite
+import cc.blit.groglog.model.Generics
 import cc.blit.groglog.model.Pour
 import cc.blit.groglog.model.Serve
 import cc.blit.groglog.model.Vessel
@@ -50,6 +51,7 @@ class Logbook(val database: AppDatabase, val clock: DayClock) {
             Pour(drinkId = serve.drink.id, timestamp = it, day = clock.day(it).number, vessel = serve.vessel, volumeMl = serve.volumeMl, price = serve.price, abvOverride = abvOverride)
         }
         val committed = writeChanging(times.map(clock::day).toSet()) {
+            store(serve.drink)
             for (pour in pours) rows.insert(pour)
             times.maxOrNull()?.let { rows.markUsed(serve.drink.id, serve.vessel.raw, serve.volumeMl, it) }
             retotal(times.map(clock::day).toSet())
@@ -144,7 +146,15 @@ class Logbook(val database: AppDatabase, val clock: DayClock) {
         write { findOrCreate(name, category, abv, vessel, volumeMl, price) }
 
     suspend fun pin(serve: Serve) {
-        write { rows.insert(Favourite(drinkId = serve.drink.id, vessel = serve.vessel, volumeMl = serve.volumeMl, price = serve.price)) }
+        write {
+            store(serve.drink)
+            rows.insert(Favourite(drinkId = serve.drink.id, vessel = serve.vessel, volumeMl = serve.volumeMl, price = serve.price))
+        }
+    }
+
+    /** Stores a generic drink the grid offered before it was ever used (`Generics`), under its fixed id. */
+    private suspend fun store(drink: Drink) {
+        if (drink.isGeneric && rows.drink(drink.id) == null) rows.insert(drink)
     }
 
     suspend fun unpin(favourite: Favourite) {
@@ -236,9 +246,8 @@ class Logbook(val database: AppDatabase, val clock: DayClock) {
 
     internal suspend fun unitsDrink(): Drink {
         rows.drinkOfCategory(DrinkCategory.UNITS.raw)?.let { return it }
-        val drink = Drink(name = "Units", category = DrinkCategory.UNITS, abv = 100.0, vessel = Vessel.SHOT, volumeMl = 10.0, isGeneric = true, sortOrder = 99)
-        rows.insert(drink)
-        return drink
+        rows.insert(Generics.units)
+        return Generics.units
     }
 
     private suspend fun save(row: Day) {

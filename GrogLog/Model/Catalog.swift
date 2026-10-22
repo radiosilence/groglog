@@ -73,11 +73,6 @@ nonisolated enum Catalog {
         catalogSizes(name: name, category: category.kind).map(ServeSize.init)
     }
 
-    /// The sizes the generic drink of a kind is always offered in on the Log grid.
-    static func genericSizes(_ category: DrinkCategory) -> [ServeSize] {
-        catalogGenericSizes(category: category.kind).map(ServeSize.init)
-    }
-
     /// The normal price of a drink of this name in this size: a brand's own price, else a generic's starting price.
     /// Nil when unknown, so callers can distinguish unpriced from free.
     static func price(name: String, category: DrinkCategory, vessel: Vessel, ml: Double, currency: String = currency) -> Double? {
