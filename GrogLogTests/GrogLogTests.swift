@@ -730,7 +730,8 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
         let (drinks, favourites) = try source.reader.read { (try Drink.fetchCount($0), try Favourite.fetchCount($0)) }
 
         let fresh = try AppDatabase.inMemory()
-        Logbook(writer: fresh.writer, clock: prefs.clock).log(Serve(beer), at: [.now.addingTimeInterval(-60)])
+        // A day before the backup's, since a restore leaves alone a day that already has drinks.
+        Logbook(writer: fresh.writer, clock: prefs.clock).log(Serve(beer), at: [.now.addingTimeInterval(-2 * 86400)])
         try Exporter.restore(data, writer: fresh.writer, prefs: prefs)
         let restored = try fresh.reader.read { db in
             (try Drink.fetchCount(db), try Favourite.fetchCount(db), try Pour.including(required: Pour.drink).fetchCount(db))

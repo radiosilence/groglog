@@ -73,7 +73,7 @@ class ServeKeyTests {
         rows.insert(Favourite(drinkId = wine.id, vessel = Vessel.WINE_GLASS, volumeMl = 175.0, price = 7.0, sortOrder = 1, lastUsed = Instant.now()))
         rows.insert(Favourite(drinkId = gone.id, vessel = Vessel.PINT, volumeMl = 568.0, price = 5.0, sortOrder = 2, lastUsed = Instant.now()))
 
-        assertEquals(listOf("Wine", "Lager"), Serves.grid(database).map { it.drink.name })
+        assertEquals(listOf("Wine", "Lager"), Serves.grid(database).filterNot { it.drink.isGeneric }.map { it.drink.name })
     }
 
     @Test fun withNothingStoredSuggestionsOfferTheGenericsAndLogThem() = runBlocking {

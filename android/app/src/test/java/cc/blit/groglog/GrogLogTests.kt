@@ -822,7 +822,8 @@ class BackupTests {
         val favourites = logbook.rows.favouriteCount()
 
         val fresh = database()
-        Logbook(fresh, settings.clock).log(Serve(beer), listOf(Instant.now().minusSeconds(60)))
+        // A day before the backup's, since a restore leaves alone a day that already has drinks.
+        Logbook(fresh, settings.clock).log(Serve(beer), listOf(Instant.now().minus(java.time.Duration.ofDays(2))))
         Exporter.restore(data, fresh, prefs)
         val rows = fresh.rows()
         assertEquals(drinks, rows.drinkCount())
