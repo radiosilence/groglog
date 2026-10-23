@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.2.3
+
+### Changed
+
+- **Monthly progress draws resting heart rate night by night.** Each night's resting rate is a point on its own day rather than the mean of the week up to it, so a heavy evening shows the next morning. HRV stays a 7-night average there, since a single night swings too far to follow across a month.
+- **The Log grid brings up what you usually drink at this time.** After the day's drinks and your favourites, which keep their pinned order, come up to six drinks you have often had at this time of day on this kind of day, topped up with the ones you have had on the most recent nights, then the generic drinks. Search results are ordered the same way. A weeknight cider and a Saturday champagne each come up on their own nights without being pinned.
+- **The generic drinks are built in, and nothing starts pinned.** The Log grid always ends with the generic drinks in their common sizes (a pint, a half, cans and bottles of beer; 125, 175 and 250 ml glasses and a bottle of wine) and Units, less any already shown above them, so favourites are only the drinks you star. A generic is kept as one of your drinks only once you log or pin it, and one you have edited or hidden stays that way. Widgets and shortcuts offer the generic drinks until something is pinned.
+
+### Fixed
+
+- **The week and month charts carry on through dry days.** This week's and this month's lines used to stop at the last drink, so after a few dry days the marker still sat on the day of that drink. The line now holds flat up to the present, with the marker on today.
+- **A drink logged from search comes to the front of the grid.** It used to join the end once the search was cleared, behind the favourites. Units, which older installs had pinned and could not unpin, now keeps its place after the generic drinks.
+
+### Internal
+
+- **Release script recuts a stale branch.** `scripts/release.sh` deletes a release branch whose PR was closed or merged, locally and on origin, and cuts it again from origin/main; a branch with an open PR still stops it.
+- **A release run is no longer cancelled while it waits to move the image tag.** A concurrency group holds one pending job and cancels it when another queues, so release runs now wait in a group of their own.
+- **iOS CI takes at most one macOS runner per run.** The changelog and core checks run on Linux; a pull request runs the app's tests on macOS only when it changes something the app is built from, and a push to `main` uploads to TestFlight without testing again.
+- **One CI/CD pipeline.** The Android, iOS and site workflows are one, `ci-cd.yml`, whose jobs run only for what a change touches and end in a single `Checks` status. On `main` the delivery jobs run after it, ship the bundle and APK the checks built, and the release is retried by running the workflow by hand.
+- **Workflows are linted.** Pull requests that touch `.github/workflows` or `.github/actions` run actionlint, with shellcheck on the `run:` scripts.
+
 ## 1.2.2
 
 ### Fixed
