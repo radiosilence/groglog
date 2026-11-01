@@ -1,6 +1,6 @@
 [toolchain]
-# Every build, local and CI, uses this one. The crates' minimum is `rust-version` in Cargo.toml.
-channel = "1.99.1"
+# Every build, local and CI, uses the latest stable toolchain.
+channel = "stable"
 components = ["clippy"]
 targets = [
   "aarch64-apple-ios",
