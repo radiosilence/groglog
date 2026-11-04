@@ -1,0 +1,1 @@
+- **Releases attach `GrogLog.apk`.** Each release also carries its APK under a fixed name, so `releases/latest/download/GrogLog.apk` always gives the latest, and a retried release no longer tries to change one that is already published.
