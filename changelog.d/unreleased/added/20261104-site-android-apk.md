@@ -1,0 +1,1 @@
+- **Android download on groglog.io.** The site links to the APK of the latest release.
