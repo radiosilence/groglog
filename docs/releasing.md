@@ -109,7 +109,8 @@ To release a version on Android:
 
 A push to `main` that changes `MARKETING_VERSION` to a version with no GitHub release is released by the `Publish
 GitHub Release` job in `.github/workflows/ci-cd.yml`, once `Checks` has passed: it publishes the release on that commit
-with the version's changelog section as its notes and attaches the signed APK the `Android` job built in the same run.
+with the version's changelog section as its notes and attaches the signed APK the `Android` job built in the same run,
+twice: as `GrogLog-vX.Y.Z.apk`, and as `GrogLog.apk`, which groglog.io links to through `releases/latest/download`.
 It is signed with the upload key, not the key Play signs installs with, so it installs fresh but does not update over a
 Play install, or the other way round. Releases are made only this way; one published by hand gets no APK.
 
