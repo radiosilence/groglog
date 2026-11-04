@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.4
+
+### Internal
+
+- **Releases attach `GrogLog.apk`.** Each release also carries its APK under a fixed name, so `releases/latest/download/GrogLog.apk` always gives the latest, and a retried release no longer tries to change one that is already published.
+- **Builds use the latest stable Rust.** `rust-version` is removed from the manifests, so dependency resolution targets the toolchain in use instead of holding crates back for an old compiler; `rust-toolchain.toml` follows `stable` instead of a fixed release.
+
 ## 1.2.3
 
 ### Changed
