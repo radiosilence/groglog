@@ -1,1 +1,1 @@
-- **Android download on groglog.io.** The site links to the APK of the latest release, which each release now also attaches as `GrogLog.apk`.
+- **Android download on groglog.io.** The site links to the APK of the latest release.

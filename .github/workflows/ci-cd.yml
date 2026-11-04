@@ -618,14 +618,10 @@ jobs:
         run: |
           apk="$RUNNER_TEMP/apk/GrogLog-v$VERSION.apk"
           [ -f "$apk" ] || { echo "::error::the Android job left no GrogLog-v$VERSION.apk"; exit 1; }
-          # The same APK under a name that does not change, so groglog.io can link to
-          # releases/latest/download/GrogLog.apk.
-          latest="$RUNNER_TEMP/apk/GrogLog.apk"
-          cp "$apk" "$latest"
           if gh release view "v$VERSION" > /dev/null 2>&1; then
-            gh release upload "v$VERSION" "$apk" "$latest" --clobber
+            gh release upload "v$VERSION" "$apk" --clobber
             exit 0
           fi
           notes=$(awk -v h="## $VERSION" '$0==h{f=1;next} f&&/^## /{exit} f' CHANGELOG.md)
           [ -n "$notes" ] || { echo "::error::CHANGELOG.md has no section for $VERSION"; exit 1; }
-          gh release create "v$VERSION" "$apk" "$latest" --target "$GITHUB_SHA" --title "v$VERSION" --notes "$notes"
+          gh release create "v$VERSION" "$apk" --target "$GITHUB_SHA" --title "v$VERSION" --notes "$notes"
