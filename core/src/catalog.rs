@@ -451,7 +451,7 @@ mod tests {
     #[test]
     fn every_brand_is_listed_once_and_has_sizes() {
         let brands = catalog_brands();
-        assert_eq!(brands.len(), 1168);
+        assert_eq!(brands.len(), 1174);
         let mut keys: Vec<_> = brands.iter().map(|b| (b.name.clone(), b.category.raw())).collect();
         keys.sort();
         keys.dedup();

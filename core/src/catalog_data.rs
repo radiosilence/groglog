@@ -10,6 +10,7 @@ const PINT: Size = Size::new(Pint, 568.0);
 const HALF: Size = Size::new(Half, 284.0);
 const CAN250: Size = Size::new(Can, 250.0);
 const CAN330: Size = Size::new(Can, 330.0);
+const CAN350: Size = Size::new(Can, 350.0);
 const CAN355: Size = Size::new(Can, 355.0);
 const CAN440: Size = Size::new(Can, 440.0);
 const CAN480: Size = Size::new(Can, 480.0);
@@ -93,6 +94,16 @@ pub(crate) static ENTRIES: &[Entry] = &[
     e("Chang", Beer, 5.0, &[(Size::new(Bottle, 320.0), 2.12)]),
     e("Saigon Beer", Beer, 4.8, &[(BOTTLE330, 1.75)]),
     e("Sapporo Premium", Beer, 4.8, &[(CAN500, 2.6)]),
+    // Kirin Ichiban as sold in the UK is 4.6%; the 5% in some listings is the Japanese and American strength. The
+    // pint is on Carlsberg's Draughtmaster and priced as Asahi.
+    e("Kirin Ichiban", Beer, 4.6, &[(PINT, 7.4), (CAN440, 1.81), (BOTTLE330, 1.72)]),
+    e("Orion The Draft", Beer, 5.0, &[(CAN330, 2.35), (BOTTLE330, 1.95)]),
+    e("Yebisu", Beer, 5.0, &[(CAN350, 4.39)]),
+    e("Suntory The Premium Malt's", Beer, 5.5, &[(CAN350, 3.99)]),
+    // Portuguese. Super Bock is 4.7% as sold in the UK and 5.2% at home. Both are at case rates by the bottle;
+    // Sagres is kegged for UK bars and priced as the Spanish draughts above.
+    e("Sagres", Beer, 5.0, &[(PINT, 6.7), (BOTTLE330, 1.42)]),
+    e("Super Bock", Beer, 4.7, &[(BOTTLE330, 1.41), (BOTTLE660, 2.9)]),
     e("Hitachino Nest White Ale", Beer, 5.5, &[(CAN330, 3.1)]),
     e("Cass Fresh", Beer, 4.5, &[(BOTTLE330, 2.1)]),
     e("Leo", Beer, 5.0, &[(BOTTLE330, 1.65)]),

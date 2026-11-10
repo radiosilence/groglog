@@ -1,0 +1,1 @@
+- **Japanese and Portuguese lagers.** The catalogue now holds Kirin Ichiban, Orion The Draft, Yebisu, Suntory The Premium Malt's, Sagres and Super Bock.
