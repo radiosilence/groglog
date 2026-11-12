@@ -53,7 +53,7 @@ struct DayScreen: View {
             // The totals have no background of their own, so they get a section to themselves; sharing one would
             // make the chart the section's second row, squared off across the top instead of rounded.
             Section {
-                TotalsHeader(totals: totals, budget: budget, currency: prefs.currency)
+                TotalsHeader(totals: totals, budget: budget, limit: ledger.heatLimit(on: day, goal: prefs.goal), currency: prefs.currency)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 8, trailing: 4))
             }
@@ -224,6 +224,8 @@ private struct SpendSheet: View {
 struct TotalsHeader: View {
     let totals: DayTotals
     let budget: Double?
+    /// What the total's colour is judged against, which with no goal is the guideline rather than a budget.
+    let limit: Double?
     let currency: String
     @ScaledMetric(relativeTo: .largeTitle) private var figure = 52.0
     @Environment(\.dynamicTypeSize) private var size
@@ -237,7 +239,7 @@ struct TotalsHeader: View {
                     .font(.system(size: figure, weight: .bold, design: .rounded))
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
-                    .foregroundStyle(totals.units > 0 ? Color.heat(units: totals.units, budget: budget) : .secondary)
+                    .foregroundStyle(totals.units > 0 ? Color.heat(units: totals.units, budget: limit) : .secondary)
                     .contentTransition(.numericText(value: totals.units))
                 Text(budget.map { "units of \($0.unitsText) budget" } ?? "units")
                     .font(.subheadline)

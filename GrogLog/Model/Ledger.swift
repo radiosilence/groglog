@@ -144,6 +144,13 @@ nonisolated struct Ledger: Equatable {
     /// The unit budget for `day`: the taper, held at the target once it gets there.
     func dailyBudget(on day: DayKey, goal: Goal) -> Double? { core.dailyBudget(goal: spec(goal), day: Int64(day.number)) }
 
+    /// What a day's colour is judged against. With a goal it is the day's budget, and nothing before the goal starts,
+    /// so a log that predates its taper is shown without a verdict. With no goal it is the guideline's daily share,
+    /// since a person only keeping a log still has the guideline to read against.
+    func heatLimit(on day: DayKey, goal: Goal) -> Double? {
+        goal.isEnabled ? dailyBudget(on: day, goal: goal) : Units.weeklyGuideline / 7
+    }
+
     /// How many days the budget takes to lose a tenth on `day`: the chosen period, or for a stepped taper the pace
     /// of the rung its budget has reached (the baseline's rung before it starts).
     func pace(on day: DayKey, goal: Goal) -> Int { Int(goalPaceOn(goal: spec(goal), day: Int64(day.number))) }

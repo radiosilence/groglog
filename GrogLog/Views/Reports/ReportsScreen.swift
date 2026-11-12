@@ -262,8 +262,9 @@ private struct ProgressCard: View {
         let drank = past.compactMap { day -> DayBar? in
             let noon = day.date(in: calendar).addingTimeInterval(12 * 3600)
             let budget = ledger.dailyBudget(on: day, goal: goal)
+            let limit = ledger.heatLimit(on: day, goal: goal)
             let bar = { (units: Double, partial: Bool) in
-                DayBar(date: noon, units: units, partial: partial, budget: budget, heat: .heat(units: units, budget: budget), band: HeatBand(units: units, budget: budget))
+                DayBar(date: noon, units: units, partial: partial, budget: budget, heat: .heat(units: units, budget: limit), band: HeatBand(units: units, budget: limit))
             }
             if day == today { return bar(sofar, true) }
             guard ledger.isLogged(day) else { return nil }

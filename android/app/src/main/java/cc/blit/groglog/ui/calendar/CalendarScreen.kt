@@ -250,7 +250,7 @@ private fun DayCell(
     val shape = RoundedCornerShape(10.dp)
     val marked = status == DayStatus.DRANK || status == DayStatus.ALCOHOL_FREE
     val fill = when (status) {
-        DayStatus.DRANK -> GrogColors.heat(cell.units, cell.budget)
+        DayStatus.DRANK -> GrogColors.heat(cell.units, cell.limit)
         DayStatus.ALCOHOL_FREE -> GrogColors.dry
         else -> null
     }

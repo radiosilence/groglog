@@ -97,6 +97,7 @@ private struct MonthGrid: View {
                         status: ledger.status(on: day),
                         units: ledger.totals(on: day).units,
                         budget: ledger.dailyBudget(on: day, goal: goal),
+                        limit: ledger.heatLimit(on: day, goal: goal),
                         isToday: day == ledger.today
                     )
                 }
@@ -114,19 +115,21 @@ private struct DayCell: View, Equatable {
     let status: DayStatus
     let units: Double
     let budget: Double?
+    /// What the colour is judged against, which with no goal is the guideline rather than a budget.
+    let limit: Double?
     let isToday: Bool
     @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiate
     @Environment(\.databaseContext) private var database
     @Environment(Prefs.self) private var prefs
 
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.day == rhs.day && lhs.status == rhs.status && lhs.units == rhs.units && lhs.budget == rhs.budget && lhs.isToday == rhs.isToday
+        lhs.day == rhs.day && lhs.status == rhs.status && lhs.units == rhs.units && lhs.budget == rhs.budget && lhs.limit == rhs.limit && lhs.isToday == rhs.isToday
     }
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
         let fill: Color = switch status {
-        case .drank: Color.heat(units: units, budget: budget)
+        case .drank: Color.heat(units: units, budget: limit)
         case .alcoholFree: .dry
         default: .clear
         }
@@ -137,7 +140,7 @@ private struct DayCell: View, Equatable {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .opacity(status == .drank || status == .alcoholFree ? 0.85 : 0.6)
                 .overlay(alignment: .trailing) {
-                    if differentiate, status == .drank, let symbol = HeatBand(units: units, budget: budget).symbol {
+                    if differentiate, status == .drank, let symbol = HeatBand(units: units, budget: limit).symbol {
                         Image(systemName: symbol).font(.caption2.bold())
                     }
                 }
