@@ -30,6 +30,8 @@ struct TodayEntry: TimelineEntry {
     var date = Date.now
     var units = 0.0
     var budget: Double?
+    /// A goal is set but has not started, so the day is shown without a verdict rather than against the guideline.
+    var beforeGoal = false
     var isDry = false
     /// Units through the day, stepping at each drink: the same running total the Day screen draws.
     var curve: [CurvePoint] = []
@@ -43,7 +45,7 @@ struct TodayEntry: TimelineEntry {
     }
 
     /// How the day is going, in the app's colours: teal inside the budget, orange over it, red at twice it; purple with no budget.
-    var heat: Color { Color.heat(units: units, budget: budget) }
+    var heat: Color { Color.heat(units: units, budget: beforeGoal ? nil : budget ?? Units.weeklyGuideline / 7) }
 
     /// The share of the budget still left, 0 once it is spent, as the Day screen's budget bar drains.
     var left: Double? {
@@ -86,9 +88,11 @@ struct TodayProvider: TimelineProvider {
              tiles: try Serve.grid(db).prefix(4).map(ServeEntity.init))
         }
         let ledger = Ledger(days: read?.days ?? [], clock: logbook.clock)
+        let budget = ledger.dailyBudget(on: day, goal: goal)
         return TodayEntry(
             units: ledger.totals(on: day).units,
-            budget: ledger.dailyBudget(on: day, goal: goal),
+            budget: budget,
+            beforeGoal: goal.isEnabled && budget == nil,
             isDry: ledger.status(on: day) == .alcoholFree,
             // Only as far as now: drawing the rest of the day flat would imply nothing more was drunk.
             curve: ledger.cumulative(read?.entries ?? [], on: day, through: logbook.clock.hours(.now, into: day)),

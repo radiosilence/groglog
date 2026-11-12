@@ -253,7 +253,7 @@ private fun LazyListScope.dayContent(
 ) {
     val status = state.status
     val currency = state.settings.currency
-    item { TotalsHeader(state.totals, state.budget, currency) }
+    item { TotalsHeader(state.totals, state.budget, currency, limit = state.heatLimit) }
     item {
         Section {
             val locale = LocalLocale.current.platformLocale
@@ -376,7 +376,7 @@ private fun SwipeToDelete(onDelete: () -> Unit, content: @Composable () -> Unit)
 
 /** The day's units large, coloured by how they stand against the budget, with calories and cost beside them. */
 @Composable
-internal fun TotalsHeader(totals: DayTotals, budget: Double?, currency: String, modifier: Modifier = Modifier) {
+internal fun TotalsHeader(totals: DayTotals, budget: Double?, currency: String, modifier: Modifier = Modifier, limit: Double? = budget) {
     // Stacked at the largest text sizes, where the units and the figures beside them no longer fit a row.
     val stacked = LocalDensity.current.fontScale >= 1.5f
     val units by animateFloatAsState(totals.units.toFloat(), label = "units")
@@ -385,7 +385,7 @@ internal fun TotalsHeader(totals: DayTotals, budget: Double?, currency: String, 
             Text(
                 units.toDouble().unitsText,
                 style = MaterialTheme.typography.displayLarge.copy(fontSize = 52.sp, lineHeight = 56.sp, fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum"),
-                color = if (totals.units > 0) GrogColors.heat(totals.units, budget).asText() else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (totals.units > 0) GrogColors.heat(totals.units, limit).asText() else MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
             )
             Text(budget?.let { "units of ${it.unitsText} budget" } ?: "units", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

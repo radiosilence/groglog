@@ -15,9 +15,9 @@ extension Color {
     static let coreSleep = Color(red: 0.42, green: 0.55, blue: 0.95)
     static let remSleep = Color(red: 0.55, green: 0.82, blue: 0.98)
 
-    /// Teal for a day inside its budget, orange over it, red at twice it or more. A day with no budget is purple,
-    /// darker the more was drunk, since there is nothing to hold it to: a log that predates its taper would otherwise
-    /// read as solid red.
+    /// Teal for a day inside its budget, orange over it, red at twice it or more. With no goal the guideline stands in
+    /// for the budget (`Ledger.heatLimit`). A day before a goal starts is purple, darker the more was drunk, since it
+    /// predates the plan: judged against the guideline, a heavy drinker's history would read as solid red.
     static func heat(units: Double, budget: Double?) -> Color {
         switch HeatBand(units: units, budget: budget) {
         case .unbudgeted: Color.unbudgeted.mix(with: .unbudgetedHeavy, by: min(1, units / HeatBand.heaviest))
