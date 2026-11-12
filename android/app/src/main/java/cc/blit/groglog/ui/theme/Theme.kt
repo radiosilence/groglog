@@ -15,7 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
-import cc.blit.groglog.model.Units
+import cc.blit.groglog.model.Goal
 import kotlin.math.min
 
 /** GrogLog's colours, the same in light and dark as on iOS. */
@@ -23,6 +23,9 @@ object GrogColors {
     val grog = Color(0.97f, 0.64f, 0.20f)
     val dry = Color(0.20f, 0.74f, 0.60f)
     val over = Color(0.88f, 0.24f, 0.30f)
+    val overSome = Color(0.95f, 0.50f, 0.16f)
+    val unbudgeted = Color(0.66f, 0.52f, 0.92f)
+    val unbudgetedHeavy = Color(0.36f, 0.18f, 0.62f)
     val hrv = Color(0.45f, 0.42f, 0.95f)
     val pulse = Color(0.93f, 0.36f, 0.62f)
     val sleeping = Color(0.25f, 0.62f, 0.95f)
@@ -30,11 +33,16 @@ object GrogColors {
     val coreSleep = Color(0.42f, 0.55f, 0.95f)
     val remSleep = Color(0.55f, 0.82f, 0.98f)
 
-    /** Teal for a day inside its budget, amber just over, sliding to red the further past it goes. */
-    fun heat(units: Double, budget: Double?): Color {
-        val limit = budget ?: (Units.WEEKLY_GUIDELINE / 7)
-        if (units <= limit) return dry
-        return lerp(grog, over, min(1.0, (units - limit) / limit).toFloat())
+    /**
+     * Teal for a day inside its budget, orange over it, red at twice it or more. A day with no budget is purple, darker
+     * the more was drunk, since there is nothing to hold it to: a log that predates its taper would otherwise read as
+     * solid red.
+     */
+    fun heat(units: Double, budget: Double?): Color = when (HeatBand.of(units, budget)) {
+        HeatBand.UNBUDGETED -> lerp(unbudgeted, unbudgetedHeavy, min(1.0, units / HeatBand.HEAVIEST).toFloat())
+        HeatBand.WITHIN -> dry
+        HeatBand.OVER -> overSome
+        HeatBand.WELL_OVER -> over
     }
 }
 
@@ -43,29 +51,36 @@ object GrogColors {
  * alone is not enough, and words for TalkBack.
  */
 enum class HeatBand {
-    WITHIN, OVER, WELL_OVER;
+    UNBUDGETED, WITHIN, OVER, WELL_OVER;
 
     val mark: String?
         get() = when (this) {
-            WITHIN -> null
+            UNBUDGETED, WITHIN -> null
             OVER -> "!"
             WELL_OVER -> "!!"
         }
 
     val spoken: String
         get() = when (this) {
+            UNBUDGETED -> "no budget set"
             WITHIN -> "within budget"
             OVER -> "over budget"
             WELL_OVER -> "well over budget"
         }
 
     companion object {
-        /** Well over is half as much again as the budget, where the colour is halfway from amber to red. */
+        /**
+         * The daily units at which a day with no budget is at its darkest: the level at which NICE recommends
+         * considering assisted withdrawal.
+         */
+        const val HEAVIEST = Goal.ASSISTED_WITHDRAWAL_WEEKLY / 7
+
+        /** Well over is twice the budget or more, so red is kept for the days far past the plan. */
         fun of(units: Double, budget: Double?): HeatBand {
-            val limit = budget ?: (Units.WEEKLY_GUIDELINE / 7)
+            val limit = budget ?: return UNBUDGETED
             return when {
                 units <= limit -> WITHIN
-                units < limit * 1.5 -> OVER
+                units < limit * 2 -> OVER
                 else -> WELL_OVER
             }
         }

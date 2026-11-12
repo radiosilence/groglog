@@ -42,7 +42,7 @@ struct TodayEntry: TimelineEntry {
         return budget.map { units.leftText(of: $0) } ?? "today"
     }
 
-    /// How the day is going, in the app's colours: teal inside the budget, amber just over, red well past it.
+    /// How the day is going, in the app's colours: teal inside the budget, orange over it, red at twice it; purple with no budget.
     var heat: Color { Color.heat(units: units, budget: budget) }
 
     /// The share of the budget still left, 0 once it is spent, as the Day screen's budget bar drains.

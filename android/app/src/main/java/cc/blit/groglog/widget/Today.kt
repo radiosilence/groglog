@@ -36,7 +36,7 @@ data class Today(
     val detail: String?
         get() = if (isDry) "Alcohol-free" else budget?.let { units.leftText(it) }
 
-    /** Teal inside the budget, amber just over, red well past it. */
+    /** Teal inside the budget, orange over it, red at twice it; purple with no budget. */
     val heat: Color get() = GrogColors.heat(units, budget)
 
     /** The share of the budget still left, 0 once it is spent, as the Day screen's budget bar drains. */

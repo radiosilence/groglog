@@ -5,6 +5,9 @@ extension Color {
     static let grog = Color(red: 0.97, green: 0.64, blue: 0.20)
     static let dry = Color(red: 0.20, green: 0.74, blue: 0.60)
     static let over = Color(red: 0.88, green: 0.24, blue: 0.30)
+    static let overSome = Color(red: 0.95, green: 0.50, blue: 0.16)
+    static let unbudgeted = Color(red: 0.66, green: 0.52, blue: 0.92)
+    static let unbudgetedHeavy = Color(red: 0.36, green: 0.18, blue: 0.62)
     static let hrv = Color(red: 0.45, green: 0.42, blue: 0.95)
     static let pulse = Color(red: 0.93, green: 0.36, blue: 0.62)
     static let sleeping = Color(red: 0.25, green: 0.62, blue: 0.95)
@@ -12,28 +15,37 @@ extension Color {
     static let coreSleep = Color(red: 0.42, green: 0.55, blue: 0.95)
     static let remSleep = Color(red: 0.55, green: 0.82, blue: 0.98)
 
-    /// Teal for a day inside its budget, amber just over, sliding to red the further past it goes.
+    /// Teal for a day inside its budget, orange over it, red at twice it or more. A day with no budget is purple,
+    /// darker the more was drunk, since there is nothing to hold it to: a log that predates its taper would otherwise
+    /// read as solid red.
     static func heat(units: Double, budget: Double?) -> Color {
-        let limit = budget ?? Units.weeklyGuideline / 7
-        guard units > limit else { return .dry }
-        return Color.grog.mix(with: .over, by: min(1, (units - limit) / limit))
+        switch HeatBand(units: units, budget: budget) {
+        case .unbudgeted: Color.unbudgeted.mix(with: .unbudgetedHeavy, by: min(1, units / HeatBand.heaviest))
+        case .within: .dry
+        case .over: .overSome
+        case .wellOver: .over
+        }
     }
 }
 
 /// The bands `Color.heat` shades between, for telling them apart by something other than hue: a symbol where the
 /// system asks for shapes as well as colours, and words for VoiceOver.
 enum HeatBand {
-    case within, over, wellOver
+    case unbudgeted, within, over, wellOver
 
-    /// Well over is half as much again as the budget, where the colour is halfway from amber to red.
+    /// The daily units at which a day with no budget is at its darkest: the level at which NICE recommends considering
+    /// assisted withdrawal.
+    static let heaviest = Goal.assistedWithdrawalWeekly / 7
+
+    /// Well over is twice the budget or more, so red is kept for the days far past the plan.
     init(units: Double, budget: Double?) {
-        let limit = budget ?? Units.weeklyGuideline / 7
-        self = units <= limit ? .within : units < limit * 1.5 ? .over : .wellOver
+        guard let budget else { self = .unbudgeted; return }
+        self = units <= budget ? .within : units < budget * 2 ? .over : .wellOver
     }
 
     var symbol: String? {
         switch self {
-        case .within: nil
+        case .unbudgeted, .within: nil
         case .over: "exclamationmark"
         case .wellOver: "exclamationmark.2"
         }
@@ -41,6 +53,7 @@ enum HeatBand {
 
     var spoken: String {
         switch self {
+        case .unbudgeted: "no budget set"
         case .within: "within budget"
         case .over: "over budget"
         case .wellOver: "well over budget"
