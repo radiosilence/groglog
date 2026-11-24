@@ -137,6 +137,13 @@ class Ledger(rows: List<Day>, val clock: DayClock) {
     fun dailyBudget(day: DayKey, goal: Goal): Double? = core.dailyBudget(spec(goal), day.number.toLong())
 
     /**
+     * What a day's colour is judged against. With a goal it is the day's budget, and nothing before the goal starts, so
+     * a log that predates its taper is shown without a verdict. With no goal it is the guideline's daily share, since a
+     * person only keeping a log still has the guideline to read against.
+     */
+    fun heatLimit(day: DayKey, goal: Goal): Double? = if (goal.isEnabled) dailyBudget(day, goal) else Units.WEEKLY_GUIDELINE / 7
+
+    /**
      * How many days the budget takes to lose a tenth on `day`: the chosen period, or for a stepped taper the pace of the
      * rung its budget has reached (the baseline's rung before it starts).
      */

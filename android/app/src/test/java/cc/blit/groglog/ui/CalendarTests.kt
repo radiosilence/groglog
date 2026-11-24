@@ -71,11 +71,15 @@ class CalendarStateTests {
         val day = DayKey.of(2026, 3, 10)
         assertEquals("3.0 units, within budget", DayCellState(day, DayStatus.DRANK, 3.0, 4.0, false).spoken)
         assertEquals("5.0 units, over budget", DayCellState(day, DayStatus.DRANK, 5.0, 4.0, false).spoken)
-        assertEquals("6.0 units, well over budget", DayCellState(day, DayStatus.DRANK, 6.0, 4.0, false).spoken)
+        assertEquals("7.9 units, over budget", DayCellState(day, DayStatus.DRANK, 7.9, 4.0, false).spoken)
+        assertEquals("8.0 units, well over budget", DayCellState(day, DayStatus.DRANK, 8.0, 4.0, false).spoken)
         assertEquals("6.0 units", DayCellState(day, DayStatus.DRANK, 6.0, null, false).spoken)
         assertEquals("Not logged", DayCellState(day, DayStatus.UNLOGGED, 0.0, null, false).spoken)
-        assertEquals(HeatBand.WELL_OVER, DayCellState(day, DayStatus.DRANK, 6.0, 4.0, false).heat)
-        assertEquals("!!", DayCellState(day, DayStatus.DRANK, 6.0, 4.0, false).heat.mark)
+        assertEquals(HeatBand.WELL_OVER, DayCellState(day, DayStatus.DRANK, 8.0, 4.0, false).heat)
+        assertEquals("!!", DayCellState(day, DayStatus.DRANK, 8.0, 4.0, false).heat.mark)
+        // A day before any budget is not judged at all, however heavy.
+        assertEquals(HeatBand.UNBUDGETED, DayCellState(day, DayStatus.DRANK, 20.0, null, false).heat)
+        assertEquals(null, DayCellState(day, DayStatus.DRANK, 20.0, null, false).heat.mark)
     }
 }
 

@@ -38,6 +38,17 @@ private func beer(abv: Double = 5, ml: Double = 568) -> Drink {
     Drink(name: "Beer", category: .beer, abv: abv, vessel: .pint, volumeMl: ml, price: 5)
 }
 
+@Suite struct HeatTests {
+    /// Over the budget is orange until twice it, and a day with no budget is never judged, however heavy.
+    @Test func redIsKeptForTwiceTheBudget() {
+        #expect(HeatBand(units: 4, budget: 4) == .within)
+        #expect(HeatBand(units: 7.9, budget: 4) == .over)
+        #expect(HeatBand(units: 8, budget: 4) == .wellOver)
+        #expect(HeatBand(units: 20, budget: nil) == .unbudgeted)
+        #expect(HeatBand(units: 20, budget: nil).symbol == nil)
+    }
+}
+
 @Suite struct UnitsTests {
     @Test func pintOfFourPercentIsTwoAndAQuarterUnits() {
         #expect(abs(Units.of(ml: 568, abv: 4) - 2.272) < 0.001)

@@ -40,7 +40,7 @@ data class CalendarState(val ledger: Ledger, val goal: Goal) {
         }
 
     fun cells(month: DayKey): List<DayCellState> = (month..(month + month.daysInMonth - 1)).map { day ->
-        DayCellState(day, ledger.status(day), ledger.totals(day).units, ledger.dailyBudget(day, goal), day == ledger.today)
+        DayCellState(day, ledger.status(day), ledger.totals(day).units, ledger.dailyBudget(day, goal), day == ledger.today, ledger.heatLimit(day, goal))
     }
 
     /** Blank cells before the first of the month, so it falls under its weekday. */
@@ -49,8 +49,16 @@ data class CalendarState(val ledger: Ledger, val goal: Goal) {
 
 /** One day as its cell shows it, on plain values, so a commit that changes another day leaves this one alone. */
 @Immutable
-data class DayCellState(val day: DayKey, val status: DayStatus, val units: Double, val budget: Double?, val isToday: Boolean) {
-    val heat: HeatBand get() = HeatBand.of(units, budget)
+data class DayCellState(
+    val day: DayKey,
+    val status: DayStatus,
+    val units: Double,
+    val budget: Double?,
+    val isToday: Boolean,
+    /** What the colour is judged against, which with no goal is the guideline rather than a budget. */
+    val limit: Double? = budget,
+) {
+    val heat: HeatBand get() = HeatBand.of(units, limit)
 
     val spoken: String
         get() = when (status) {

@@ -45,6 +45,8 @@ data class DayState(
 ) {
     val status: DayStatus get() = ledger.status(day)
     val budget: Double? get() = ledger.dailyBudget(day, settings.goal)
+    /** What the total's colour is judged against, which with no goal is the guideline rather than a budget. */
+    val heatLimit: Double? get() = ledger.heatLimit(day, settings.goal)
     val totals get() = ledger.totals(day)
     val spendOverride: Double? get() = ledger.spendOverride(day)
     val isToday: Boolean get() = day >= ledger.today

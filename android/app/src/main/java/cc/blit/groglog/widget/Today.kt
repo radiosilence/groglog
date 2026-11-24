@@ -10,6 +10,7 @@ import cc.blit.groglog.model.Drink
 import cc.blit.groglog.model.DrinkCategory
 import cc.blit.groglog.model.Ledger
 import cc.blit.groglog.model.Serve
+import cc.blit.groglog.model.Units
 import cc.blit.groglog.model.Vessel
 import cc.blit.groglog.model.leftText
 import cc.blit.groglog.model.unitsText
@@ -26,6 +27,8 @@ import kotlinx.coroutines.flow.flatMapLatest
 data class Today(
     val units: Double = 0.0,
     val budget: Double? = null,
+    /** A goal is set but has not started, so the day is shown without a verdict rather than against the guideline. */
+    val beforeGoal: Boolean = false,
     val isDry: Boolean = false,
     /** Units through the day, stepping at each drink: the same running total the Day screen draws. */
     val curve: List<CurvePoint> = emptyList(),
@@ -36,8 +39,8 @@ data class Today(
     val detail: String?
         get() = if (isDry) "Alcohol-free" else budget?.let { units.leftText(it) }
 
-    /** Teal inside the budget, amber just over, red well past it. */
-    val heat: Color get() = GrogColors.heat(units, budget)
+    /** Teal inside the budget, orange over it, red at twice it; purple with no budget. */
+    val heat: Color get() = GrogColors.heat(units, if (beforeGoal) null else budget ?: (Units.WEEKLY_GUIDELINE / 7))
 
     /** The share of the budget still left, 0 once it is spent, as the Day screen's budget bar drains. */
     val left: Float?
@@ -73,9 +76,11 @@ data class Today(
                 val queries = database.queries()
                 combine(queries.days(), queries.entries(day..day), queries.favourites()) { days, entries, _ ->
                     val ledger = Ledger(days, clock)
+                    val budget = ledger.dailyBudget(day, settings.goal)
                     Today(
                         units = ledger.totals(day).units,
-                        budget = ledger.dailyBudget(day, settings.goal),
+                        budget = budget,
+                        beforeGoal = settings.goal.isEnabled && budget == null,
                         isDry = ledger.status(day) == DayStatus.ALCOHOL_FREE,
                         // Only as far as now: drawing the rest of the day flat would imply nothing more was drunk.
                         curve = ledger.cumulative(entries, day, through = clock.hours(Instant.now(), day)),

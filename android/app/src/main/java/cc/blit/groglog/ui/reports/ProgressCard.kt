@@ -40,9 +40,17 @@ import cc.blit.groglog.ui.shared.LegendRow
 
 /** A day's drinking as a bar over its own noon. */
 @Immutable
-data class DayBar(val day: DayKey, val units: Double, val partial: Boolean, val budget: Double?, val dry: Boolean = false) {
+data class DayBar(
+    val day: DayKey,
+    val units: Double,
+    val partial: Boolean,
+    val budget: Double?,
+    val dry: Boolean = false,
+    /** What the colour is judged against, which with no goal is the guideline rather than a budget. */
+    val limit: Double? = budget,
+) {
     val x: Double get() = day.number + 0.5
-    val band: HeatBand get() = HeatBand.of(units, budget)
+    val band: HeatBand get() = HeatBand.of(units, limit)
 
     /** What TalkBack says: a day marked dry is alcohol-free, not nought units, and today with nothing is nothing yet. */
     val spoken: String
@@ -93,8 +101,8 @@ data class Progress(
             val budgets = (start..(today + 14)).mapNotNull { day -> ledger.dailyBudget(day, goal)?.let { day to it } }.toMap()
             val bars = (start..today).mapNotNull { day ->
                 when {
-                    day == today -> DayBar(day, ledger.totals(day).units, partial = true, budget = budgets[day], dry = ledger.status(day) == DayStatus.ALCOHOL_FREE)
-                    ledger.isLogged(day) -> DayBar(day, ledger.totals(day).units, partial = false, budget = budgets[day], dry = ledger.status(day) == DayStatus.ALCOHOL_FREE)
+                    day == today -> DayBar(day, ledger.totals(day).units, partial = true, budget = budgets[day], dry = ledger.status(day) == DayStatus.ALCOHOL_FREE, limit = ledger.heatLimit(day, goal))
+                    ledger.isLogged(day) -> DayBar(day, ledger.totals(day).units, partial = false, budget = budgets[day], dry = ledger.status(day) == DayStatus.ALCOHOL_FREE, limit = ledger.heatLimit(day, goal))
                     else -> null
                 }
             }
@@ -201,7 +209,7 @@ fun ProgressCard(
             top = top,
             // Today's bar is faded: the day is not over, so the bar is not at its final height.
             bars = progress.bars.map { bar ->
-                val heat = GrogColors.heat(bar.units, bar.budget)
+                val heat = GrogColors.heat(bar.units, bar.limit)
                 PlotBar(bar.x, 0.62, listOf(bar.units to heat.copy(alpha = if (bar.partial) 0.45f else 1f)), mark = if (differentiate) bar.band.mark else null)
             },
             lines = listOf(
